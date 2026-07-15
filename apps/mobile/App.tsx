@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import {
+  Archivo_500Medium,
+  Archivo_600SemiBold,
+  Archivo_700Bold,
+  Archivo_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/archivo';
+import { ArchivoBlack_400Regular } from '@expo-google-fonts/archivo-black';
 
 import { PaperCanvas } from './src/components/PaperCanvas';
 import { BomScreen } from './src/screens/BomScreen';
@@ -32,6 +40,13 @@ import type {
 } from './src/types/navigation';
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Archivo_500Medium,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    Archivo_800ExtraBold,
+    ArchivoBlack_400Regular,
+  });
   const [screen, setScreen] = useState<DemoScreen>('home');
   const [history, setHistory] = useState<DemoScreen[]>([]);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
@@ -323,6 +338,10 @@ export default function App() {
     }
   };
 
+  if (!fontsLoaded) {
+    return <View style={styles.fontGate} />;
+  }
+
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="dark" />
@@ -337,6 +356,10 @@ export default function App() {
 
 const styles = StyleSheet.create({
   safeArea: {
+    flex: 1,
+  },
+  fontGate: {
+    backgroundColor: colors.saffron,
     flex: 1,
   },
 });

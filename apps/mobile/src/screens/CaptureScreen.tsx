@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { InkLoader } from '../components/InkLoader';
 import { ObjectSculpture } from '../components/ObjectSculpture';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
@@ -287,7 +288,16 @@ export function CaptureScreen({
               : null}
             {busy ? (
               <View style={styles.busyOverlay}>
-                <ActivityIndicator color={colors.mint} size="large" />
+                <InkLoader
+                  size={30}
+                  stage={
+                    engineState === 'detecting'
+                      ? 'Finding objects'
+                      : engineState === 'depth'
+                        ? 'Measuring depth'
+                        : 'Building 3D'
+                  }
+                />
               </View>
             ) : null}
           </View>
@@ -511,7 +521,7 @@ const styles = StyleSheet.create({
   },
   busyOverlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(11, 14, 22, 0.45)',
+    backgroundColor: 'rgba(255, 200, 0, 0.88)',
     bottom: 0,
     justifyContent: 'center',
     left: 0,

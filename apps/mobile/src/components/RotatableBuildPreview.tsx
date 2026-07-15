@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.7,
   },
   brickCount: {
-    color: '#C8F04B',
+    color: '#FFC800',
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     fontWeight: '800',
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   stage: {
     aspectRatio: 1.13,
-    backgroundColor: '#0B0E16',
+    backgroundColor: '#17130A',
     overflow: 'hidden',
     position: 'relative',
     width: '100%',

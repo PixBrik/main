@@ -1,9 +1,14 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, shadow, spacing, type } from '../theme/tokens';
+import { colors, fonts, radius, spacing } from '../theme/tokens';
 
-type ButtonVariant = 'blue' | 'ink' | 'paper';
+/**
+ * Slab button (Saffron Press): flat, loud, scales on press — geometry only,
+ * no colour change, except the outline variant which inverts to ink.
+ * Legacy variant names map onto the new kit: blue → ink, paper → outline.
+ */
+type ButtonVariant = 'ink' | 'saffron' | 'outline' | 'blue' | 'paper';
 
 interface PrimaryButtonProps {
   label: string;
@@ -14,111 +19,103 @@ interface PrimaryButtonProps {
   compact?: boolean;
 }
 
-const variantStyles = {
-  blue: {
-    button: { backgroundColor: colors.blue },
-    text: { color: colors.white },
-    badge: { backgroundColor: colors.saffron },
-    arrow: { color: colors.ink },
-    glow: colors.blue,
-  },
-  ink: {
-    button: { backgroundColor: colors.ink },
-    text: { color: colors.white },
-    badge: { backgroundColor: colors.coral },
-    arrow: { color: colors.ink },
-    glow: colors.ink,
-  },
-  paper: {
-    button: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1.5 },
-    text: { color: colors.ink },
-    badge: { backgroundColor: colors.ink },
-    arrow: { color: colors.white },
-    glow: colors.ink,
-  },
-} as const;
+function resolveVariant(variant: ButtonVariant): 'ink' | 'saffron' | 'outline' {
+  if (variant === 'blue') return 'ink';
+  if (variant === 'paper') return 'outline';
+  return variant;
+}
 
-/** Springy CTA: scales down on press while the arrow badge nudges forward. */
 export function PrimaryButton({
   label,
   onPress,
   accessibilityHint,
   disabled = false,
-  variant = 'blue',
+  variant = 'ink',
   compact = false,
 }: PrimaryButtonProps) {
+  const kind = resolveVariant(variant);
   const press = useRef(new Animated.Value(0)).current;
+  const [pressed, setPressed] = useState(false);
   const animateTo = (toValue: number) =>
-    Animated.spring(press, { friction: 6, tension: 260, toValue, useNativeDriver: true }).start();
+    Animated.spring(press, { friction: 6, tension: 300, toValue, useNativeDriver: true }).start();
 
-  const scale = press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.965] });
-  const arrowShift = press.interpolate({ inputRange: [0, 1], outputRange: [0, 4] });
-  const styleSet = variantStyles[variant];
+  const scale = press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] });
+  const inverted = kind === 'outline' && pressed;
 
   return (
-    <Animated.View
-      style={[
-        { transform: [{ scale }] },
-        !disabled && { ...shadow.cta, shadowColor: styleSet.glow },
-        disabled && styles.disabled,
-      ]}
-    >
+    <Animated.View style={[{ transform: [{ scale }] }, disabled && styles.disabled]}>
       <Pressable
         accessibilityHint={accessibilityHint}
         accessibilityRole="button"
         accessibilityState={{ disabled }}
         disabled={disabled}
         onPress={onPress}
-        onPressIn={() => animateTo(1)}
-        onPressOut={() => animateTo(0)}
-        style={[styles.button, compact && styles.compactButton, styleSet.button]}
+        onPressIn={() => {
+          setPressed(true);
+          animateTo(1);
+        }}
+        onPressOut={() => {
+          setPressed(false);
+          animateTo(0);
+        }}
+        style={[
+          styles.slab,
+          compact && styles.compact,
+          kind === 'ink' && styles.ink,
+          kind === 'saffron' && styles.saffron,
+          kind === 'outline' && styles.outline,
+          inverted && styles.ink,
+        ]}
       >
-        <Text style={[styles.label, styleSet.text]}>{label}</Text>
-        <Animated.View
-          style={[styles.arrowBadge, styleSet.badge, { transform: [{ translateX: arrowShift }] }]}
+        <Text
+          style={[
+            styles.label,
+            compact && styles.labelCompact,
+            { color: kind === 'saffron' && !inverted ? colors.ink : kind === 'outline' && !inverted ? colors.ink : colors.saffron },
+          ]}
         >
-          <Text style={[styles.arrow, styleSet.arrow]}>→</Text>
-        </Animated.View>
+          {label}
+        </Text>
       </Pressable>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  slab: {
     alignItems: 'center',
     borderRadius: radius.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 54,
-    paddingLeft: spacing.xl,
-    paddingRight: spacing.sm,
+    justifyContent: 'center',
+    minHeight: 56,
+    paddingHorizontal: spacing.xl,
   },
-  compactButton: {
+  compact: {
     alignSelf: 'flex-start',
     minHeight: 46,
-    paddingLeft: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  ink: {
+    backgroundColor: colors.ink,
+  },
+  saffron: {
+    backgroundColor: colors.saffron,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    borderColor: colors.ink,
+    borderRadius: radius.pill,
+    borderWidth: 2,
   },
   disabled: {
-    opacity: 0.45,
+    opacity: 0.3,
   },
   label: {
-    ...type.body,
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.15,
+    fontFamily: fonts.display,
+    fontSize: 17,
+    letterSpacing: -0.3,
+    textTransform: 'uppercase',
   },
-  arrowBadge: {
-    alignItems: 'center',
-    borderRadius: radius.sm,
-    height: 36,
-    justifyContent: 'center',
-    marginLeft: spacing.lg,
-    width: 36,
-  },
-  arrow: {
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 22,
+  labelCompact: {
+    fontSize: 14,
   },
 });

@@ -2,12 +2,12 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { whenVisible } from '../lib/whenVisible';
-import { colors, radius, shadow, signals, spacing, type, type SignalName } from '../theme/tokens';
+import { colors, fonts, inkAlpha, radius, shadow, spacing, type, type SignalName } from '../theme/tokens';
 import { BrandMark } from './BrandMark';
 
 /**
- * Staggered reveal: returns one animated style per row — each fades in and
- * rises 14px, 70ms after the previous (skiper-ui style sequential entrance).
+ * Staggered reveal: each row fades in and rises, 60 ms apart. Content jumps
+ * straight to its final state when the page loads hidden (rAF suspended).
  */
 function useStagger(count: number) {
   const values = useRef(Array.from({ length: count }, () => new Animated.Value(0))).current;
@@ -15,7 +15,7 @@ function useStagger(count: number) {
     return whenVisible(
       () =>
         Animated.stagger(
-          70,
+          60,
           values.map((value) =>
             Animated.timing(value, {
               duration: 380,
@@ -30,7 +30,7 @@ function useStagger(count: number) {
   }, [values]);
   return values.map((value) => ({
     opacity: value,
-    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
   }));
 }
 
@@ -44,10 +44,9 @@ interface ScreenFrameProps {
   progress?: number;
   trailing?: ReactNode;
   scroll?: boolean;
+  /** Retired in Saffron Press — accepted for API compatibility. */
   accent?: SignalName;
 }
-
-const railSegments: readonly SignalName[] = ['coral', 'indigo', 'mint', 'saffron'];
 
 export function ScreenFrame({
   eyebrow,
@@ -59,13 +58,9 @@ export function ScreenFrame({
   progress,
   trailing,
   scroll = true,
-  accent = 'indigo',
 }: ScreenFrameProps) {
-  const signal = signals[accent];
+  const [journeyIn, headIn, bodyIn] = useStagger(3);
 
-  const [journeyIn, headIn, titleIn, bodyIn] = useStagger(4);
-
-  // Progress fill eases toward the current value on every change.
   const fill = useRef(new Animated.Value(progress ?? 0)).current;
   useEffect(() => {
     if (progress === undefined) return;
@@ -78,23 +73,9 @@ export function ScreenFrame({
   }, [fill, progress]);
 
   const brandHeader = (
-    <View style={styles.brandHeader}>
-      <View style={styles.brandRow}>
-        <BrandMark size={onBack ? 36 : 40} variant="full" />
-        {trailing ?? <Text style={styles.edition}>DEMO / 01</Text>}
-      </View>
-      <View accessibilityElementsHidden pointerEvents="none" style={styles.signalRail}>
-        {railSegments.map((name) => (
-          <View
-            key={name}
-            style={[
-              styles.signalSegment,
-              { backgroundColor: signals[name].main },
-              name === accent && styles.signalSegmentActive,
-            ]}
-          />
-        ))}
-      </View>
+    <View style={styles.brandRow}>
+      <BrandMark size={18} variant="full" />
+      {trailing ?? null}
     </View>
   );
 
@@ -108,10 +89,7 @@ export function ScreenFrame({
               accessibilityRole="button"
               hitSlop={10}
               onPress={onBack}
-              style={({ pressed }) => [
-                styles.back,
-                pressed && { backgroundColor: signal.soft },
-              ]}
+              style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
             >
               <Text style={styles.backText}>←</Text>
             </Pressable>
@@ -122,9 +100,7 @@ export function ScreenFrame({
             <View style={styles.progressGroup}>
               <View style={styles.progressMeta}>
                 <Text style={styles.progressLabel}>BUILD FLOW</Text>
-                <Text style={[styles.progressValue, { color: signal.deep }]}>
-                  {Math.round(progress * 100)}%
-                </Text>
+                <Text style={styles.progressValue}>{Math.round(progress * 100)}%</Text>
               </View>
               <View
                 accessibilityLabel={`Journey ${Math.round(progress * 100)} percent complete`}
@@ -135,11 +111,7 @@ export function ScreenFrame({
                   style={[
                     styles.progressFill,
                     {
-                      backgroundColor: signal.deep,
-                      width: fill.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['5%', '100%'],
-                      }),
+                      width: fill.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] }),
                     },
                   ]}
                 />
@@ -150,20 +122,10 @@ export function ScreenFrame({
       ) : null}
 
       <Animated.View style={headIn}>
-        <View style={[styles.eyebrowChip, { backgroundColor: signal.soft }]}>
-          <View style={[styles.eyebrowTick, { backgroundColor: signal.main }]} />
-          <Text style={[styles.eyebrow, { color: signal.deep }]}>{eyebrow.toUpperCase()}</Text>
-        </View>
-      </Animated.View>
-      <Animated.View style={titleIn}>
+        <Text style={styles.eyebrow}>{eyebrow.toUpperCase()}</Text>
         <Text accessibilityRole="header" style={styles.title}>
           {title}
         </Text>
-        <View
-          accessibilityElementsHidden
-          pointerEvents="none"
-          style={[styles.titleSignal, { backgroundColor: signal.main }]}
-        />
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </Animated.View>
       <Animated.View style={[styles.body, bodyIn]}>{children}</Animated.View>
@@ -191,35 +153,11 @@ export function ScreenFrame({
 
 const styles = StyleSheet.create({
   frame: {
+    backgroundColor: colors.saffron,
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-  },
-  brandHeader: {
-    backgroundColor: colors.paper,
-    width: '100%',
-  },
-  signalRail: {
-    flexDirection: 'row',
-    height: 3,
-    width: '100%',
-  },
-  signalSegment: {
-    flex: 1,
-    opacity: 0.55,
-  },
-  signalSegmentActive: {
-    flex: 2.4,
-    opacity: 1,
-  },
-  content: {
-    alignSelf: 'center',
-    maxWidth: 520,
-    paddingBottom: spacing.huge,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    width: '100%',
   },
   brandRow: {
     alignItems: 'center',
@@ -227,16 +165,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     maxWidth: 520,
-    minHeight: 44,
+    minHeight: 52,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
     width: '100%',
   },
-  edition: {
-    ...type.micro,
-    color: colors.inkSoft,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 1.2,
+  content: {
+    alignSelf: 'center',
+    maxWidth: 520,
+    paddingBottom: spacing.huge,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    width: '100%',
   },
   journeyRow: {
     alignItems: 'center',
@@ -249,9 +189,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.white,
     borderRadius: radius.pill,
-    height: 44,
+    height: 46,
     justifyContent: 'center',
-    width: 44,
+    width: 46,
+  },
+  backPressed: {
+    transform: [{ scale: 0.96 }],
   },
   backText: {
     color: colors.ink,
@@ -260,8 +203,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   backPlaceholder: {
-    height: 44,
-    width: 44,
+    height: 46,
+    width: 46,
   },
   progressGroup: {
     flex: 1,
@@ -274,72 +217,51 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     ...type.micro,
-    color: colors.inkSoft,
-    fontSize: 9,
-    letterSpacing: 1.2,
+    color: inkAlpha(0.55),
   },
   progressValue: {
-    ...type.micro,
-    fontSize: 10,
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
   progressTrack: {
-    backgroundColor: colors.paperDeep,
+    backgroundColor: inkAlpha(0.14),
     borderRadius: radius.pill,
-    height: 5,
+    height: 10,
     overflow: 'hidden',
   },
   progressFill: {
+    backgroundColor: colors.ink,
     borderRadius: radius.pill,
     height: '100%',
   },
-  eyebrowChip: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    borderRadius: radius.sm,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-  },
-  eyebrowTick: {
-    borderRadius: 1,
-    height: 8,
-    width: 8,
-  },
   eyebrow: {
-    ...type.label,
+    ...type.micro,
+    color: inkAlpha(0.55),
+    marginBottom: spacing.md,
   },
   title: {
     ...type.title,
     color: colors.ink,
     maxWidth: 440,
-  },
-  titleSignal: {
-    borderRadius: 2,
-    height: 5,
-    marginTop: spacing.md,
-    width: 56,
+    textTransform: 'uppercase',
   },
   subtitle: {
     ...type.body,
-    color: colors.inkSoft,
+    color: inkAlpha(0.72),
     marginTop: spacing.md,
-    maxWidth: 440,
+    maxWidth: 400,
   },
   body: {
     marginTop: spacing.xl,
   },
   footer: {
     alignSelf: 'center',
-    backgroundColor: colors.white,
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
     maxWidth: 520,
     paddingBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
     width: '100%',
   },
 });

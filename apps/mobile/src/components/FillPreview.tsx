@@ -8,7 +8,7 @@ import { colors, type } from '../theme/tokens';
  * the outer shell (empty inside). Communicates the difference at a glance,
  * since the two look identical from the outside.
  */
-export function FillPreview({ hollow, color = '#E96632' }: { hollow: boolean; color?: string }) {
+export function FillPreview({ hollow, color = '#FFC800' }: { hollow: boolean; color?: string }) {
   const n = 6;
   const cell = 13;
   const size = n * cell;
