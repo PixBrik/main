@@ -22,7 +22,48 @@ const RENDER_STEP = Math.PI / 90;
 const VIEWBOX_WIDTH = 360;
 const VIEWBOX_HEIGHT = 320;
 
-const PROJECTION: Projection = { baseY: 277, centerX: 158, scale: 36 };
+/** Fallback when a model has no visible faces to measure. */
+const DEFAULT_PROJECTION: Projection = { baseY: 277, centerX: 158, scale: 36 };
+/** Fraction of the viewBox kept clear on each side as margin. */
+const FIT_MARGIN = 0.12;
+
+/**
+ * This fixed projection was tuned for the demo fox's proportions. A
+ * photo-derived model (e.g. a tall portrait build) has a very different
+ * aspect ratio and would render cropped or mis-scaled under it — exactly
+ * the "melted/wrong" look the realistic (auto-fit WebGL) tab doesn't have.
+ * Auto-fit the same way: probe the model's actual on-screen extent at a
+ * neutral (unit) projection, then derive centerX/baseY/scale so it fills
+ * the frame without clipping, regardless of shape.
+ */
+function fitProjection(model: VoxelModel, accent: string, renderYaw: number): Projection {
+  const UNIT: Projection = { baseY: 0, centerX: 0, scale: 1 };
+  const probe = buildRenderFaces(renderYaw, accent, model, UNIT);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const face of probe) {
+    for (const pair of face.points.split(' ')) {
+      const [x, y] = pair.split(',').map(Number);
+      if (x === undefined || y === undefined || Number.isNaN(x) || Number.isNaN(y)) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+    return DEFAULT_PROJECTION;
+  }
+  const availWidth = VIEWBOX_WIDTH * (1 - FIT_MARGIN * 2);
+  const availHeight = VIEWBOX_HEIGHT * (1 - FIT_MARGIN * 2);
+  const width = Math.max(1e-6, maxX - minX);
+  const height = Math.max(1e-6, maxY - minY);
+  const scale = Math.min(availWidth / width, availHeight / height);
+  return {
+    baseY: VIEWBOX_HEIGHT / 2 - ((minY + maxY) / 2) * scale,
+    centerX: VIEWBOX_WIDTH / 2 - ((minX + maxX) / 2) * scale,
+    scale,
+  };
+}
 
 function normalizeAngle(value: number) {
   return ((value % TAU) + TAU) % TAU;
@@ -66,9 +107,13 @@ export function RotatableBuildPreview({
 
   const model = useMemo(() => modelOverride ?? getVoxelModel(profile), [modelOverride, profile]);
   const renderYaw = Math.round(yaw / RENDER_STEP) * RENDER_STEP;
-  const renderFaces = useMemo(
-    () => buildRenderFaces(renderYaw, accent, model, PROJECTION),
+  const projection = useMemo(
+    () => fitProjection(model, accent, renderYaw),
     [accent, model, renderYaw],
+  );
+  const renderFaces = useMemo(
+    () => buildRenderFaces(renderYaw, accent, model, projection),
+    [accent, model, projection, renderYaw],
   );
   const angleInDegrees = Math.round((yaw * 180) / Math.PI) % 360;
   const strokeWidth = model.size >= 0.4 ? 1.1 : model.size >= 0.3 ? 0.75 : 0.55;
