@@ -10,6 +10,7 @@
  */
 
 import { buildModelFromCells, type VoxelModel } from '../voxelFox';
+import type { Segmentation } from './segment';
 import type { PhotoModels } from './voxelizePhoto';
 import { voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
 
@@ -109,6 +110,72 @@ export async function buildFromLibrary(url: string, label: string, colorHex?: st
   };
 }
 
+function loadImageElement(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new (globalThis as unknown as { Image: typeof HTMLImageElement }).Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('could not load photo'));
+    image.src = src;
+  });
+}
+
+/**
+ * Crop to the object's region and punch out everything the segmentation
+ * mask says is background, replacing it with a plain neutral backdrop.
+ * Image-to-3D generation (Tripo) expects an isolated subject on a clean
+ * background — like the product photography it's trained on — not a full
+ * scene with an arbitrarily-cropped subject and a real wall behind it.
+ * Reuses the segmentation the app already computed; no extra AI call.
+ */
+async function compositeCutout(photoUri: string, segmentation: Segmentation): Promise<string> {
+  const image = await loadImageElement(photoUri);
+  const { region, mask, grid } = segmentation;
+  const cropWidth = Math.max(1, Math.round(region.width * image.naturalWidth));
+  const cropHeight = Math.max(1, Math.round(region.height * image.naturalHeight));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cropWidth;
+  canvas.height = cropHeight;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return photoUri;
+  }
+
+  const BACKDROP = 0xf2;
+  context.fillStyle = `rgb(${BACKDROP}, ${BACKDROP}, ${BACKDROP})`;
+  context.fillRect(0, 0, cropWidth, cropHeight);
+  context.drawImage(
+    image,
+    region.x * image.naturalWidth,
+    region.y * image.naturalHeight,
+    region.width * image.naturalWidth,
+    region.height * image.naturalHeight,
+    0,
+    0,
+    cropWidth,
+    cropHeight,
+  );
+
+  const pixels = context.getImageData(0, 0, cropWidth, cropHeight);
+  const data = pixels.data;
+  for (let y = 0; y < cropHeight; y++) {
+    const gy = Math.min(grid - 1, Math.floor((y / cropHeight) * grid));
+    for (let x = 0; x < cropWidth; x++) {
+      const gx = Math.min(grid - 1, Math.floor((x / cropWidth) * grid));
+      if (!mask[gy * grid + gx]) {
+        const index = (y * cropWidth + x) * 4;
+        data[index] = BACKDROP;
+        data[index + 1] = BACKDROP;
+        data[index + 2] = BACKDROP;
+        data[index + 3] = 255;
+      }
+    }
+  }
+  context.putImageData(pixels, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
 /** Downscale any image src (data:/blob:/http) to a compact JPEG data URL so
  * the POST body stays under the serverless 4.5 MB limit. Web-only (canvas). */
 async function toCompactDataUrl(src: string, max = 1024, quality = 0.85): Promise<string> {
@@ -145,12 +212,19 @@ export type ProgressFn = (fraction: number, note: string) => void;
  * Throws NotConfiguredError when the live path is off, NoCreditError when the
  * Tripo account is out of credit.
  */
-export async function buildFromPhoto(photoSrc: string, onProgress?: ProgressFn): Promise<PhotoModels> {
+export async function buildFromPhoto(
+  photoSrc: string,
+  segmentation?: Segmentation | null,
+  onProgress?: ProgressFn,
+): Promise<PhotoModels> {
   if (!isLive3DConfigured()) {
     throw new NotConfiguredError();
   }
   onProgress?.(0.05, 'Preparing photo');
-  const image = await toCompactDataUrl(photoSrc);
+  // Send Tripo the isolated object (cropped + background removed) whenever
+  // we already have a segmentation for this photo, not the full raw scene.
+  const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const image = await toCompactDataUrl(cutout);
 
   onProgress?.(0.12, 'Uploading to generator');
   const submit = await fetch('/api/tripo/submit', {

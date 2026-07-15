@@ -146,7 +146,7 @@ export default function App() {
       // Real photo + live generation on → send it to Tripo. Otherwise fall
       // back to the demo mesh so the pipeline is always demonstrable.
       if (photoUri && mod.isLive3DConfigured()) {
-        const models = await mod.buildFromPhoto(photoUri, (fraction, note) => {
+        const models = await mod.buildFromPhoto(photoUri, photoSegmentation, (fraction, note) => {
           setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`);
         });
         setPhotoBuild(models);
