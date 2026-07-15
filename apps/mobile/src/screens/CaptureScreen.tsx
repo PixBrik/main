@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { ObjectSculpture } from '../components/ObjectSculpture';
@@ -65,7 +65,96 @@ async function pickPhoto(): Promise<string | null> {
   return null;
 }
 
-const WHOLE_PHOTO_REGION = { height: 0.94, width: 0.94, x: 0.03, y: 0.03 };
+interface Region {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const WHOLE_PHOTO_REGION: Region = { height: 0.94, width: 0.94, x: 0.03, y: 0.03 };
+const MIN_FRAME_SIZE = 0.12;
+/** Preview-cutout resolution: cheap enough to re-run on every frame adjustment. */
+const PREVIEW_GRID = 40;
+const PREVIEW_DEBOUNCE_MS = 350;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+/** Largest-by-area, most-confident detection — the natural default frame. */
+function bestDetection(found: DetectedObject[]): DetectedObject | null {
+  if (!found.length) return null;
+  return found.reduce((best, candidate) =>
+    candidate.score * candidate.width * candidate.height > best.score * best.width * best.height
+      ? candidate
+      : best,
+  );
+}
+
+/** Fraction of the smaller box's area the two regions overlap. */
+function overlapRatio(a: Region, b: Region): number {
+  const x0 = Math.max(a.x, b.x);
+  const y0 = Math.max(a.y, b.y);
+  const x1 = Math.min(a.x + a.width, b.x + b.width);
+  const y1 = Math.min(a.y + a.height, b.y + b.height);
+  const intersection = Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
+  const smaller = Math.min(a.width * a.height, b.width * b.height);
+  return smaller > 0 ? intersection / smaller : 0;
+}
+
+/** The detection label the current frame best matches, or a generic fallback. */
+function labelForFrame(frame: Region, found: DetectedObject[]): string {
+  let best: DetectedObject | null = null;
+  let bestScore = 0.5; // require a reasonably confident overlap to trust the label
+  for (const detection of found) {
+    const score = overlapRatio(frame, detection);
+    if (score > bestScore) {
+      bestScore = score;
+      best = detection;
+    }
+  }
+  return best?.label ?? 'object';
+}
+
+type Corner = 'tl' | 'tr' | 'bl' | 'br';
+
+/** Resize the frame from one corner, freeform aspect ratio, keeping the opposite corner fixed. */
+function resizeFromCorner(start: Region, corner: Corner, dxFrac: number, dyFrac: number): Region {
+  let { x, y, width, height } = start;
+  if (corner === 'tl' || corner === 'bl') {
+    const newX = clamp(start.x + dxFrac, 0, start.x + start.width - MIN_FRAME_SIZE);
+    width = start.width + (start.x - newX);
+    x = newX;
+  } else {
+    width = clamp(start.width + dxFrac, MIN_FRAME_SIZE, 1 - start.x);
+  }
+  if (corner === 'tl' || corner === 'tr') {
+    const newY = clamp(start.y + dyFrac, 0, start.y + start.height - MIN_FRAME_SIZE);
+    height = start.height + (start.y - newY);
+    y = newY;
+  } else {
+    height = clamp(start.height + dyFrac, MIN_FRAME_SIZE, 1 - start.y);
+  }
+  return { height, width, x, y };
+}
+
+/** Row-run-length-encode the background cells of a mask, for a cheap dim overlay. */
+function backgroundRuns(mask: boolean[], grid: number): Array<{ row: number; x0: number; x1: number }> {
+  const runs: Array<{ row: number; x0: number; x1: number }> = [];
+  for (let y = 0; y < grid; y++) {
+    let runStart = -1;
+    for (let x = 0; x <= grid; x++) {
+      const isBackground = x < grid && !mask[y * grid + x];
+      if (isBackground && runStart === -1) runStart = x;
+      if (!isBackground && runStart !== -1) {
+        runs.push({ row: y, x0: runStart, x1: x });
+        runStart = -1;
+      }
+    }
+  }
+  return runs;
+}
 
 export function CaptureScreen({
   mode,
@@ -91,6 +180,22 @@ export function CaptureScreen({
   // pipelines competing for the same thread.
   const lockingRef = useRef(false);
 
+  // The user-adjustable crop: any aspect ratio, seeded from the strongest
+  // detection (or the whole photo if nothing was detected) and freely
+  // draggable/resizable from there.
+  const [frame, setFrame] = useState<Region>(WHOLE_PHOTO_REGION);
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
+  const [layoutSize, setLayoutSize] = useState({ height: 0, width: 0 });
+  // Fast classic cutout, auto-recomputed as the frame settles — the "AI
+  // removed the background" live preview. SAM (slower, higher quality) still
+  // runs once at lock time, same as before.
+  const [preview, setPreview] = useState<Segmentation | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const previewToken = useRef(0);
+  const dragStartFrame = useRef(frame);
+
   const analyze = async (uri: string) => {
     if (!isDetectionSupported()) {
       setEngineState('failed');
@@ -100,20 +205,98 @@ export function CaptureScreen({
     preloadOpenVocab(); // warm the category model while the user picks
     const found = await detectObjects(uri);
     setDetections(found);
+    const seed = bestDetection(found);
+    setFrame(seed ? { height: seed.height, width: seed.width, x: seed.x, y: seed.y } : WHOLE_PHOTO_REGION);
     setEngineState('select');
   };
+
+  // Debounced auto background-removal preview: recompute the fast classic
+  // cutout whenever the frame settles, so adjusting it always shows what
+  // will actually be captured — without hammering the segmenter mid-drag.
+  useEffect(() => {
+    if (!photoUri || engineState !== 'select' || Platform.OS !== 'web') {
+      return;
+    }
+    const token = ++previewToken.current;
+    const timer = setTimeout(async () => {
+      setPreviewBusy(true);
+      try {
+        const result = await segmentRegion(photoUri, frame, PREVIEW_GRID);
+        if (previewToken.current === token) {
+          setPreview(result);
+        }
+      } catch {
+        // A failed preview isn't fatal — lock-time segmentation retries.
+      } finally {
+        if (previewToken.current === token) {
+          setPreviewBusy(false);
+        }
+      }
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [frame, photoUri, engineState]);
+
+  const moveResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 4,
+        onPanResponderGrant: () => {
+          dragStartFrame.current = frameRef.current;
+          setDragging(true);
+        },
+        onPanResponderMove: (_event, gesture) => {
+          if (!layoutSize.width || !layoutSize.height) return;
+          const start = dragStartFrame.current;
+          const dxFrac = gesture.dx / layoutSize.width;
+          const dyFrac = gesture.dy / layoutSize.height;
+          setFrame({
+            ...start,
+            x: clamp(start.x + dxFrac, 0, 1 - start.width),
+            y: clamp(start.y + dyFrac, 0, 1 - start.height),
+          });
+        },
+        onPanResponderRelease: () => setDragging(false),
+        onPanResponderTerminate: () => setDragging(false),
+      }),
+    [layoutSize],
+  );
+
+  const cornerResponders = useMemo(
+    () =>
+      (['tl', 'tr', 'bl', 'br'] as const).map((corner) =>
+        PanResponder.create({
+          onStartShouldSetPanResponder: () => true,
+          onPanResponderGrant: () => {
+            dragStartFrame.current = frameRef.current;
+            setDragging(true);
+          },
+          onPanResponderMove: (_event, gesture) => {
+            if (!layoutSize.width || !layoutSize.height) return;
+            const dxFrac = gesture.dx / layoutSize.width;
+            const dyFrac = gesture.dy / layoutSize.height;
+            setFrame(resizeFromCorner(dragStartFrame.current, corner, dxFrac, dyFrac));
+          },
+          onPanResponderRelease: () => setDragging(false),
+          onPanResponderTerminate: () => setDragging(false),
+        }),
+      ),
+    [layoutSize],
+  );
 
   const capture = async () => {
     const uri = await pickPhoto();
     if (uri) {
       setSelectedLabel(null);
       setDetections([]);
+      setFrame(WHOLE_PHOTO_REGION);
+      setPreview(null);
       onPhotoChange(uri);
       await analyze(uri);
     }
   };
 
-  const lockObject = async (region: { x: number; y: number; width: number; height: number }, label: string) => {
+  const lockObject = async (region: Region, label: string) => {
     if (!photoUri || lockingRef.current) {
       return;
     }
@@ -225,7 +408,7 @@ export function CaptureScreen({
   };
 
   const busy = engineState === 'detecting' || engineState === 'segmenting' || engineState === 'depth';
-  const showBoxes = engineState === 'select' && detections.length > 0;
+  const framing = engineState === 'select';
 
   const tagText =
     engineState === 'depth'
@@ -242,9 +425,19 @@ export function CaptureScreen({
           ? engineState === 'detecting'
             ? 'FINDING OBJECTS…'
             : 'BUILDING 3D…'
-          : engineState === 'select'
-            ? 'TAP AN OBJECT'
+          : framing
+            ? previewBusy
+              ? 'REMOVING BACKGROUND…'
+              : preview
+                ? 'BACKGROUND REMOVED ✓'
+                : 'DRAG TO FRAME'
             : 'READY TO SCAN';
+
+  const previewRuns =
+    !dragging && preview && !previewBusy ? backgroundRuns(preview.mask, PREVIEW_GRID) : [];
+  const previewRegion = preview?.region ?? frame;
+  const cellFracX = previewRegion.width / PREVIEW_GRID;
+  const cellFracY = previewRegion.height / PREVIEW_GRID;
 
   return (
     <ScreenFrame
@@ -265,7 +458,7 @@ export function CaptureScreen({
       progress={0.25}
       subtitle={
         mode === 'photo'
-          ? 'Shoot any real object — then tap it in the photo to lock it as the build target.'
+          ? 'Shoot any real object — drag the frame over exactly what you want. We remove the background automatically.'
           : 'Hold steady and complete one controlled orbit around the object.'
       }
       title={
@@ -273,30 +466,26 @@ export function CaptureScreen({
       }
     >
       <View style={styles.scanner}>
-        <View style={styles.cornerOne} />
-        <View style={styles.cornerTwo} />
+        <View pointerEvents="none" style={styles.cornerOne} />
+        <View pointerEvents="none" style={styles.cornerTwo} />
         {photoUri ? (
-          <View style={styles.photoFrame}>
+          <View
+            onLayout={(event) => setLayoutSize(event.nativeEvent.layout)}
+            style={styles.photoFrame}
+          >
             <Image
               accessibilityLabel="Your captured object photo"
               resizeMode="cover"
               source={{ uri: photoUri }}
               style={styles.photo}
             />
-            {showBoxes
+            {framing
               ? detections.map((detection, index) => (
-                  <Pressable
-                    accessibilityLabel={`Select the ${detection.label}`}
-                    accessibilityRole="button"
+                  <View
                     key={`${detection.label}-${index}`}
-                    onPress={() =>
-                      lockObject(
-                        { height: detection.height, width: detection.width, x: detection.x, y: detection.y },
-                        detection.label,
-                      )
-                    }
+                    pointerEvents="none"
                     style={[
-                      styles.detectionBox,
+                      styles.detectionGhost,
                       {
                         height: `${detection.height * 100}%`,
                         left: `${detection.x * 100}%`,
@@ -304,13 +493,86 @@ export function CaptureScreen({
                         width: `${detection.width * 100}%`,
                       },
                     ]}
-                  >
-                    <View style={styles.detectionTag}>
-                      <Text style={styles.detectionTagText}>{detection.label.toUpperCase()}</Text>
-                    </View>
-                  </Pressable>
+                  />
                 ))
               : null}
+            {framing ? (
+              <>
+                {/* Dim everything outside the current frame. */}
+                <View pointerEvents="none" style={[styles.dimBand, { height: `${frame.y * 100}%`, left: 0, right: 0, top: 0 }]} />
+                <View
+                  pointerEvents="none"
+                  style={[styles.dimBand, { bottom: 0, left: 0, right: 0, top: `${(frame.y + frame.height) * 100}%` }]}
+                />
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.dimBand,
+                    { height: `${frame.height * 100}%`, left: 0, top: `${frame.y * 100}%`, width: `${frame.x * 100}%` },
+                  ]}
+                />
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.dimBand,
+                    {
+                      height: `${frame.height * 100}%`,
+                      left: `${(frame.x + frame.width) * 100}%`,
+                      right: 0,
+                      top: `${frame.y * 100}%`,
+                    },
+                  ]}
+                />
+
+                {/* Smart-AI background removal preview, once the frame settles. */}
+                {previewRuns.map((run, index) => (
+                  <View
+                    key={index}
+                    pointerEvents="none"
+                    style={[
+                      styles.previewDim,
+                      {
+                        height: `${cellFracY * 100}%`,
+                        left: `${(previewRegion.x + run.x0 * cellFracX) * 100}%`,
+                        top: `${(previewRegion.y + run.row * cellFracY) * 100}%`,
+                        width: `${(run.x1 - run.x0) * cellFracX * 100}%`,
+                      },
+                    ]}
+                  />
+                ))}
+
+                {/* The frame itself: draggable to move, corner handles to resize freely. */}
+                <View
+                  style={[
+                    styles.frameBox,
+                    {
+                      height: `${frame.height * 100}%`,
+                      left: `${frame.x * 100}%`,
+                      top: `${frame.y * 100}%`,
+                      width: `${frame.width * 100}%`,
+                    },
+                  ]}
+                  {...moveResponder.panHandlers}
+                />
+                {(['tl', 'tr', 'bl', 'br'] as const).map((corner, index) => {
+                  const atRight = corner === 'tr' || corner === 'br';
+                  const atBottom = corner === 'bl' || corner === 'br';
+                  return (
+                    <View
+                      key={corner}
+                      style={[
+                        styles.cornerHandle,
+                        {
+                          left: `${(atRight ? frame.x + frame.width : frame.x) * 100}%`,
+                          top: `${(atBottom ? frame.y + frame.height : frame.y) * 100}%`,
+                        },
+                      ]}
+                      {...cornerResponders[index]!.panHandlers}
+                    />
+                  );
+                })}
+              </>
+            ) : null}
             {busy ? (
               <View style={styles.busyOverlay}>
                 <InkLoader
@@ -336,16 +598,44 @@ export function CaptureScreen({
         </View>
       </View>
 
-      {engineState === 'select' && photoUri ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => lockObject(WHOLE_PHOTO_REGION, detections.length ? 'object' : 'object')}
-          style={({ pressed }) => [styles.wholePhoto, pressed && styles.samplePressed]}
-        >
-          <Text style={styles.wholePhotoText}>
-            {detections.length ? 'None of these? Use the whole photo →' : 'Use the whole photo as the object →'}
-          </Text>
-        </Pressable>
+      {framing && photoUri ? (
+        <>
+          {detections.length > 0 ? (
+            <View style={styles.chipRow}>
+              {detections.map((detection, index) => (
+                <Pressable
+                  accessibilityLabel={`Snap the frame to the ${detection.label}`}
+                  accessibilityRole="button"
+                  key={`${detection.label}-${index}`}
+                  onPress={() =>
+                    setFrame({
+                      height: detection.height,
+                      width: detection.width,
+                      x: detection.x,
+                      y: detection.y,
+                    })
+                  }
+                  style={({ pressed }) => [styles.detectionChip, pressed && styles.samplePressed]}
+                >
+                  <Text style={styles.detectionChipText}>{detection.label.toUpperCase()}</Text>
+                </Pressable>
+              ))}
+              <Pressable
+                accessibilityLabel="Reset the frame to the whole photo"
+                accessibilityRole="button"
+                onPress={() => setFrame(WHOLE_PHOTO_REGION)}
+                style={({ pressed }) => [styles.detectionChip, pressed && styles.samplePressed]}
+              >
+                <Text style={styles.detectionChipText}>WHOLE PHOTO</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <PrimaryButton
+            compact
+            label="Lock this frame"
+            onPress={() => lockObject(frame, labelForFrame(frame, detections))}
+          />
+        </>
       ) : null}
       {photoBuild && segmentation ? (
         <>
@@ -524,26 +814,58 @@ const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
-  detectionBox: {
-    borderColor: colors.mint,
+  detectionGhost: {
+    borderColor: 'rgba(141, 245, 229, 0.55)',
     borderRadius: 6,
-    borderWidth: 2,
-    minHeight: 44,
-    minWidth: 44,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
     position: 'absolute',
   },
-  detectionTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.mintDeep,
-    borderBottomRightRadius: 6,
-    borderTopLeftRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  dimBand: {
+    backgroundColor: 'rgba(10, 12, 18, 0.62)',
+    position: 'absolute',
   },
-  detectionTagText: {
+  previewDim: {
+    backgroundColor: 'rgba(10, 12, 18, 0.55)',
+    position: 'absolute',
+  },
+  frameBox: {
+    borderColor: colors.saffron,
+    borderRadius: 4,
+    borderWidth: 2,
+    position: 'absolute',
+  },
+  cornerHandle: {
+    backgroundColor: colors.saffron,
+    borderColor: colors.ink,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    height: 26,
+    marginLeft: -13,
+    marginTop: -13,
+    position: 'absolute',
+    width: 26,
+    zIndex: 3,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  detectionChip: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  detectionChipText: {
     ...type.micro,
-    color: colors.white,
-    fontSize: 8,
+    color: colors.ink,
+    fontSize: 9,
     letterSpacing: 0.8,
   },
   busyOverlay: {

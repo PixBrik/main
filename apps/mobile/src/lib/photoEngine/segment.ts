@@ -109,8 +109,7 @@ export function connectedComponents(mask: boolean[], grid: number) {
   return { labels, sizes };
 }
 
-export async function segmentRegion(uri: string, region: Region): Promise<Segmentation> {
-  const grid = SEGMENT_GRID;
+export async function segmentRegion(uri: string, region: Region, grid: number = SEGMENT_GRID): Promise<Segmentation> {
   const pixels = await getCropPixels(uri, region, grid);
 
   // Background model: mean colour of the crop's border ring.
