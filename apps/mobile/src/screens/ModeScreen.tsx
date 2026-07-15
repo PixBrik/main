@@ -20,8 +20,8 @@ export function ModeScreen({ value, onChange, onBack, onContinue }: ModeScreenPr
       footer={<PrimaryButton label="Open camera" onPress={onContinue} />}
       onBack={onBack}
       progress={0.12}
-      subtitle="Use one image for speed or capture a short orbit for stronger depth and rear geometry."
-      title="How much geometry can we capture?"
+      subtitle="One good photo is enough — straight on, decent light. Want the back captured too? Walk around it."
+      title="One photo is all it takes."
     >
       <View accessibilityRole="radiogroup">
         <ChoiceStrip

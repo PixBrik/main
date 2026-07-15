@@ -88,8 +88,8 @@ export function BomScreen({ onBack, onNavigate, selectedVariant, photoBuild = nu
       }
       onBack={onBack}
       progress={0.72}
-      subtitle="Packed from the generated model into real catalog references. Every line links to its part page; prices are estimates until live marketplace keys are connected."
-      title="Complete parts manifest"
+      subtitle="Every brick in your build, matched to real parts with real prices. We pack, sort and ship them as one kit — nothing to hunt down."
+      title="Everything in the box"
     >
       <View style={styles.summaryRibbon}>
         <View>

@@ -51,8 +51,8 @@ export function PreferencesScreen({
       footer={<PrimaryButton label="Generate build" onPress={onContinue} />}
       onBack={onBack}
       progress={0.38}
-      subtitle="These settings guide the first result. You can compare alternate profiles before sourcing."
-      title="Set the build profile."
+      subtitle="How big, how detailed, how colourful. You can still compare versions after it generates."
+      title="Make it yours."
     >
       <OptionChips accent="coral" label="Finished size" onChange={onSizeChange} options={sizeOptions} value={size} />
       <OptionChips accent="indigo" label="Piece detail" onChange={onDetailChange} options={detailOptions} value={detail} />

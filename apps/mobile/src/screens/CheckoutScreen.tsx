@@ -87,8 +87,8 @@ export function CheckoutScreen({
       }
       onBack={onBack}
       progress={0.95}
-      subtitle="Review your kit and confirm. Prototype checkout — no real payment is collected."
-      title="Almost there"
+      subtitle="One last look. Prototype checkout — no real payment is collected."
+      title="Almost theirs."
     >
       <View style={styles.order}>
         <Text style={styles.orderLabel}>ORDER SUMMARY</Text>

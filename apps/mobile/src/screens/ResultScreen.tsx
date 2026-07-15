@@ -95,7 +95,7 @@ export function ResultScreen({
       eyebrow="Build 01 / Generated"
       footer={
         <View style={styles.footerGap}>
-          <PrimaryButton label="View parts" onPress={() => onNavigate('bom')} />
+          <PrimaryButton label="Get this kit" onPress={() => onNavigate('bom')} />
           <DemoDock active="result" onNavigate={onNavigate} />
         </View>
       }

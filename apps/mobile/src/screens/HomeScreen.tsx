@@ -114,10 +114,15 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
         {headline('BUILD IT', 1)}
 
         <Text style={styles.sub}>
-          Any photo becomes a brick sculpture — parts, prices and a printed guide included.
+          The gift they'll never see coming: a photo of their car, their cat, their face — turned
+          into a brick sculpture they build themselves.
         </Text>
 
         <BuildPath />
+
+        <Text style={styles.valueLine}>
+          EVERY KIT: ALL BRICKS, SORTED · PRINTED STEP-BY-STEP GUIDE · SHIPS GIFT-READY
+        </Text>
 
         {builds.length > 0 && onOpenBuild ? (
           <View style={styles.buildsBlock}>
@@ -239,7 +244,13 @@ const styles = StyleSheet.create({
     color: inkAlpha(0.72),
     fontFamily: fonts.bold,
     marginTop: spacing.lg,
-    maxWidth: 300,
+    maxWidth: 320,
+  },
+  valueLine: {
+    ...type.micro,
+    color: inkAlpha(0.55),
+    lineHeight: 16,
+    marginBottom: spacing.md,
   },
   buildsBlock: {
     marginTop: spacing.md,
