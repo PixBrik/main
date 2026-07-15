@@ -30,7 +30,7 @@ interface Region {
  * of the package may appear in this file.
  */
 interface OrtRuntime {
-  env: { wasm: { wasmPaths: string } };
+  env: { wasm: { wasmPaths: string; proxy: boolean } };
   Tensor: new (type: string, data: Float32Array, dims: number[]) => unknown;
   InferenceSession: {
     create: (
@@ -68,6 +68,9 @@ async function getSession() {
     sessionPromise = (async () => {
       const ort = await loadOrtScript();
       ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+      // Run inference in ORT's proxy worker so a ~10-20 s depth pass can't
+      // freeze the main thread (same class of bug as the SAM/CLIP freeze).
+      ort.env.wasm.proxy = true;
       const session = await ort.InferenceSession.create(MODEL_URL, {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',

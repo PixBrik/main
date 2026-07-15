@@ -117,7 +117,13 @@ export function CaptureScreen({
     setSelectedLabel(label);
     try {
       // SAM first (works on any background); classic border-colour fallback.
-      const result = (await samSegmentRegion(photoUri, region)) ?? (await segmentRegion(photoUri, region));
+      // Watchdog: if SAM is still crunching after 90 s (cold model download +
+      // slow device), fall back so the lock always completes.
+      const samWithTimeout = Promise.race([
+        samSegmentRegion(photoUri, region),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 90000)),
+      ]);
+      const result = (await samWithTimeout) ?? (await segmentRegion(photoUri, region));
       if (result.coverage < 0.02) {
         setEngineState('failed');
         return;
@@ -129,7 +135,10 @@ export function CaptureScreen({
       const share = region.width * region.height;
       let info = categorize(label, share);
       const [openVocab, face] = await Promise.all([
-        classifyMaskedObject(photoUri, result),
+        Promise.race([
+          classifyMaskedObject(photoUri, result),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000)),
+        ]),
         detectFaceKeypoints(photoUri, region),
       ]);
       if (openVocab && openVocab.confidence >= 0.35) {
