@@ -2,6 +2,11 @@
 Thumbs.db
 *.log
 
+# Secrets — never commit real keys. Use .env.example for placeholders.
+.env
+.env.*
+!.env.example
+
 apps/mobile/node_modules/
 apps/mobile/.expo/
 apps/mobile/dist/
