@@ -190,7 +190,16 @@ export async function buildFromPhoto(photoSrc: string, onProgress?: ProgressFn):
   }
 
   onProgress?.(0.92, 'Converting to bricks');
-  const models = await voxelizeGlbUrl(`/api/tripo/model?taskId=${encodeURIComponent(taskId)}`);
+  // Voxelize once at a safe profile and reuse it. Real generated meshes can be
+  // large (15 MB+), and running all three profiles — including the res-64
+  // "detailed" grid — risks freezing the tab. Matches buildFromLibrary.
+  const model = await voxelizeGlbUrlOne(`/api/tripo/model?taskId=${encodeURIComponent(taskId)}`, 'balanced');
   onProgress?.(1, 'Done');
-  return { hasDepth: true, label: 'Your object', mode: 'volume', models, style: 'natural' };
+  return {
+    hasDepth: true,
+    label: 'Your object',
+    mode: 'volume',
+    models: { balanced: model, detailed: model, efficient: model },
+    style: 'natural',
+  };
 }
