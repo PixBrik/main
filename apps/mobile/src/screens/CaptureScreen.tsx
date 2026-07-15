@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
@@ -86,6 +86,10 @@ export function CaptureScreen({
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   // Real photos need the rights attestation; the sample object does not.
   const needsRights = !!photoUri && !rightsConfirmed;
+  // Guards re-entrant lock attempts: setEngineState('segmenting') isn't
+  // synchronous, so a fast double-tap could otherwise stack two full
+  // pipelines competing for the same thread.
+  const lockingRef = useRef(false);
 
   const analyze = async (uri: string) => {
     if (!isDetectionSupported()) {
@@ -110,11 +114,15 @@ export function CaptureScreen({
   };
 
   const lockObject = async (region: { x: number; y: number; width: number; height: number }, label: string) => {
-    if (!photoUri) {
+    if (!photoUri || lockingRef.current) {
       return;
     }
+    lockingRef.current = true;
     setEngineState('segmenting');
     setSelectedLabel(label);
+    // Let React commit the "segmenting" frame (loader visible) before the
+    // heavy synchronous work below has a chance to start.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     try {
       // SAM first (works on any background); classic border-colour fallback.
       // Watchdog: if SAM is still crunching after 90 s (cold model download +
@@ -139,7 +147,13 @@ export function CaptureScreen({
           classifyMaskedObject(photoUri, result),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000)),
         ]),
-        detectFaceKeypoints(photoUri, region),
+        // Watchdog: face detection is a separate CDN-loaded WASM stack with
+        // no timeout of its own — a stalled fetch or WASM alloc failure
+        // (memory-constrained mobile) must not hang the lock forever.
+        Promise.race([
+          detectFaceKeypoints(photoUri, region),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000)),
+        ]),
       ]);
       if (openVocab && openVocab.confidence >= 0.35) {
         info = infoForCategory(openVocab.category, share);
@@ -165,6 +179,8 @@ export function CaptureScreen({
       setEngineState('locked');
     } catch {
       setEngineState('failed');
+    } finally {
+      lockingRef.current = false;
     }
   };
 
@@ -302,9 +318,11 @@ export function CaptureScreen({
                   stage={
                     engineState === 'detecting'
                       ? 'Finding objects'
-                      : engineState === 'depth'
-                        ? 'Measuring depth'
-                        : 'Building 3D'
+                      : engineState === 'segmenting'
+                        ? 'Identifying object'
+                        : engineState === 'depth'
+                          ? 'Measuring depth'
+                          : 'Building 3D'
                   }
                 />
               </View>

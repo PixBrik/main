@@ -101,18 +101,30 @@ function loadImage(uri: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * MediaPipe's own graphs downsample to ~128-192px internally regardless of
+ * input size, so feeding it a near-native-resolution canvas (thousands of px
+ * for a modern phone photo) buys nothing but a long synchronous WASM run on
+ * the main thread — this is the primary cause of the reported freeze on real
+ * photos. Cap the canvas so the draw and the detector both stay cheap.
+ */
+const MAX_FACE_CANVAS_DIM = 480;
+
 function cropToCanvas(image: HTMLImageElement, region: Region): HTMLCanvasElement | null {
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(64, Math.round(region.width * image.naturalWidth));
-  canvas.height = Math.max(64, Math.round(region.height * image.naturalHeight));
+  const sourceWidth = region.width * image.naturalWidth;
+  const sourceHeight = region.height * image.naturalHeight;
+  const scale = Math.min(1, MAX_FACE_CANVAS_DIM / Math.max(sourceWidth, sourceHeight));
+  canvas.width = Math.max(64, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(64, Math.round(sourceHeight * scale));
   const context = canvas.getContext('2d');
   if (!context) return null;
   context.drawImage(
     image,
     region.x * image.naturalWidth,
     region.y * image.naturalHeight,
-    region.width * image.naturalWidth,
-    region.height * image.naturalHeight,
+    sourceWidth,
+    sourceHeight,
     0,
     0,
     canvas.width,
