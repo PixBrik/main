@@ -713,9 +713,20 @@ export function voxelizeSegmentation(
       } else {
         const back = Math.min(maxDepth, Math.max(1, Math.round(distance[y]![x]! * 0.9)));
         if (useDepth) {
+          // Depth alone must never be the sole driver of the front bulge: a
+          // full-body photo's measured closeness runs smoothly head-to-toe
+          // (perspective/camera distance), completely independent of the
+          // silhouette's actual cross-section — driven raw, it makes narrow
+          // parts (a neck, an ankle) bulge MORE than wide parts (shoulders),
+          // producing a tapered "melted pillar" instead of a body. Local
+          // silhouette width (the same distance-to-edge signal that drives
+          // the back) sets the base bulge; measured depth only modulates it
+          // within a bounded range, so the front stays shape-coherent while
+          // still following real relative depth (near arm vs. set-back torso).
           const closeness = Math.max(0, Math.min(1, ((cell.depth ?? depthLow) - depthLow) / depthSpan));
+          const depthFactor = 0.55 + closeness * 0.9; // 0.55x (far) .. 1.45x (near)
           kStart = -back;
-          kEnd = Math.max(1, Math.round(closeness * maxDepth) + 1);
+          kEnd = Math.max(1, Math.min(maxDepth + 1, Math.round(back * depthFactor)));
         } else {
           kStart = -back;
           kEnd = back;
