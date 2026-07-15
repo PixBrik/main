@@ -23,6 +23,7 @@ interface ResultScreenProps {
   photoBuild?: PhotoModels | null;
   onTrue3D?: () => Promise<void>;
   true3DState?: 'idle' | 'working' | 'done' | 'failed';
+  true3DNote?: string;
   onToggleDimension?: () => Promise<void>;
   canToggleDimension?: boolean;
   dimensionMode?: 'relief' | 'volume';
@@ -70,6 +71,7 @@ export function ResultScreen({
   photoBuild = null,
   onTrue3D,
   true3DState = 'idle',
+  true3DNote,
   onToggleDimension,
   canToggleDimension = false,
   dimensionMode,
@@ -199,7 +201,9 @@ export function ResultScreen({
           <Text style={styles.true3dIcon}>◆</Text>
           <Text style={styles.true3dText}>
             {true3DState === 'working'
-              ? 'Building a real 3D model…'
+              ? true3DNote
+                ? `Building a real 3D model… ${true3DNote}`
+                : 'Building a real 3D model…'
               : true3DState === 'done'
                 ? 'True-3D build ready ✓'
                 : true3DState === 'failed'

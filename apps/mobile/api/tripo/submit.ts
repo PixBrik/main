@@ -47,12 +47,17 @@ export default async function handler(req: any, res: any): Promise<void> {
     // high-end mesh fidelity is wasted. Override with TRIPO_MODEL_VERSION
     // (e.g. "v1.4-20240625" = cheapest, "v2.5-20250123" = default/better).
     const modelVersion = process.env.TRIPO_MODEL_VERSION || 'v2.0-20240919';
+    // Cap mesh complexity so the browser can voxelize it without freezing. The
+    // mesh is turned into a coarse brick grid, so a low face count loses nothing
+    // and keeps the GLB small + the download fast. Override via TRIPO_FACE_LIMIT.
+    const faceLimit = Number(process.env.TRIPO_FACE_LIMIT) || 10000;
     const taskRes = await fetch(`${TRIPO_BASE}/task`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'image_to_model',
         model_version: modelVersion,
+        face_limit: faceLimit,
         // Keep the colour texture (needed for the brick recolour) but skip PBR
         // maps and HD texture — we only sample base colour, so those are wasted
         // credits. geometry_quality standard is already the cheap default.

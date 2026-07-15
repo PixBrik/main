@@ -47,6 +47,7 @@ export default function App() {
   const [countryCode, setCountryCode] = useState('FR');
   const [buildFill, setBuildFill] = useState<BuildFill>('full');
   const [true3DState, setTrue3DState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
+  const [true3DNote, setTrue3DNote] = useState('');
   const [dimensionWorking, setDimensionWorking] = useState(false);
   const [libraryGenerating, setLibraryGenerating] = useState(false);
 
@@ -124,12 +125,15 @@ export default function App() {
 
   const rebuildTrue3D = async () => {
     setTrue3DState('working');
+    setTrue3DNote('');
     try {
       const mod = await import('./src/lib/photoEngine/imageTo3D');
       // Real photo + live generation on → send it to Tripo. Otherwise fall
       // back to the demo mesh so the pipeline is always demonstrable.
       if (photoUri && mod.isLive3DConfigured()) {
-        const models = await mod.buildFromPhoto(photoUri);
+        const models = await mod.buildFromPhoto(photoUri, (fraction, note) => {
+          setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`);
+        });
         setPhotoBuild(models);
         saveBuild(models.label, models.models.balanced, colors.blue);
       } else {
@@ -256,6 +260,7 @@ export default function App() {
             photoUri={photoUri}
             selectedVariant={selectedVariant}
             true3DState={true3DState}
+            true3DNote={true3DNote}
           />
         );
       case 'bom':

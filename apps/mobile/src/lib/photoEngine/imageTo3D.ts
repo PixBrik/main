@@ -190,10 +190,11 @@ export async function buildFromPhoto(photoSrc: string, onProgress?: ProgressFn):
   }
 
   onProgress?.(0.92, 'Converting to bricks');
-  // Voxelize once at a safe profile and reuse it. Real generated meshes can be
-  // large (15 MB+), and running all three profiles — including the res-64
-  // "detailed" grid — risks freezing the tab. Matches buildFromLibrary.
-  const model = await voxelizeGlbUrlOne(`/api/tripo/model?taskId=${encodeURIComponent(taskId)}`, 'balanced');
+  // Voxelize once at the lightest profile and reuse it. Generated meshes are
+  // capped at ~10k faces server-side (face_limit), but the voxelizer still runs
+  // synchronously on the main thread, so 'efficient' (res 28) keeps it from
+  // freezing the tab. Voxelizing all three profiles (incl. res-64) would hang.
+  const model = await voxelizeGlbUrlOne(`/api/tripo/model?taskId=${encodeURIComponent(taskId)}`, 'efficient');
   onProgress?.(1, 'Done');
   return {
     hasDepth: true,
