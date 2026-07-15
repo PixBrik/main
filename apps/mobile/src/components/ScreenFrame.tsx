@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { whenVisible } from '../lib/whenVisible';
 import { colors, radius, shadow, signals, spacing, type, type SignalName } from '../theme/tokens';
 import { BrandMark } from './BrandMark';
 
@@ -11,17 +12,21 @@ import { BrandMark } from './BrandMark';
 function useStagger(count: number) {
   const values = useRef(Array.from({ length: count }, () => new Animated.Value(0))).current;
   useEffect(() => {
-    Animated.stagger(
-      70,
-      values.map((value) =>
-        Animated.timing(value, {
-          duration: 380,
-          easing: Easing.out(Easing.cubic),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-      ),
-    ).start();
+    return whenVisible(
+      () =>
+        Animated.stagger(
+          70,
+          values.map((value) =>
+            Animated.timing(value, {
+              duration: 380,
+              easing: Easing.out(Easing.cubic),
+              toValue: 1,
+              useNativeDriver: true,
+            }),
+          ),
+        ).start(),
+      () => values.forEach((value) => value.setValue(1)),
+    );
   }, [values]);
   return values.map((value) => ({
     opacity: value,

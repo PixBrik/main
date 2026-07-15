@@ -4,5 +4,6 @@
   "installCommand": "npm install",
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "functions": { "api/**/*.ts": { "maxDuration": 30 } },
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }

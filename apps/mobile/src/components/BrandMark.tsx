@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { whenVisible } from '../lib/whenVisible';
 import { colors, signals } from '../theme/tokens';
 
 export type BrandMarkVariant = 'compact' | 'full';
@@ -96,10 +97,15 @@ export function BrandMark({
         Animated.timing(pulse, { duration: 0, toValue: 0, useNativeDriver: true }),
       ]),
     );
-    introAnim.start(({ finished }) => {
-      if (finished) pulseAnim.start();
-    });
+    const cleanupVisible = whenVisible(
+      () =>
+        introAnim.start(({ finished }) => {
+          if (finished) pulseAnim.start();
+        }),
+      () => intro.setValue(1),
+    );
     return () => {
+      cleanupVisible();
       introAnim.stop();
       pulseAnim.stop();
       intro.setValue(1);

@@ -11,22 +11,29 @@
 
 import { buildModelFromCells, type VoxelModel } from '../voxelFox';
 import type { PhotoModels } from './voxelizePhoto';
-import { voxelizeGlb, voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
+import { voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
 
-/** Set `key` (and endpoint) to enable live photo→mesh generation. */
-const MESH_API = {
-  key: '',
-  endpoint: 'https://api.example-image-to-3d.com/v1/generate',
-};
-
+/**
+ * Live image-to-3D runs through Tripo via our own serverless proxy
+ * (/api/tripo/*), so the API key stays server-side and never ships in the
+ * browser bundle. This public flag only toggles whether the UI offers the
+ * live path — the real secret is TRIPO_API_KEY on the server.
+ */
 export function isLive3DConfigured(): boolean {
-  return MESH_API.key.length > 0;
+  return (process.env.EXPO_PUBLIC_TRIPO_ENABLED ?? '') === '1';
 }
 
 export class NotConfiguredError extends Error {
   constructor() {
-    super('Live image-to-3D needs a hosted API key. Configure MESH_API to enable it.');
+    super('Live photo→3D is off. Set EXPO_PUBLIC_TRIPO_ENABLED=1 and TRIPO_API_KEY on the server.');
     this.name = 'NotConfiguredError';
+  }
+}
+
+export class NoCreditError extends Error {
+  constructor() {
+    super('Tripo has no credit. Top up at platform.tripo3d.ai to generate models.');
+    this.name = 'NoCreditError';
   }
 }
 
@@ -102,40 +109,88 @@ export async function buildFromLibrary(url: string, label: string, colorHex?: st
   };
 }
 
+/** Downscale any image src (data:/blob:/http) to a compact JPEG data URL so
+ * the POST body stays under the serverless 4.5 MB limit. Web-only (canvas). */
+async function toCompactDataUrl(src: string, max = 1024, quality = 0.85): Promise<string> {
+  if (typeof document === 'undefined') {
+    return src;
+  }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('could not load photo'));
+    img.src = src;
+  });
+  const scale = Math.min(1, max / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return src;
+  }
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+/** Report generation progress (0–1) while the model is being built. */
+export type ProgressFn = (fraction: number, note: string) => void;
+
 /**
- * Live path: photo → hosted image-to-3D → GLB → bricks. Throws
- * NotConfiguredError until a key is set. The request/poll shape below matches
- * the common "submit job, poll status, download result" pattern used by
- * TripoSR-style hosts; adjust field names to the chosen provider.
+ * Live path: photo → Tripo (via /api/tripo proxy) → GLB → bricks.
+ * The key is held server-side; this only talks to our own origin.
+ * Throws NotConfiguredError when the live path is off, NoCreditError when the
+ * Tripo account is out of credit.
  */
-export async function buildFromPhoto(photoDataUrl: string): Promise<PhotoModels> {
+export async function buildFromPhoto(photoSrc: string, onProgress?: ProgressFn): Promise<PhotoModels> {
   if (!isLive3DConfigured()) {
     throw new NotConfiguredError();
   }
-  const submit = await fetch(MESH_API.endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${MESH_API.key}` },
-    body: JSON.stringify({ image: photoDataUrl, format: 'glb' }),
-  });
-  const job = (await submit.json()) as { id: string };
+  onProgress?.(0.05, 'Preparing photo');
+  const image = await toCompactDataUrl(photoSrc);
 
-  // Poll until the mesh is ready.
-  let resultUrl: string | null = null;
-  for (let attempt = 0; attempt < 60 && !resultUrl; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const status = await fetch(`${MESH_API.endpoint}/${job.id}`, {
-      headers: { authorization: `Bearer ${MESH_API.key}` },
-    });
-    const body = (await status.json()) as { status: string; model_url?: string };
-    if (body.status === 'completed' && body.model_url) {
-      resultUrl = body.model_url;
-    } else if (body.status === 'failed') {
-      throw new Error('image-to-3D generation failed');
+  onProgress?.(0.12, 'Uploading to generator');
+  const submit = await fetch('/api/tripo/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image }),
+  });
+  if (!submit.ok) {
+    if (submit.status === 402) {
+      throw new NoCreditError();
+    }
+    const body = (await submit.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || `generation could not start (${submit.status})`);
+  }
+  const { taskId } = (await submit.json()) as { taskId: string };
+
+  // Poll our status proxy until the mesh is ready (Tripo takes ~30s–2min).
+  let ready = false;
+  for (let attempt = 0; attempt < 90 && !ready; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    const statusRes = await fetch(`/api/tripo/status?taskId=${encodeURIComponent(taskId)}`);
+    if (!statusRes.ok) {
+      continue;
+    }
+    const body = (await statusRes.json()) as { status: string; progress?: number; hasModel?: boolean };
+    if (body.status === 'success' && body.hasModel) {
+      ready = true;
+    } else if (['failed', 'cancelled', 'banned', 'expired'].includes(body.status)) {
+      throw new Error(`generation ${body.status}`);
+    } else {
+      // Map Tripo's 0–100 progress into the 0.15–0.9 band.
+      onProgress?.(0.15 + 0.75 * ((body.progress ?? 0) / 100), 'Sculpting 3D model');
     }
   }
-  if (!resultUrl) {
-    throw new Error('image-to-3D timed out');
+  if (!ready) {
+    throw new Error('generation timed out');
   }
-  const buffer = await (await fetch(resultUrl)).arrayBuffer();
-  return { hasDepth: true, label: 'Your object', mode: 'volume', models: await voxelizeGlb(buffer), style: 'natural' };
+
+  onProgress?.(0.92, 'Converting to bricks');
+  const models = await voxelizeGlbUrl(`/api/tripo/model?taskId=${encodeURIComponent(taskId)}`);
+  onProgress?.(1, 'Done');
+  return { hasDepth: true, label: 'Your object', mode: 'volume', models, style: 'natural' };
 }

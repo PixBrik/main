@@ -125,11 +125,19 @@ export default function App() {
   const rebuildTrue3D = async () => {
     setTrue3DState('working');
     try {
-      const { buildFromMeshUrl, DEMO_MESHES } = await import('./src/lib/photoEngine/imageTo3D');
-      const demo = DEMO_MESHES[0];
-      const models = await buildFromMeshUrl(demo.url, demo.label);
-      setPhotoUri(null);
-      setPhotoBuild(models);
+      const mod = await import('./src/lib/photoEngine/imageTo3D');
+      // Real photo + live generation on → send it to Tripo. Otherwise fall
+      // back to the demo mesh so the pipeline is always demonstrable.
+      if (photoUri && mod.isLive3DConfigured()) {
+        const models = await mod.buildFromPhoto(photoUri);
+        setPhotoBuild(models);
+        saveBuild(models.label, models.models.balanced, colors.blue);
+      } else {
+        const demo = mod.DEMO_MESHES[0];
+        const models = await mod.buildFromMeshUrl(demo.url, demo.label);
+        setPhotoUri(null);
+        setPhotoBuild(models);
+      }
       setTrue3DState('done');
     } catch {
       setTrue3DState('failed');
