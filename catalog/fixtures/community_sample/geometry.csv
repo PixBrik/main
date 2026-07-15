@@ -1,0 +1,7 @@
+part_num,ldraw_ref,width_studs,depth_studs,height_plates,length_mm,width_mm,height_mm,mass_grams,geometry_status,connection_points_json,mesh_uri
+3001,3001.dat,2,4,3,31.8,15.8,9.6,2.32,sample,[],
+3003,3003.dat,2,2,3,15.8,15.8,9.6,1.15,sample,[],
+3020,3020.dat,2,4,1,31.8,15.8,3.2,1.20,sample,[],
+3040,3040.dat,1,2,3,15.8,7.8,9.6,0.80,sample,[],
+3040a,3040a.dat,1,2,3,15.8,7.8,9.6,0.78,sample,[],
+fb-rare-01,,1,2,5,15.8,7.8,16.0,0.95,placeholder,[],

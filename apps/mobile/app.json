@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "PixBrik",
+    "slug": "fotobrik",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.fotobrik.demo"
+    },
+    "android": {
+      "package": "app.fotobrik.demo",
+      "adaptiveIcon": {
+        "backgroundColor": "#F3F1EA"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "backgroundColor": "#F3F1EA"
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
+  }
+}

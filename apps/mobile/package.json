@@ -1,0 +1,39 @@
+{
+  "name": "@fotobrik/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm run test"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.3",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow-models/face-detection": "^1.0.3",
+    "@tensorflow-models/face-landmarks-detection": "^1.0.6",
+    "@tensorflow/tfjs": "^4.22.0",
+    "expo": "~57.0.6",
+    "expo-image-picker": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "jspdf": "^4.2.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "0.21.2",
+    "three": "^0.185.1",
+    "three-mesh-bvh": "^0.9.11"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "@types/three": "^0.185.1",
+    "typescript": "~6.0.3"
+  }
+}

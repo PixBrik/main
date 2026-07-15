@@ -1,0 +1,15 @@
+.DS_Store
+Thumbs.db
+*.log
+
+apps/mobile/node_modules/
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+
+catalog/build/
+catalog/*.sqlite3
+catalog/*.sqlite3-shm
+catalog/*.sqlite3-wal
+catalog/*.jsonl
+

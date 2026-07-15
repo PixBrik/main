@@ -1,0 +1,184 @@
+{
+  "project": {
+    "name": "Signal Fox",
+    "dimensions": "22 × 15 × 18 cm",
+    "pieceCount": 699,
+    "estimatedTime": "3 h 30 min",
+    "catalogVersion": "FB-DEMO-2026.07",
+    "assumption": "One front photo; hidden surfaces are interpreted."
+  },
+  "variants": [
+    {
+      "id": "balanced",
+      "name": "Balanced",
+      "note": "Closest silhouette",
+      "pieces": 699,
+      "price": 62.9,
+      "availability": 92,
+      "accent": "blue",
+      "dimensions": "22 × 15 × 18 cm",
+      "estimatedTime": "3 h 30 min",
+      "difficulty": "Intermediate"
+    },
+    {
+      "id": "easy",
+      "name": "Efficient",
+      "note": "Common pieces only",
+      "pieces": 286,
+      "price": 26.4,
+      "availability": 98,
+      "accent": "mint",
+      "dimensions": "16 × 10 × 12 cm",
+      "estimatedTime": "1 h 45 min",
+      "difficulty": "Starter"
+    },
+    {
+      "id": "detail",
+      "name": "Detailed",
+      "note": "Sharper geometry + tail",
+      "pieces": 1400,
+      "price": 126,
+      "availability": 81,
+      "accent": "coral",
+      "dimensions": "28 × 19 × 23 cm",
+      "estimatedTime": "6 h 15 min",
+      "difficulty": "Advanced"
+    }
+  ],
+  "parts": [
+    {
+      "id": "3001",
+      "name": "Block 2 × 4",
+      "color": "Frost white",
+      "hex": "#EFEDE6",
+      "quantity": 148,
+      "availability": "common",
+      "price": 0.14
+    },
+    {
+      "id": "3003",
+      "name": "Block 2 × 2",
+      "color": "Electric blue",
+      "hex": "#92AED4",
+      "quantity": 132,
+      "availability": "common",
+      "price": 0.12
+    },
+    {
+      "id": "3023",
+      "name": "Plate 1 × 2",
+      "color": "Sandstone",
+      "hex": "#D6B88C",
+      "quantity": 224,
+      "availability": "common",
+      "price": 0.09
+    },
+    {
+      "id": "11477",
+      "name": "Curved slope 2 × 1",
+      "color": "Graphite",
+      "hex": "#27312C",
+      "quantity": 56,
+      "availability": "limited",
+      "price": 0.26
+    },
+    {
+      "id": "85984",
+      "name": "Soft slope 1 × 2",
+      "color": "Electric blue",
+      "hex": "#92AED4",
+      "quantity": 126,
+      "availability": "common",
+      "price": 0.18
+    },
+    {
+      "id": "4070",
+      "name": "Side-stud block 1 × 1",
+      "color": "Signal coral",
+      "hex": "#E99082",
+      "quantity": 38,
+      "availability": "rare-color",
+      "price": 0.41
+    }
+  ],
+  "countries": [
+    {
+      "code": "FR",
+      "name": "France",
+      "currency": "EUR"
+    },
+    {
+      "code": "GB",
+      "name": "United Kingdom",
+      "currency": "GBP"
+    },
+    {
+      "code": "US",
+      "name": "United States",
+      "currency": "USD"
+    }
+  ],
+  "stores": [
+    {
+      "id": "paris-les-halles",
+      "name": "Les Halles brick shop",
+      "distance": "1.8 km",
+      "address": "Central Paris",
+      "status": "Wall available",
+      "verification": "Contents unverified · call ahead",
+      "match": 34
+    },
+    {
+      "id": "levallois",
+      "name": "Levallois creative store",
+      "distance": "5.2 km",
+      "address": "Levallois-Perret",
+      "status": "Loose-parts wall",
+      "verification": "Community sighting · 5 days ago",
+      "match": 21
+    },
+    {
+      "id": "boulogne",
+      "name": "Boulogne parts workshop",
+      "distance": "8.7 km",
+      "address": "Boulogne-Billancourt",
+      "status": "Stock unknown",
+      "verification": "No recent report",
+      "match": 0
+    }
+  ],
+  "instructions": [
+    {
+      "id": "foundation",
+      "number": 1,
+      "title": "Lock the base",
+      "body": "Connect the wide plates into a rigid footprint. This layer controls the model's balance.",
+      "parts": "96 pieces",
+      "tip": "Check on a flat surface"
+    },
+    {
+      "id": "body",
+      "number": 2,
+      "title": "Build the core",
+      "body": "Alternate the seams as you stack. The blue elements define the shadow side.",
+      "parts": "262 pieces",
+      "tip": "Blue faces left"
+    },
+    {
+      "id": "tail",
+      "number": 3,
+      "title": "Shape the tail",
+      "body": "Add the curved slopes from the base toward the tip, one layer at a time.",
+      "parts": "218 pieces",
+      "tip": "Check the curve from above"
+    },
+    {
+      "id": "face",
+      "number": 4,
+      "title": "Set the face",
+      "body": "Place the two ink details symmetrically, then cap the head with the final slopes.",
+      "parts": "123 pieces",
+      "tip": "Turn it toward you"
+    }
+  ]
+}

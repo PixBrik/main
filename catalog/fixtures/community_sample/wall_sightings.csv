@@ -1,0 +1,3 @@
+store_ref,element_id,observed_at,expires_at,quantity_status,confidence,reporter_ref,notes
+demo-paris,sample-e-3001-red,2026-07-14T10:00:00Z,2026-07-21T10:00:00Z,many,0.80,demo-reporter,Offline demo observation; not real inventory
+demo-lyon,sample-e-rare-red,2026-07-14T10:30:00Z,2026-07-16T10:30:00Z,few,0.55,demo-reporter,Offline demo observation; not real inventory

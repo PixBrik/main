@@ -1,0 +1,7 @@
+part_num,name,part_cat_id,part_material
+3001,Brick 2 x 4,1,Plastic
+3003,Brick 2 x 2,1,Plastic
+3020,Plate 2 x 4,2,Plastic
+3040,Slope 45 2 x 1,3,Plastic
+3040a,Slope 45 2 x 1 without stud tube,3,Plastic
+fb-rare-01,Faceted fin demo piece,3,Plastic

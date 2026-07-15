@@ -1,0 +1,3 @@
+from_part_num,to_part_num,relationship_type,confidence,notes
+3040a,3040,mold_compatible,0.90,Demo compatibility pending engineering verification
+fb-rare-01,3040,visual_substitute,0.45,Cheaper silhouette approximation for demo builds

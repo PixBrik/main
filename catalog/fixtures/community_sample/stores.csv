@@ -1,0 +1,3 @@
+store_ref,name,country_code,city,address_line,postal_code,latitude,longitude,website_url,has_pick_a_brick
+demo-paris,Demo Brick Counter Paris,FR,Paris,Sample address,75001,48.8566,2.3522,,True
+demo-lyon,Demo Brick Counter Lyon,FR,Lyon,Sample address,69001,45.7640,4.8357,,True

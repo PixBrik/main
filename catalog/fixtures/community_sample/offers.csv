@@ -1,0 +1,4 @@
+snapshot_ref,country_code,currency_code,observed_at,element_id,store_ref,offer_ref,condition,unit_price,quantity_available,availability,product_url
+fr-demo-2026-07-14,FR,EUR,2026-07-14T12:00:00Z,sample-e-3001-red,demo-paris,offer-3001-red,new,0.18,120,in_stock,https://example.invalid/demo/3001-red
+fr-demo-2026-07-14,FR,EUR,2026-07-14T12:00:00Z,sample-e-3003-white,demo-paris,offer-3003-white,new,0.12,85,in_stock,https://example.invalid/demo/3003-white
+fr-demo-2026-07-14,FR,EUR,2026-07-14T12:00:00Z,sample-e-rare-red,demo-lyon,offer-rare-red,used,2.40,2,limited,https://example.invalid/demo/rare-red

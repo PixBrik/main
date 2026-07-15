@@ -1,0 +1,13 @@
+inventory_id,part_num,color_id,quantity,is_spare,img_url
+1001,3001,4,4,False,
+1001,3003,15,2,False,
+1001,3020,71,3,False,
+1001,fb-rare-01,4,1,False,
+1002,3001,0,8,False,
+1002,3003,15,4,False,
+1002,3020,71,5,False,
+1002,3040,40,2,False,
+1003,3001,4,10,False,
+1003,3003,15,6,False,
+1003,3020,71,8,False,
+1003,3040a,40,2,False,
