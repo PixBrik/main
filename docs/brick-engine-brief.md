@@ -96,16 +96,22 @@ sample). Current algorithm, top to bottom:
 
 ## 3. Where accuracy is believed to leak (ranked hypotheses)
 
-1. **Colour sampling is still single-tap.** One `closestPointToPoint` per
-   voxel (now barycentric at the hit point, but still one sample). Small
-   texture features (eyes, logos, colour boundaries) alias. Fix ideas: 4–8
-   jittered samples per voxel with redmean-median; area-weighted sampling
-   over the voxel's surface patch.
-2. **Fixed k=10 global palette.** A bust with skin+hair+shirt shares 10
-   clusters with the background pedestal Tripo sometimes adds. Ideas:
-   per-connected-component or per-zone palettes; k chosen by colour variance;
-   protect small high-contrast clusters from majority smoothing (the ≥4-of-6
-   rule still erodes 1-voxel features).
+1. **Nearest surface may be HIDDEN interior geometry.** Colour comes from
+   the closest surface point — but for voxels inside features like the
+   duck's beak, the closest surface is the dark mouth-interior, so the
+   whole beak renders dark even though its outer skin is orange (verified:
+   the raw stills are orange; the seam-inset fix changed nothing, ruling
+   out UV bleed). Fix ideas: for shell voxels, sample the surface point in
+   the outward direction (estimate outward as the vector from the model
+   interior, or reject hit surfaces whose normal faces away from the
+   voxel); or weight the 7 jittered samples toward hits whose normal points
+   toward the query point. Affects any mesh with internal geometry.
+2. **Palette clustering** (partially addressed): k is now adaptive (8–16
+   from distinct-catalog-colour count), seeding is farthest-point (small
+   features get their own cluster), and rare high-contrast clusters are
+   protected from majority smoothing. Remaining ideas: per-zone palettes;
+   merging near-duplicate grey clusters (shading splits greys into several
+   clusters that quantize to neighbours).
 3. **Shell thickness is fixed at 0.75 voxel.** Bigger closes more seams but
    fattens thin features; smaller is crisper but lets the flood leak through
    coarse AI-mesh cracks. Could be adaptive (measure seam sizes first).
