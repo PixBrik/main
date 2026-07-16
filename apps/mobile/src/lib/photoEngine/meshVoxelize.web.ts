@@ -78,29 +78,54 @@ function prepare(root: THREE.Object3D): PreparedMesh[] {
 }
 
 const tempTarget = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+const triA = new THREE.Vector3();
+const triB = new THREE.Vector3();
+const triC = new THREE.Vector3();
+const baryCoord = new THREE.Vector3();
 
-/** Surface colour at a world point: vertex colour → texture → material colour. */
+/**
+ * Surface colour at a world point: vertex colour → texture → material colour.
+ * Attributes are interpolated at the EXACT closest point via barycentric
+ * coordinates — face-centroid averaging (the old way) blurs textures by up to
+ * half a triangle, which on photoreal AI textures muddied every feature edge.
+ */
 function surfaceColor(prep: PreparedMesh, point: THREE.Vector3): string {
   const hit = prep.bvh.closestPointToPoint(point, tempTarget);
   const geometry = prep.mesh.geometry;
-  const faceIndex = (hit as { faceIndex?: number }).faceIndex ?? 0;
+  const faceIndex = (hit as { faceIndex?: number } | null)?.faceIndex ?? 0;
   const index = geometry.getIndex();
   const a = index ? index.getX(faceIndex * 3) : faceIndex * 3;
   const b = index ? index.getX(faceIndex * 3 + 1) : faceIndex * 3 + 1;
   const c = index ? index.getX(faceIndex * 3 + 2) : faceIndex * 3 + 2;
 
+  // Barycentric weights of the closest point inside its triangle; centroid
+  // weights as the degenerate-triangle fallback.
+  let wa = 1 / 3, wb = 1 / 3, wc = 1 / 3;
+  if (hit) {
+    const position = geometry.getAttribute('position');
+    triA.fromBufferAttribute(position, a);
+    triB.fromBufferAttribute(position, b);
+    triC.fromBufferAttribute(position, c);
+    const bary = THREE.Triangle.getBarycoord(tempTarget.point, triA, triB, triC, baryCoord);
+    if (bary) {
+      wa = bary.x;
+      wb = bary.y;
+      wc = bary.z;
+    }
+  }
+
   if (prep.hasVertexColor) {
     const colors = geometry.getAttribute('color');
-    const r = (colors.getX(a) + colors.getX(b) + colors.getX(c)) / 3;
-    const g = (colors.getY(a) + colors.getY(b) + colors.getY(c)) / 3;
-    const bl = (colors.getZ(a) + colors.getZ(b) + colors.getZ(c)) / 3;
+    const r = colors.getX(a) * wa + colors.getX(b) * wb + colors.getX(c) * wc;
+    const g = colors.getY(a) * wa + colors.getY(b) * wb + colors.getY(c) * wc;
+    const bl = colors.getZ(a) * wa + colors.getZ(b) * wb + colors.getZ(c) * wc;
     return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
   }
   if (prep.textureData) {
     const uv = geometry.getAttribute('uv');
     if (uv) {
-      const u = (uv.getX(a) + uv.getX(b) + uv.getX(c)) / 3;
-      const v = (uv.getY(a) + uv.getY(b) + uv.getY(c)) / 3;
+      const u = uv.getX(a) * wa + uv.getX(b) * wb + uv.getX(c) * wc;
+      const v = uv.getY(a) * wa + uv.getY(b) * wb + uv.getY(c) * wc;
       const tx = Math.min(prep.textureData.width - 1, Math.max(0, Math.floor(u * prep.textureData.width)));
       const ty = Math.min(prep.textureData.height - 1, Math.max(0, Math.floor((1 - v) * prep.textureData.height)));
       const offset = (ty * prep.textureData.width + tx) * 4;
@@ -120,7 +145,7 @@ const NEIGHBOURS: ReadonlyArray<readonly [number, number, number]> = [
   [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
 ];
 
-/** Drop stray voxels with ≤1 face-neighbours — ray-parity noise, not model. */
+/** Drop stray voxels with ≤1 face-neighbours — sampling noise, not model. */
 function despeckle(cells: VoxelCell[]): VoxelCell[] {
   const occupied = new Set(cells.map((cell) => `${cell.i},${cell.j},${cell.k}`));
   return cells.filter((cell) => {
@@ -227,37 +252,10 @@ function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
 /** Progress callback for the (potentially long) voxelization pass. */
 export type VoxelizeProgressFn = (fraction: number) => void;
 
-/**
- * Ray directions for the parity vote — each tilted a hair off its axis.
- * Exactly axis-aligned rays from a regular grid skim flat axis-aligned faces
- * and shared triangle edges (the duck's flat bottom, for instance), and every
- * tangent/duplicate hit corrupts the crossing count. A tiny irrational tilt
- * makes those degenerate alignments impossible while leaving the crossing
- * topology of interior points unchanged.
- */
-const RAY_AXES = [
-  new THREE.Vector3(1, 0.00017, 0.00031).normalize(),
-  new THREE.Vector3(0.00031, 1, 0.00017).normalize(),
-  new THREE.Vector3(0.00017, 0.00031, 1).normalize(),
-] as const;
-
-/**
- * Crossing count robust to duplicate hits: a ray passing through an edge
- * shared by two triangles reports two intersections at the same distance —
- * counting both flips the parity. Hits arrive sorted by distance; collapse
- * any run closer together than epsilon into one crossing.
- */
-function countCrossings(hits: ReadonlyArray<{ distance: number }>, epsilon: number): number {
-  let crossings = 0;
-  let lastDistance = -Infinity;
-  for (const hit of hits) {
-    if (hit.distance - lastDistance > epsilon) {
-      crossings++;
-      lastDistance = hit.distance;
-    }
-  }
-  return crossings;
-}
+/** Occupancy states for the voxel grid classification. */
+const UNKNOWN = 0;
+const SHELL = 1;
+const OUTSIDE = 2;
 
 /**
  * Yield to the event loop so long grids never freeze the tab. Uses a
@@ -283,10 +281,15 @@ function nextTick(): Promise<void> {
  * between them, so high resolutions stay responsive instead of freezing the
  * tab (which is why photo builds used to be capped at res 28).
  *
- * Robust inside-test: generated meshes (Tripo/Meshy) are often slightly
- * non-manifold, and a single-axis ray-parity test turns every crack into a
- * column of missing or phantom voxels. Casting along all three axes and
- * majority-voting the parity makes the fill robust to local mesh defects.
+ * Inside-test: surface shell + outside flood fill, NOT ray parity. AI meshes
+ * (Tripo/Meshy) are routinely non-watertight — open seams, holes, doubled
+ * walls — and every parity variant collapses on them (a real Tripo bust once
+ * converted to 158 floating bricks). Distance-to-surface can't be fooled:
+ * mark every voxel whose centre is within ~¾ voxel of any surface as SHELL,
+ * flood-fill OUTSIDE from the grid border through non-shell voxels, and
+ * everything left is interior. Sub-voxel seams close inside the shell, so
+ * the flood can't leak through them; a genuinely large opening merely leaves
+ * that model hollow, which the downstream steps handle fine.
  */
 async function voxelizeMeshes(
   prepared: PreparedMesh[],
@@ -304,16 +307,16 @@ async function voxelizeMeshes(
   const nx = Math.max(1, Math.ceil(size.x / voxel));
   const ny = Math.max(1, Math.ceil(size.y / voxel));
   const nz = Math.max(1, Math.ceil(size.z / voxel));
+  const total = nx * ny * nz;
+  const grid = new Uint8Array(total); // UNKNOWN | SHELL | OUTSIDE
+  const at = (ix: number, iy: number, iz: number) => (ix * ny + iy) * nz + iz;
 
-  const raycaster = new THREE.Raycaster();
-  raycaster.firstHitOnly = false;
-  // Collapse duplicate hits (shared edges) without merging genuinely thin
-  // double walls — well below a voxel, well above float noise.
-  const crossingEpsilon = maxAxis * 1e-6;
-  const meshes = prepared.map((prep) => prep.mesh);
   const centre = new THREE.Vector3();
-  const cells: VoxelCell[] = [];
+  const shellProbe = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+  const shellRadius = voxel * 0.75;
 
+  // Pass 1 — shell: centres within shellRadius of any surface. The bounded
+  // query early-exits for far voxels, so this stays cheap across the grid.
   for (let ix = 0; ix < nx; ix++) {
     for (let iy = 0; iy < ny; iy++) {
       for (let iz = 0; iz < nz; iz++) {
@@ -322,17 +325,73 @@ async function voxelizeMeshes(
           box.min.y + (iy + 0.5) * voxel,
           box.min.z + (iz + 0.5) * voxel,
         );
-        // 2-of-3 axis parity vote.
-        let insideVotes = 0;
-        for (const axis of RAY_AXES) {
-          raycaster.set(centre, axis);
-          const hits = raycaster.intersectObjects(meshes, false);
-          if (countCrossings(hits, crossingEpsilon) % 2 === 1) insideVotes++;
-          // Early exit: verdict already decided either way.
-          if (insideVotes === 2) break;
+        for (const prep of prepared) {
+          const hit = prep.bvh.closestPointToPoint(centre, shellProbe as never, 0, shellRadius);
+          if (hit && shellProbe.distance <= shellRadius) {
+            grid[at(ix, iy, iz)] = SHELL;
+            break;
+          }
         }
-        if (insideVotes < 2) continue;
+      }
+    }
+    // One yield per x-slice keeps the UI (loader, progress) alive.
+    onProgress?.(((ix + 1) / nx) * 0.6);
+    await nextTick();
+  }
 
+  // Pass 2 — flood OUTSIDE from every border voxel through non-shell space
+  // (6-connected BFS; synchronous but trivial — no geometry queries).
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+  const seed = (ix: number, iy: number, iz: number) => {
+    const index = at(ix, iy, iz);
+    if (grid[index] === UNKNOWN) {
+      grid[index] = OUTSIDE;
+      queue[tail++] = index;
+    }
+  };
+  for (let ix = 0; ix < nx; ix++) {
+    for (let iy = 0; iy < ny; iy++) {
+      seed(ix, iy, 0);
+      seed(ix, iy, nz - 1);
+    }
+    for (let iz = 0; iz < nz; iz++) {
+      seed(ix, 0, iz);
+      seed(ix, ny - 1, iz);
+    }
+  }
+  for (let iy = 0; iy < ny; iy++) {
+    for (let iz = 0; iz < nz; iz++) {
+      seed(0, iy, iz);
+      seed(nx - 1, iy, iz);
+    }
+  }
+  while (head < tail) {
+    const index = queue[head++]!;
+    const iz = index % nz;
+    const iy = Math.floor(index / nz) % ny;
+    const ix = Math.floor(index / (ny * nz));
+    if (ix > 0) seed(ix - 1, iy, iz);
+    if (ix < nx - 1) seed(ix + 1, iy, iz);
+    if (iy > 0) seed(ix, iy - 1, iz);
+    if (iy < ny - 1) seed(ix, iy + 1, iz);
+    if (iz > 0) seed(ix, iy, iz - 1);
+    if (iz < nz - 1) seed(ix, iy, iz + 1);
+  }
+
+  // Pass 3 — keep shell + interior (everything the flood never reached) and
+  // sample colours from the nearest surface.
+  const cells: VoxelCell[] = [];
+  for (let ix = 0; ix < nx; ix++) {
+    for (let iy = 0; iy < ny; iy++) {
+      for (let iz = 0; iz < nz; iz++) {
+        if (grid[at(ix, iy, iz)] === OUTSIDE) continue;
+        centre.set(
+          box.min.x + (ix + 0.5) * voxel,
+          box.min.y + (iy + 0.5) * voxel,
+          box.min.z + (iz + 0.5) * voxel,
+        );
         // Nearest surface across all meshes for colour.
         let best = prepared[0]!;
         let bestDist = Infinity;
@@ -356,8 +415,7 @@ async function voxelizeMeshes(
         });
       }
     }
-    // One yield per x-slice keeps the UI (loader, progress) alive.
-    onProgress?.((ix + 1) / nx);
+    onProgress?.(0.6 + ((ix + 1) / nx) * 0.4);
     await nextTick();
   }
 

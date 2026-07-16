@@ -37,6 +37,31 @@ interface LabScreenProps {
 
 type CandidateId = 'depth' | TripoVersionId | 'multiview' | 'demo';
 
+/**
+ * Generated meshes stay downloadable for a while after a run — persist their
+ * URLs so conversion changes can be re-tested on the SAME mesh for free
+ * instead of paying ~30 credits to regenerate it.
+ */
+const MESH_URL_KEY = 'pixbrik.lab.meshUrls.v1';
+
+function readSavedMeshUrls(): Record<string, string> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(MESH_URL_KEY) || '{}') as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function persistMeshUrl(id: string, url: string): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(MESH_URL_KEY, JSON.stringify({ ...readSavedMeshUrls(), [id]: url }));
+  } catch {
+    // quota — re-convert just won't survive a reload
+  }
+}
+
 interface Candidate {
   id: CandidateId;
   label: string;
@@ -70,6 +95,7 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
   const hasPhoto = !!photoUri && !!segmentation;
   const [restorable] = useState(() => hasLastCapture());
   const [has360] = useState(() => has360Capture());
+  const [savedMeshUrls, setSavedMeshUrls] = useState<Record<string, string>>(() => readSavedMeshUrls());
 
   const candidates: Candidate[] = [
     {
@@ -107,6 +133,8 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
   /** Render the raw mesh to stills in the background — never blocks the run. */
   const snapshotMesh = (id: CandidateId, meshUrl: string) => {
     patchRun(id, { meshUrl });
+    persistMeshUrl(id, meshUrl);
+    setSavedMeshUrls((current) => ({ ...current, [id]: meshUrl }));
     void import('../lib/photoEngine/meshSnapshot')
       .then(({ snapshotGlb }) => snapshotGlb(meshUrl))
       .then((shots) => {
@@ -115,6 +143,60 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
       .catch(() => {
         // No raw view is not a failed run — the brick result still stands.
       });
+  };
+
+  /** Shared completion: judge at 'balanced' and price against the catalog. */
+  const finishRun = (id: CandidateId, models: PhotoModels, startedAt: number) => {
+    const model = models.models.balanced;
+    let catalog: RunState['catalog'];
+    try {
+      const estimate = estimateBuild(model, colors.alarm);
+      catalog = {
+        colours: estimate.full.colorCount,
+        parts: estimate.full.parts,
+        priceEur: estimate.full.bundleEur,
+      };
+    } catch {
+      catalog = undefined;
+    }
+    patchRun(id, {
+      bricks: model.brickCount,
+      catalog,
+      model,
+      seconds: Math.round((Date.now() - startedAt) / 1000),
+      status: 'done',
+    });
+  };
+
+  /**
+   * Free re-run of ONLY the mesh→brick conversion on the candidate's last
+   * generated mesh — the loop for judging conversion improvements without
+   * spending generation credits.
+   */
+  const reconvert = async (candidate: Candidate) => {
+    const meshUrl = savedMeshUrls[candidate.id];
+    if (!meshUrl) return;
+    const startedAt = Date.now();
+    patchRun(candidate.id, {
+      catalog: undefined,
+      error: undefined,
+      meshShots: undefined,
+      meshUrl: undefined,
+      progressNote: 'Re-converting the saved mesh',
+      status: 'running',
+    });
+    try {
+      snapshotMesh(candidate.id, meshUrl);
+      const { buildFromMeshUrlOne } = await import('../lib/photoEngine/imageTo3D');
+      const models = await buildFromMeshUrlOne(meshUrl, 'your object', 'balanced');
+      finishRun(candidate.id, models, startedAt);
+    } catch (error) {
+      patchRun(candidate.id, {
+        error: `${error instanceof Error ? error.message : 'failed'} — the saved mesh may have expired; RUN regenerates it`,
+        seconds: Math.round((Date.now() - startedAt) / 1000),
+        status: 'failed',
+      });
+    }
   };
 
   const run = async (candidate: Candidate) => {
@@ -169,26 +251,7 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
             patchRun(candidate.id, { progressNote: `${Math.round(fraction * 100)}% · ${note}` }),
         });
       }
-      // Judge at 'balanced' — the profile buyers actually see by default.
-      const model = models.models.balanced;
-      let catalog: RunState['catalog'];
-      try {
-        const estimate = estimateBuild(model, colors.alarm);
-        catalog = {
-          colours: estimate.full.colorCount,
-          parts: estimate.full.parts,
-          priceEur: estimate.full.bundleEur,
-        };
-      } catch {
-        catalog = undefined;
-      }
-      patchRun(candidate.id, {
-        bricks: model.brickCount,
-        catalog,
-        model,
-        seconds: Math.round((Date.now() - startedAt) / 1000),
-        status: 'done',
-      });
+      finishRun(candidate.id, models, startedAt);
     } catch (error) {
       patchRun(candidate.id, {
         error: error instanceof Error ? error.message : 'failed',
@@ -315,21 +378,35 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
                     : candidate.id === 'multiview'
                       ? !has360
                       : !hasPhoto;
+                const savedMesh = candidate.id !== 'depth' ? savedMeshUrls[candidate.id] : undefined;
                 return (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={blocked}
-                    onPress={() => run(candidate)}
-                    style={({ pressed }) => [
-                      styles.runButton,
-                      blocked && styles.runDisabled,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={styles.runText}>
-                      {state.status === 'done' || state.status === 'failed' ? 'RUN AGAIN' : 'RUN'}
-                    </Text>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={blocked}
+                      onPress={() => run(candidate)}
+                      style={({ pressed }) => [
+                        styles.runButton,
+                        blocked && styles.runDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={styles.runText}>
+                        {state.status === 'done' || state.status === 'failed' ? 'RUN AGAIN' : 'RUN'}
+                      </Text>
+                    </Pressable>
+                    {savedMesh ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => reconvert(candidate)}
+                        style={({ pressed }) => [styles.reconvertButton, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.reconvertText}>
+                          RE-CONVERT LAST MESH · FREE (no new generation)
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </>
                 );
               })()
             ) : null}
@@ -672,6 +749,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 13,
     letterSpacing: 0.4,
+  },
+  reconvertButton: {
+    alignItems: 'center',
+    borderColor: colors.ink,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    minHeight: 44,
+  },
+  reconvertText: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
   pressed: {
     transform: [{ scale: 0.97 }],
