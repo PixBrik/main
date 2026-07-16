@@ -1,9 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Polygon, Rect } from 'react-native-svg';
 
 import { InkLoader } from '../components/InkLoader';
+import { fitFacesToBox } from '../lib/fitFaces';
 import { ObjectSculpture } from '../components/ObjectSculpture';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
@@ -202,38 +203,9 @@ async function makeCutoutPreview(photoUri: string, segmentation: Segmentation): 
 
 const PREVIEW_VIEW_W = 132;
 const PREVIEW_VIEW_H = 110;
-
-/** Auto-fit faces into the mini style-preview viewBox. */
-function fitMiniPreview(faces: RenderFace[]): RenderFace[] {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const face of faces) {
-    for (const pair of face.points.split(' ')) {
-      const [x, y] = pair.split(',').map(Number);
-      if (x === undefined || y === undefined) continue;
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-    }
-  }
-  if (!Number.isFinite(minX)) return faces;
-  const scale = Math.min(
-    (PREVIEW_VIEW_W * 0.86) / Math.max(1e-6, maxX - minX),
-    (PREVIEW_VIEW_H * 0.86) / Math.max(1e-6, maxY - minY),
-  );
-  const offsetX = PREVIEW_VIEW_W / 2 - ((minX + maxX) / 2) * scale;
-  const offsetY = PREVIEW_VIEW_H / 2 - ((minY + maxY) / 2) * scale;
-  return faces.map((face) => ({
-    ...face,
-    points: face.points
-      .split(' ')
-      .map((pair) => {
-        const [x, y] = pair.split(',').map(Number);
-        return `${(x! * scale + offsetX).toFixed(1)},${(y! * scale + offsetY).toFixed(1)}`;
-      })
-      .join(' '),
-  }));
-}
+/** The lightbox renders at 'balanced' quality into a larger viewBox. */
+const LARGE_VIEW_W = 340;
+const LARGE_VIEW_H = 300;
 
 /** The four ways a photo can become bricks — previewed, not described. */
 const STYLE_CHOICES: ReadonlyArray<{
@@ -288,6 +260,10 @@ export function CaptureScreen({
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [stylePreviews, setStylePreviews] = useState<Array<{ id: string; faces: RenderFace[] }>>([]);
+  // Lightbox: which style is open large, and its higher-quality faces (cached
+  // per style id; invalidated whenever the segmentation changes).
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [largeFaces, setLargeFaces] = useState<Record<string, RenderFace[]>>({});
   const previewToken = useRef(0);
   const dragStartFrame = useRef(frame);
 
@@ -339,6 +315,7 @@ export function CaptureScreen({
   // Once locked, render the four style options as REAL mini brick previews
   // ("Portrait panel" means nothing to a buyer; a picture of one does).
   useEffect(() => {
+    setLargeFaces({});
     if (engineState !== 'locked' || !segmentation) {
       setStylePreviews([]);
       return;
@@ -356,7 +333,7 @@ export function CaptureScreen({
           segmentation.preserveFeatures ?? false,
         );
         const faces = buildRenderFaces(0.5, '#C2371E', model, { baseY: 0, centerX: 0, scale: 1 });
-        previews.push({ faces: fitMiniPreview(faces), id: choice.id });
+        previews.push({ faces: fitFacesToBox(faces, PREVIEW_VIEW_W, PREVIEW_VIEW_H), id: choice.id });
         // Yield between builds so the UI stays smooth.
         await new Promise((resolve) => setTimeout(resolve, 0));
         if (cancelled) return;
@@ -367,6 +344,39 @@ export function CaptureScreen({
       cancelled = true;
     };
   }, [engineState, segmentation]);
+
+  // Build the expanded style's large preview on demand, at 'balanced' quality
+  // (the minis are 'efficient'), and cache it so ‹ › browsing is instant on
+  // the way back.
+  useEffect(() => {
+    if (expandedIndex === null || !segmentation) return;
+    const choice = STYLE_CHOICES[expandedIndex];
+    if (!choice || largeFaces[choice.id]) return;
+    let cancelled = false;
+    (async () => {
+      // Let the modal paint its loading state before the synchronous build.
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      if (cancelled) return;
+      const model = voxelizeSegmentation(
+        segmentation,
+        'balanced',
+        choice.mode,
+        choice.style,
+        segmentation.face ?? null,
+        segmentation.preserveFeatures ?? false,
+      );
+      const faces = buildRenderFaces(0.5, '#C2371E', model, { baseY: 0, centerX: 0, scale: 1 });
+      if (!cancelled) {
+        setLargeFaces((current) => ({
+          ...current,
+          [choice.id]: fitFacesToBox(faces, LARGE_VIEW_W, LARGE_VIEW_H, 0.92),
+        }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedIndex, segmentation, largeFaces]);
 
   /** Apply a previewed style choice — the one decision the buyer makes here. */
   const chooseStyle = async (mode: PhotoBuildMode, style: PanelStyle) => {
@@ -379,6 +389,16 @@ export function CaptureScreen({
       buildPhotoModels(segmentation, photoBuild.label, mode, style, rebuildOptions(segmentation)),
     );
     setEngineState('locked');
+  };
+
+  /** Select the style currently open in the lightbox, then close it. */
+  const selectExpanded = async () => {
+    const choice = expandedIndex !== null ? STYLE_CHOICES[expandedIndex] : undefined;
+    // Close first so the depth/build busy state is visible on the screen.
+    setExpandedIndex(null);
+    if (choice) {
+      await chooseStyle(choice.mode, choice.style);
+    }
   };
 
   const moveResponder = useMemo(
@@ -765,18 +785,19 @@ export function CaptureScreen({
       ) : null}
       {photoBuild && segmentation && engineState === 'locked' ? (
         <>
-          <Text style={styles.stepLabel}>PICK YOUR STYLE — REAL PREVIEWS FROM YOUR PHOTO</Text>
+          <Text style={styles.stepLabel}>PICK YOUR STYLE — TAP A PREVIEW TO SEE IT LARGER</Text>
           <View accessibilityRole="radiogroup" style={styles.styleGrid}>
-            {STYLE_CHOICES.map((choice) => {
+            {STYLE_CHOICES.map((choice, index) => {
               const active = photoBuild.mode === choice.mode && photoBuild.style === choice.style;
               const previewFaces = stylePreviews.find((entry) => entry.id === choice.id)?.faces;
               return (
                 <Pressable
+                  accessibilityHint="Opens a larger preview of this style"
                   accessibilityLabel={`${choice.label}: ${choice.hint}`}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: active }}
                   key={choice.id}
-                  onPress={() => chooseStyle(choice.mode, choice.style)}
+                  onPress={() => setExpandedIndex(index)}
                   style={[styles.styleCard, active && styles.styleCardActive]}
                 >
                   <View style={styles.stylePreviewBox}>
@@ -796,6 +817,9 @@ export function CaptureScreen({
                     ) : (
                       <View style={styles.stylePreviewLoading} />
                     )}
+                    <View pointerEvents="none" style={styles.expandBadge}>
+                      <Text style={styles.expandBadgeText}>⤢</Text>
+                    </View>
                   </View>
                   <Text style={[styles.styleCardTitle, active && styles.styleCardTitleActive]}>
                     {choice.label}
@@ -806,6 +830,111 @@ export function CaptureScreen({
               );
             })}
           </View>
+
+          {expandedIndex !== null ? (
+            <Modal
+              animationType="fade"
+              onRequestClose={() => setExpandedIndex(null)}
+              transparent
+              visible
+            >
+              {(() => {
+                const choice = STYLE_CHOICES[expandedIndex]!;
+                const active =
+                  photoBuild.mode === choice.mode && photoBuild.style === choice.style;
+                const faces = largeFaces[choice.id];
+                return (
+                  <View style={styles.viewerBackdrop}>
+                    <View style={styles.viewerCard}>
+                      <View style={styles.viewerHead}>
+                        <Text style={styles.viewerCount}>
+                          STYLE {expandedIndex + 1} / {STYLE_CHOICES.length}
+                        </Text>
+                        <Pressable
+                          accessibilityLabel="Close the preview"
+                          accessibilityRole="button"
+                          onPress={() => setExpandedIndex(null)}
+                          style={({ pressed }) => [styles.viewerClose, pressed && styles.samplePressed]}
+                        >
+                          <Text style={styles.viewerCloseText}>✕</Text>
+                        </Pressable>
+                      </View>
+
+                      <View style={styles.viewerStage}>
+                        {faces ? (
+                          <Svg
+                            height="100%"
+                            viewBox={`0 0 ${LARGE_VIEW_W} ${LARGE_VIEW_H}`}
+                            width="100%"
+                          >
+                            <Rect fill="#17130A" height={LARGE_VIEW_H} width={LARGE_VIEW_W} />
+                            <G stroke="#0A0C12" strokeLinejoin="round" strokeWidth={0.3}>
+                              {faces.map((face) => (
+                                <Polygon fill={face.fill} key={face.id} points={face.points} />
+                              ))}
+                            </G>
+                          </Svg>
+                        ) : (
+                          <View style={styles.viewerLoading}>
+                            <InkLoader size={26} stage="Building this preview" />
+                          </View>
+                        )}
+                        {/* ‹ › browse the other styles without leaving the viewer. */}
+                        <Pressable
+                          accessibilityLabel="Previous style"
+                          accessibilityRole="button"
+                          onPress={() =>
+                            setExpandedIndex(
+                              (expandedIndex + STYLE_CHOICES.length - 1) % STYLE_CHOICES.length,
+                            )
+                          }
+                          style={({ pressed }) => [styles.viewerArrow, styles.viewerArrowLeft, pressed && styles.samplePressed]}
+                        >
+                          <Text style={styles.viewerArrowText}>‹</Text>
+                        </Pressable>
+                        <Pressable
+                          accessibilityLabel="Next style"
+                          accessibilityRole="button"
+                          onPress={() => setExpandedIndex((expandedIndex + 1) % STYLE_CHOICES.length)}
+                          style={({ pressed }) => [styles.viewerArrow, styles.viewerArrowRight, pressed && styles.samplePressed]}
+                        >
+                          <Text style={styles.viewerArrowText}>›</Text>
+                        </Pressable>
+                      </View>
+
+                      <View style={styles.viewerDots}>
+                        {STYLE_CHOICES.map((entry, index) => (
+                          <Pressable
+                            accessibilityLabel={`Show ${entry.label}`}
+                            accessibilityRole="button"
+                            hitSlop={8}
+                            key={entry.id}
+                            onPress={() => setExpandedIndex(index)}
+                            style={[styles.viewerDot, index === expandedIndex && styles.viewerDotActive]}
+                          />
+                        ))}
+                      </View>
+
+                      <Text style={styles.viewerTitle}>{choice.label}</Text>
+                      <Text style={styles.viewerHint}>{choice.hint}</Text>
+
+                      <PrimaryButton
+                        label={active ? 'Keep this style ✓' : 'Select this style'}
+                        onPress={selectExpanded}
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setExpandedIndex(null)}
+                        style={({ pressed }) => [styles.viewerBack, pressed && styles.samplePressed]}
+                      >
+                        <Text style={styles.viewerBackText}>← Back to all styles</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })()}
+            </Modal>
+          ) : null}
         </>
       ) : null}
 
@@ -1032,6 +1161,141 @@ const styles = StyleSheet.create({
     color: colors.mintDeep,
     fontSize: 9,
     marginTop: spacing.xs,
+  },
+  expandBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: radius.sm,
+    height: 20,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 4,
+    top: 4,
+    width: 20,
+  },
+  expandBadgeText: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 13,
+  },
+  viewerBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(23, 19, 10, 0.88)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  viewerCard: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.lg,
+    maxWidth: 460,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  viewerHead: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  viewerCount: {
+    ...type.micro,
+    color: colors.inkSoft,
+    letterSpacing: 1,
+  },
+  viewerClose: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  viewerCloseText: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  viewerStage: {
+    aspectRatio: LARGE_VIEW_W / LARGE_VIEW_H,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    position: 'relative',
+    width: '100%',
+  },
+  viewerLoading: {
+    alignItems: 'center',
+    backgroundColor: '#17130A',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  viewerArrow: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: radius.pill,
+    height: 44,
+    justifyContent: 'center',
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -22 }],
+    width: 44,
+  },
+  viewerArrowLeft: {
+    left: spacing.sm,
+  },
+  viewerArrowRight: {
+    right: spacing.sm,
+  },
+  viewerArrowText: {
+    color: colors.ink,
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  viewerDots: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    marginTop: spacing.md,
+  },
+  viewerDot: {
+    backgroundColor: colors.line,
+    borderRadius: radius.pill,
+    height: 8,
+    width: 8,
+  },
+  viewerDotActive: {
+    backgroundColor: colors.ink,
+    width: 22,
+  },
+  viewerTitle: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: spacing.md,
+  },
+  viewerHint: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 12,
+    marginBottom: spacing.md,
+    marginTop: 2,
+  },
+  viewerBack: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    minHeight: 44,
+  },
+  viewerBackText: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 13,
+    fontWeight: '800',
   },
   replaceLink: {
     alignSelf: 'flex-start',

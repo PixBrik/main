@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BuildNameField } from '../components/BuildNameField';
 import { BuildPreview } from '../components/BuildPreview';
@@ -9,8 +9,11 @@ import { RotatableBuildPreview } from '../components/RotatableBuildPreview';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import { demoProject, variants } from '../data/mockData';
+import { estimateBuild } from '../lib/brickify';
+import { facesToPngDataUrl, fitFacesToBox } from '../lib/fitFaces';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { getVoxelModel, type VoxelModel } from '../lib/voxelFox';
+import { buildRenderFaces } from '../lib/voxelRender';
 import { colors, radius, spacing, type } from '../theme/tokens';
 import type { DemoScreen } from '../types/navigation';
 
@@ -60,6 +63,15 @@ const modelProfileById = {
   detail: 'detailed',
 } as const;
 
+/** Square viewBox for the per-profile outcome thumbnails on the tickets. */
+const TICKET_VIEW = 76;
+
+interface ProfileCard {
+  png: string | null;
+  pieces: number;
+  priceEur: number | null;
+}
+
 type PreviewMode = 'real' | 'model' | 'blueprint';
 
 export function ResultScreen({
@@ -81,6 +93,46 @@ export function ResultScreen({
     isRealisticViewSupported ? 'real' : 'model',
   );
   const [pdfState, setPdfState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
+  const [profileCards, setProfileCards] = useState<Record<string, ProfileCard>>({});
+
+  // Each profile ticket previews ITS OWN outcome with real numbers, so the
+  // choice is visual instead of a leap of faith. Rasterized to one PNG per
+  // ticket (a detailed model as live SVG would be thousands of nodes).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const next: Record<string, ProfileCard> = {};
+      for (const variant of variants) {
+        const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
+        const model = photoBuild ? photoBuild.models[profile] : getVoxelModel(profile);
+        const variantAccent = accentByName[variant.accent] ?? colors.blue;
+        const faces = fitFacesToBox(
+          buildRenderFaces(0.5, variantAccent, model, { baseY: 0, centerX: 0, scale: 1 }),
+          TICKET_VIEW,
+          TICKET_VIEW,
+          0.9,
+        );
+        let priceEur: number | null = null;
+        try {
+          priceEur = estimateBuild(model, variantAccent).full.bundleEur;
+        } catch {
+          priceEur = null;
+        }
+        next[variant.id] = {
+          pieces: model.brickCount,
+          png: facesToPngDataUrl(faces, TICKET_VIEW, TICKET_VIEW, 3),
+          priceEur,
+        };
+        // Yield between profiles so first paint isn't blocked.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (cancelled) return;
+      }
+      if (!cancelled) setProfileCards(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [photoBuild]);
   const selected = variants.find((variant) => variant.id === selectedVariant) ?? variants[0];
   const accent = selected ? accentByName[selected.accent] ?? colors.blue : colors.blue;
   const modelProfile = modelProfileById[selected?.id as keyof typeof modelProfileById] ?? 'balanced';
@@ -171,6 +223,53 @@ export function ResultScreen({
           <Text style={styles.statValue}>{photoStats?.time ?? selected?.estimatedTime ?? demoProject.estimatedTime}</Text>
           <Text style={[styles.statLabel, { color: colors.saffron }]}>BUILD TIME</Text>
         </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>CHOOSE A BUILD PROFILE — PREVIEWED</Text>
+      <View accessibilityRole="radiogroup" style={styles.ticketGroup}>
+        {variants.map((variant, index) => {
+          const isSelected = variant.id === selectedVariant;
+          const variantAccent = accentByName[variant.accent] ?? colors.blue;
+          const card = profileCards[variant.id];
+          return (
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: isSelected }}
+              key={variant.id}
+              onPress={() => onSelectVariant(variant.id)}
+              style={({ pressed }) => [
+                styles.ticket,
+                isSelected && styles.ticketSelected,
+                pressed && styles.ticketPressed,
+              ]}
+            >
+              {card?.png ? (
+                <Image
+                  accessibilityLabel={`${variant.name} profile preview`}
+                  resizeMode="cover"
+                  source={{ uri: card.png }}
+                  style={styles.ticketPreview}
+                />
+              ) : (
+                <View style={[styles.ticketNumber, { backgroundColor: variantAccent }]}>
+                  <Text style={styles.ticketNumberText}>0{index + 1}</Text>
+                </View>
+              )}
+              <View style={styles.ticketCopy}>
+                <Text style={styles.ticketTitle}>{variant.name}</Text>
+                <Text style={styles.ticketNote}>
+                  {variant.note} · {card ? card.pieces : variant.pieces} pieces
+                </Text>
+              </View>
+              <View style={styles.ticketPrice}>
+                <Text style={styles.ticketPriceValue}>
+                  €{card?.priceEur ? card.priceEur.toFixed(0) : variant.price.toFixed(0)}
+                </Text>
+                <Text style={styles.ticketPriceLabel}>kit estimate</Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
 
       {canToggleDimension && onToggleDimension ? (
@@ -272,38 +371,6 @@ export function ResultScreen({
         <Text style={styles.assumption}>ASSUMPTION / {demoProject.assumption}</Text>
       </View>
 
-      <Text style={styles.sectionLabel}>CHOOSE A BUILD PROFILE</Text>
-      <View accessibilityRole="radiogroup">
-        {variants.map((variant, index) => {
-          const isSelected = variant.id === selectedVariant;
-          const variantAccent = accentByName[variant.accent] ?? colors.blue;
-          return (
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{ checked: isSelected }}
-              key={variant.id}
-              onPress={() => onSelectVariant(variant.id)}
-              style={({ pressed }) => [
-                styles.ticket,
-                isSelected && styles.ticketSelected,
-                pressed && styles.ticketPressed,
-              ]}
-            >
-              <View style={[styles.ticketNumber, { backgroundColor: variantAccent }]}>
-                <Text style={styles.ticketNumberText}>0{index + 1}</Text>
-              </View>
-              <View style={styles.ticketCopy}>
-                <Text style={styles.ticketTitle}>{variant.name}</Text>
-                <Text style={styles.ticketNote}>{variant.note} · {variant.pieces} pieces</Text>
-              </View>
-              <View style={styles.ticketPrice}>
-                <Text style={styles.ticketPriceValue}>€{variant.price.toFixed(0)}</Text>
-                <Text style={styles.ticketPriceLabel}>{variant.availability}% findable</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
     </ScreenFrame>
   );
 }
@@ -497,6 +564,9 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     marginBottom: spacing.md,
   },
+  ticketGroup: {
+    marginBottom: spacing.xl,
+  },
   ticket: {
     alignItems: 'center',
     backgroundColor: colors.white,
@@ -508,6 +578,14 @@ const styles = StyleSheet.create({
     minHeight: 78,
     overflow: 'hidden',
     paddingRight: spacing.md,
+  },
+  ticketPreview: {
+    alignSelf: 'stretch',
+    backgroundColor: '#17130A',
+    borderRightColor: colors.ink,
+    borderRightWidth: 2,
+    minHeight: 76,
+    width: 76,
   },
   ticketSelected: {
     backgroundColor: colors.blueSoft,
