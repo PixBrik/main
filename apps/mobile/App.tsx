@@ -40,6 +40,17 @@ import type {
   TargetSize,
 } from './src/types/navigation';
 
+/**
+ * Hidden deep link: #lab (or ?lab) opens the model-comparison lab + Coach
+ * directly — an internal tool, deliberately not linked from the home page.
+ */
+function initialScreen(): DemoScreen {
+  if (typeof window !== 'undefined' && /[#?&]lab\b/.test(window.location.hash + window.location.search)) {
+    return 'lab';
+  }
+  return 'home';
+}
+
 export default function App() {
   const [fontsLoaded] = useFonts({
     Archivo_500Medium,
@@ -48,7 +59,7 @@ export default function App() {
     Archivo_800ExtraBold,
     ArchivoBlack_400Regular,
   });
-  const [screen, setScreen] = useState<DemoScreen>('home');
+  const [screen, setScreen] = useState<DemoScreen>(initialScreen);
   const [history, setHistory] = useState<DemoScreen[]>([]);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
