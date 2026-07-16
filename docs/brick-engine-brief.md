@@ -54,20 +54,22 @@ sample). Current algorithm, top to bottom:
    `maxAxis / RES[profile]`, `RES = { efficient: 28, balanced: 44,
    detailed: 64 }`. Buyer default is **balanced**. World scale normalized to
    6.3 units on the longest axis (matches procedural models).
-3. Inside test (per voxel centre): **2-of-3 axis ray-parity vote**. Rays are
-   deliberately tilted a hair off-axis (`RAY_AXES`, e.g. `(1, 0.00017,
-   0.00031).normalize()`) because exactly axis-aligned rays from a regular
-   grid skim flat faces/shared edges and corrupt parity (this bug shipped
-   once: the duck came out as a twisted tower). Crossings are deduplicated
-   within `epsilon = maxAxis × 1e-6` (shared-edge double hits). Odd
-   crossings on ≥2 axes → inside. Loop is async-chunked (one x-slice per
-   `MessageChannel` tick — `setTimeout` is throttled ≥1s in background tabs).
-4. Colour (per inside voxel): nearest surface point via
-   `bvh.closestPointToPoint`; then `surfaceColor()` reads, in priority:
-   vertex colour → texture sample → material colour. **Note: the texture UV
-   used is the average of the hit face's three vertex UVs (face centroid),
-   not the barycentric UV of the actual closest point** — a known accuracy
-   coarseness.
+3. Inside test (per voxel centre): **surface shell + outside flood fill**
+   (NOT ray parity — parity variants were tried and collapse on the
+   non-watertight meshes AI generators produce; a real Tripo bust once
+   converted to 158 floating bricks). SHELL = centres within `0.75 × voxel`
+   of any surface (bounded `bvh.closestPointToPoint` with `maxThreshold`,
+   so far voxels early-exit); OUTSIDE = 6-connected BFS from every grid
+   border voxel through non-shell space; kept = shell ∪ never-reached
+   interior. Sub-voxel seams close inside the shell; larger openings leave
+   the model hollow but correct. Loop is async-chunked (one x-slice per
+   `MessageChannel` tick — `setTimeout` is throttled ≥1s in background
+   tabs).
+4. Colour (per kept voxel): nearest surface point via
+   `bvh.closestPointToPoint`; `surfaceColor()` interpolates attributes
+   **barycentrically at the exact closest point** (vertex colour → texture
+   UV sample → material colour), with centroid weights as the
+   degenerate-triangle fallback.
 5. `despeckle()`: drop voxels with ≤1 face-neighbours (parity noise).
 6. `posterizeVoxelColors()`: deterministic k-means (k=10, redmean,
    luma-seeded centroids, 8 iterations) over all voxel colours →
@@ -94,23 +96,19 @@ sample). Current algorithm, top to bottom:
 
 ## 3. Where accuracy is believed to leak (ranked hypotheses)
 
-1. **Colour sampling is single-tap and face-centroid.** One
-   `closestPointToPoint` per voxel; UV averaged per face, not at the hit
-   point; no supersampling or area weighting. Small texture features (eyes,
-   logos, beak edges) alias or vanish. Fix ideas: barycentric UV at the
-   closest point; 4–8 jittered samples per voxel with redmean-median;
-   sample along the surface normal band rather than one point.
+1. **Colour sampling is still single-tap.** One `closestPointToPoint` per
+   voxel (now barycentric at the hit point, but still one sample). Small
+   texture features (eyes, logos, colour boundaries) alias. Fix ideas: 4–8
+   jittered samples per voxel with redmean-median; area-weighted sampling
+   over the voxel's surface patch.
 2. **Fixed k=10 global palette.** A bust with skin+hair+shirt shares 10
    clusters with the background pedestal Tripo sometimes adds. Ideas:
    per-connected-component or per-zone palettes; k chosen by colour variance;
    protect small high-contrast clusters from majority smoothing (the ≥4-of-6
    rule still erodes 1-voxel features).
-3. **Thin features fall below one voxel.** Solid parity fill has no
-   surface-shell bias: a 0.4-voxel-thick tail/handle produces no inside
-   centres at all. Ideas: add a surface pass (mark voxels whose centre is
-   within `0.5 × voxel` of the surface via `closestPointToPoint`, union with
-   parity fill); or distance-field voxelization; beware doubling run time —
-   budget is seconds in a browser main thread (chunked, no workers here).
+3. **Shell thickness is fixed at 0.75 voxel.** Bigger closes more seams but
+   fattens thin features; smaller is crisper but lets the flood leak through
+   coarse AI-mesh cracks. Could be adaptive (measure seam sizes first).
 4. **Grid alignment/orientation.** The grid is the world AABB; a model
    rotated 30° wastes resolution and staircases. Idea: PCA or
    oriented-bounding-box align before voxelizing, rotate back after.
