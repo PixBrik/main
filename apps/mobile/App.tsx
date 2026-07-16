@@ -28,6 +28,7 @@ import { LibraryScreen } from './src/screens/LibraryScreen';
 import { StoresScreen } from './src/screens/StoresScreen';
 import type { LibraryEntry } from './src/data/carLibrary';
 import { loadModel, saveBuild } from './src/lib/buildGallery';
+import { NavigationContext } from './src/lib/navigationContext';
 import type { Segmentation } from './src/lib/photoEngine/segment';
 import type { PhotoModels } from './src/lib/photoEngine/voxelizePhoto';
 import { colors } from './src/theme/tokens';
@@ -90,8 +91,9 @@ export default function App() {
       setPhotoBuild(models);
       saveBuild(entry.name, models.models.balanced, colorHex);
       navigate('result');
-    } catch {
-      // stay on library on failure
+    } catch (error) {
+      // Stay on the library, but never swallow the reason silently.
+      console.error('[library] build failed:', error);
     } finally {
       setLibraryGenerating(false);
     }
@@ -372,7 +374,7 @@ export default function App() {
       <StatusBar style="dark" />
       <PaperCanvas>
         <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.safeArea}>
-          {renderScreen()}
+          <NavigationContext.Provider value={navigate}>{renderScreen()}</NavigationContext.Provider>
         </SafeAreaView>
       </PaperCanvas>
     </SafeAreaProvider>

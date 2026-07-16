@@ -220,8 +220,49 @@ function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
   }
 }
 
-/** Voxelize prepared meshes into a FotoBrik model. */
-function voxelizeMeshes(prepared: PreparedMesh[], profile: MeshProfile): VoxelModel {
+/** Progress callback for the (potentially long) voxelization pass. */
+export type VoxelizeProgressFn = (fraction: number) => void;
+
+const RAY_AXES = [
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(0, 1, 0),
+  new THREE.Vector3(0, 0, 1),
+] as const;
+
+/**
+ * Yield to the event loop so long grids never freeze the tab. Uses a
+ * MessageChannel tick rather than setTimeout: background tabs throttle
+ * timers to ≥1s each, which would stretch a 100-slice grid to minutes,
+ * while channel messages keep firing at full speed.
+ */
+const tickChannel = typeof MessageChannel !== 'undefined' ? new MessageChannel() : null;
+function nextTick(): Promise<void> {
+  if (!tickChannel) {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return new Promise((resolve) => {
+    tickChannel.port1.onmessage = () => resolve();
+    tickChannel.port2.postMessage(null);
+  });
+}
+
+/**
+ * Voxelize prepared meshes into a FotoBrik model.
+ *
+ * Async + chunked: the grid is processed in slices with an event-loop yield
+ * between them, so high resolutions stay responsive instead of freezing the
+ * tab (which is why photo builds used to be capped at res 28).
+ *
+ * Robust inside-test: generated meshes (Tripo/Meshy) are often slightly
+ * non-manifold, and a single-axis ray-parity test turns every crack into a
+ * column of missing or phantom voxels. Casting along all three axes and
+ * majority-voting the parity makes the fill robust to local mesh defects.
+ */
+async function voxelizeMeshes(
+  prepared: PreparedMesh[],
+  profile: MeshProfile,
+  onProgress?: VoxelizeProgressFn,
+): Promise<VoxelModel> {
   const box = new THREE.Box3();
   for (const prep of prepared) box.union(new THREE.Box3().setFromObject(prep.mesh));
   const size = new THREE.Vector3();
@@ -234,7 +275,6 @@ function voxelizeMeshes(prepared: PreparedMesh[], profile: MeshProfile): VoxelMo
   const ny = Math.max(1, Math.ceil(size.y / voxel));
   const nz = Math.max(1, Math.ceil(size.z / voxel));
 
-  const rayDir = new THREE.Vector3(1, 0, 0);
   const raycaster = new THREE.Raycaster();
   raycaster.firstHitOnly = false;
   const meshes = prepared.map((prep) => prep.mesh);
@@ -249,10 +289,16 @@ function voxelizeMeshes(prepared: PreparedMesh[], profile: MeshProfile): VoxelMo
           box.min.y + (iy + 0.5) * voxel,
           box.min.z + (iz + 0.5) * voxel,
         );
-        raycaster.set(centre, rayDir);
-        const hits = raycaster.intersectObjects(meshes, false);
-        // Odd number of forward crossings → inside the solid.
-        if (hits.length % 2 !== 1) continue;
+        // 2-of-3 axis parity vote.
+        let insideVotes = 0;
+        for (const axis of RAY_AXES) {
+          raycaster.set(centre, axis);
+          const hits = raycaster.intersectObjects(meshes, false);
+          if (hits.length % 2 === 1) insideVotes++;
+          // Early exit: verdict already decided either way.
+          if (insideVotes === 2) break;
+        }
+        if (insideVotes < 2) continue;
 
         // Nearest surface across all meshes for colour.
         let best = prepared[0]!;
@@ -277,6 +323,9 @@ function voxelizeMeshes(prepared: PreparedMesh[], profile: MeshProfile): VoxelMo
         });
       }
     }
+    // One yield per x-slice keeps the UI (loader, progress) alive.
+    onProgress?.((ix + 1) / nx);
+    await nextTick();
   }
 
   for (const prep of prepared) {
@@ -296,26 +345,34 @@ export async function voxelizeGlb(buffer: ArrayBuffer): Promise<Record<MeshProfi
     throw new Error('no meshes in model');
   }
   return {
-    balanced: voxelizeMeshes(prepared, 'balanced'),
-    detailed: voxelizeMeshes(prepared, 'detailed'),
-    efficient: voxelizeMeshes(prepared, 'efficient'),
+    balanced: await voxelizeMeshes(prepared, 'balanced'),
+    detailed: await voxelizeMeshes(prepared, 'detailed'),
+    efficient: await voxelizeMeshes(prepared, 'efficient'),
   };
 }
 
 /** Voxelize a GLB at a single profile (fast — library picker uses this). */
-export async function voxelizeGlbOne(buffer: ArrayBuffer, profile: MeshProfile): Promise<VoxelModel> {
+export async function voxelizeGlbOne(
+  buffer: ArrayBuffer,
+  profile: MeshProfile,
+  onProgress?: VoxelizeProgressFn,
+): Promise<VoxelModel> {
   const loader = new GLTFLoader();
   const gltf = await loader.parseAsync(buffer, '');
   const prepared = prepare(gltf.scene);
   if (!prepared.length) {
     throw new Error('no meshes in model');
   }
-  return voxelizeMeshes(prepared, profile);
+  return voxelizeMeshes(prepared, profile, onProgress);
 }
 
-export async function voxelizeGlbUrlOne(url: string, profile: MeshProfile): Promise<VoxelModel> {
+export async function voxelizeGlbUrlOne(
+  url: string,
+  profile: MeshProfile,
+  onProgress?: VoxelizeProgressFn,
+): Promise<VoxelModel> {
   const buffer = await (await fetch(url)).arrayBuffer();
-  return voxelizeGlbOne(buffer, profile);
+  return voxelizeGlbOne(buffer, profile, onProgress);
 }
 
 /** Fetch a GLB URL and voxelize it. */

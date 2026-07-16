@@ -3,6 +3,7 @@ import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 
 
 import { BrandMark } from '../components/BrandMark';
 import { BuildPath } from '../components/BuildPath';
+import { TopMenu } from '../components/TopMenu';
 import { listBuilds, type SavedBuild } from '../lib/buildGallery';
 import { whenVisible } from '../lib/whenVisible';
 import { colors, fonts, inkAlpha, radius, saffronAlpha, shadow, spacing, type } from '../theme/tokens';
@@ -99,15 +100,18 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <BrandMark size={20} />
-          {builds.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setShowAll((current) => !current)}
-              style={({ pressed }) => [styles.buildsPill, pressed && styles.pressedPill]}
-            >
-              <Text style={styles.buildsPillText}>MY BUILDS</Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.topActions}>
+            {builds.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowAll((current) => !current)}
+                style={({ pressed }) => [styles.buildsPill, pressed && styles.pressedPill]}
+              >
+                <Text style={styles.buildsPillText}>MY BUILDS</Text>
+              </Pressable>
+            ) : null}
+            <TopMenu />
+          </View>
         </View>
 
         {headline('SHOOT IT', 0)}
@@ -210,8 +214,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    zIndex: 30,
     marginBottom: spacing.xl,
     minHeight: 48,
+  },
+  topActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   buildsPill: {
     ...shadow.card,

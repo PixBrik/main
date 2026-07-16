@@ -4,6 +4,7 @@ import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 
 import { whenVisible } from '../lib/whenVisible';
 import { colors, fonts, inkAlpha, radius, shadow, spacing, type, type SignalName } from '../theme/tokens';
 import { BrandMark } from './BrandMark';
+import { TopMenu } from './TopMenu';
 
 /**
  * Staggered reveal: each row fades in and rises, 60 ms apart. Content jumps
@@ -75,7 +76,7 @@ export function ScreenFrame({
   const brandHeader = (
     <View style={styles.brandRow}>
       <BrandMark size={18} variant="full" />
-      {trailing ?? null}
+      {trailing ?? <TopMenu />}
     </View>
   );
 
@@ -168,6 +169,7 @@ const styles = StyleSheet.create({
   },
   brandBar: {
     backgroundColor: colors.saffron,
+    zIndex: 30,
     borderBottomColor: inkAlpha(0.12),
     borderBottomWidth: 1,
     width: '100%',

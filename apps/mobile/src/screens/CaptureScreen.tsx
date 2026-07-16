@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { G, Polygon, Rect } from 'react-native-svg';
 
 import { InkLoader } from '../components/InkLoader';
 import { ObjectSculpture } from '../components/ObjectSculpture';
@@ -17,10 +18,12 @@ import { segmentRegion, type Segmentation } from '../lib/photoEngine/segment';
 import { samSegmentRegion } from '../lib/photoEngine/segmentSam';
 import {
   buildPhotoModels,
+  voxelizeSegmentation,
   type PanelStyle,
   type PhotoBuildMode,
   type PhotoModels,
 } from '../lib/photoEngine/voxelizePhoto';
+import { buildRenderFaces, type RenderFace } from '../lib/voxelRender';
 import { colors, radius, spacing, type } from '../theme/tokens';
 import type { CaptureMode } from '../types/navigation';
 
@@ -141,22 +144,110 @@ function resizeFromCorner(start: Region, corner: Corner, dxFrac: number, dyFrac:
   return { height, width, x, y };
 }
 
-/** Row-run-length-encode the background cells of a mask, for a cheap dim overlay. */
-function backgroundRuns(mask: boolean[], grid: number): Array<{ row: number; x0: number; x1: number }> {
-  const runs: Array<{ row: number; x0: number; x1: number }> = [];
-  for (let y = 0; y < grid; y++) {
-    let runStart = -1;
-    for (let x = 0; x <= grid; x++) {
-      const isBackground = x < grid && !mask[y * grid + x];
-      if (isBackground && runStart === -1) runStart = x;
-      if (!isBackground && runStart !== -1) {
-        runs.push({ row: y, x0: runStart, x1: x });
-        runStart = -1;
+/**
+ * Clean cutout preview: the cropped photo with background pixels punched to
+ * white, rendered at image resolution — what the buyer will actually get,
+ * instead of a blocky per-cell dim overlay smeared over the photo.
+ */
+async function makeCutoutPreview(photoUri: string, segmentation: Segmentation): Promise<string> {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new (globalThis as unknown as { Image: typeof HTMLImageElement }).Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('could not load photo'));
+    img.src = photoUri;
+  });
+  const { region, mask, grid } = segmentation;
+  const sourceWidth = region.width * image.naturalWidth;
+  const sourceHeight = region.height * image.naturalHeight;
+  const scale = Math.min(1, 440 / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) return photoUri;
+  context.fillStyle = '#FFFFFF';
+  context.fillRect(0, 0, width, height);
+  context.drawImage(
+    image,
+    region.x * image.naturalWidth,
+    region.y * image.naturalHeight,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    width,
+    height,
+  );
+  const pixels = context.getImageData(0, 0, width, height);
+  const data = pixels.data;
+  for (let y = 0; y < height; y++) {
+    const gy = Math.min(grid - 1, Math.floor((y / height) * grid));
+    for (let x = 0; x < width; x++) {
+      const gx = Math.min(grid - 1, Math.floor((x / width) * grid));
+      if (!mask[gy * grid + gx]) {
+        const index = (y * width + x) * 4;
+        data[index] = 255;
+        data[index + 1] = 255;
+        data[index + 2] = 255;
       }
     }
   }
-  return runs;
+  context.putImageData(pixels, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.88);
 }
+
+const PREVIEW_VIEW_W = 132;
+const PREVIEW_VIEW_H = 110;
+
+/** Auto-fit faces into the mini style-preview viewBox. */
+function fitMiniPreview(faces: RenderFace[]): RenderFace[] {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const face of faces) {
+    for (const pair of face.points.split(' ')) {
+      const [x, y] = pair.split(',').map(Number);
+      if (x === undefined || y === undefined) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (!Number.isFinite(minX)) return faces;
+  const scale = Math.min(
+    (PREVIEW_VIEW_W * 0.86) / Math.max(1e-6, maxX - minX),
+    (PREVIEW_VIEW_H * 0.86) / Math.max(1e-6, maxY - minY),
+  );
+  const offsetX = PREVIEW_VIEW_W / 2 - ((minX + maxX) / 2) * scale;
+  const offsetY = PREVIEW_VIEW_H / 2 - ((minY + maxY) / 2) * scale;
+  return faces.map((face) => ({
+    ...face,
+    points: face.points
+      .split(' ')
+      .map((pair) => {
+        const [x, y] = pair.split(',').map(Number);
+        return `${(x! * scale + offsetX).toFixed(1)},${(y! * scale + offsetY).toFixed(1)}`;
+      })
+      .join(' '),
+  }));
+}
+
+/** The four ways a photo can become bricks — previewed, not described. */
+const STYLE_CHOICES: ReadonlyArray<{
+  id: string;
+  label: string;
+  hint: string;
+  mode: PhotoBuildMode;
+  style: PanelStyle;
+}> = [
+  { hint: 'real depth, every side', id: 'volume', label: 'FULL 3D SCULPTURE', mode: 'volume', style: 'natural' },
+  { hint: 'classic brick portrait', id: 'classic', label: 'PANEL · B/W', mode: 'relief', style: 'classic' },
+  { hint: 'warm vintage tones', id: 'sepia', label: 'PANEL · SEPIA', mode: 'relief', style: 'sepia' },
+  { hint: 'true photo colours', id: 'natural', label: 'PANEL · COLOUR', mode: 'relief', style: 'natural' },
+];
 
 export function CaptureScreen({
   mode,
@@ -194,7 +285,9 @@ export function CaptureScreen({
   // runs once at lock time, same as before.
   const [preview, setPreview] = useState<Segmentation | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
+  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [stylePreviews, setStylePreviews] = useState<Array<{ id: string; faces: RenderFace[] }>>([]);
   const previewToken = useRef(0);
   const dragStartFrame = useRef(frame);
 
@@ -226,6 +319,11 @@ export function CaptureScreen({
         const result = await segmentRegion(photoUri, frame, PREVIEW_GRID);
         if (previewToken.current === token) {
           setPreview(result);
+          // Clean image-resolution cutout for the "what you'll get" card.
+          const url = await makeCutoutPreview(photoUri, result).catch(() => null);
+          if (previewToken.current === token) {
+            setCutoutUrl(url);
+          }
         }
       } catch {
         // A failed preview isn't fatal — lock-time segmentation retries.
@@ -237,6 +335,51 @@ export function CaptureScreen({
     }, PREVIEW_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [frame, photoUri, engineState]);
+
+  // Once locked, render the four style options as REAL mini brick previews
+  // ("Portrait panel" means nothing to a buyer; a picture of one does).
+  useEffect(() => {
+    if (engineState !== 'locked' || !segmentation) {
+      setStylePreviews([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const previews: Array<{ id: string; faces: RenderFace[] }> = [];
+      for (const choice of STYLE_CHOICES) {
+        const model = voxelizeSegmentation(
+          segmentation,
+          'efficient',
+          choice.mode,
+          choice.style,
+          segmentation.face ?? null,
+          segmentation.preserveFeatures ?? false,
+        );
+        const faces = buildRenderFaces(0.5, '#C2371E', model, { baseY: 0, centerX: 0, scale: 1 });
+        previews.push({ faces: fitMiniPreview(faces), id: choice.id });
+        // Yield between builds so the UI stays smooth.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (cancelled) return;
+      }
+      if (!cancelled) setStylePreviews(previews);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [engineState, segmentation]);
+
+  /** Apply a previewed style choice — the one decision the buyer makes here. */
+  const chooseStyle = async (mode: PhotoBuildMode, style: PanelStyle) => {
+    if (!photoBuild || !segmentation) return;
+    if (photoBuild.mode === mode && photoBuild.style === style) return;
+    if (mode === 'volume') {
+      await ensureDepth(segmentation);
+    }
+    onObjectLocked(
+      buildPhotoModels(segmentation, photoBuild.label, mode, style, rebuildOptions(segmentation)),
+    );
+    setEngineState('locked');
+  };
 
   const moveResponder = useMemo(
     () =>
@@ -395,28 +538,6 @@ export function CaptureScreen({
     preserveFeatures: target.preserveFeatures ?? false,
   });
 
-  const switchMode = async (nextMode: PhotoBuildMode) => {
-    if (!photoBuild || !segmentation || photoBuild.mode === nextMode) {
-      return;
-    }
-    if (nextMode === 'volume') {
-      await ensureDepth(segmentation);
-    }
-    onObjectLocked(
-      buildPhotoModels(segmentation, photoBuild.label, nextMode, undefined, rebuildOptions(segmentation)),
-    );
-    setEngineState('locked');
-  };
-
-  const switchStyle = (nextStyle: PanelStyle) => {
-    if (!photoBuild || !segmentation || photoBuild.style === nextStyle) {
-      return;
-    }
-    onObjectLocked(
-      buildPhotoModels(segmentation, photoBuild.label, photoBuild.mode, nextStyle, rebuildOptions(segmentation)),
-    );
-  };
-
   const busy = engineState === 'detecting' || engineState === 'segmenting' || engineState === 'depth';
   const framing = engineState === 'select';
 
@@ -443,11 +564,7 @@ export function CaptureScreen({
                 : 'DRAG TO FRAME'
             : 'READY TO SCAN';
 
-  const previewRuns =
-    !dragging && preview && !previewBusy ? backgroundRuns(preview.mask, PREVIEW_GRID) : [];
-  const previewRegion = preview?.region ?? frame;
-  const cellFracX = previewRegion.width / PREVIEW_GRID;
-  const cellFracY = previewRegion.height / PREVIEW_GRID;
+  const showCutout = framing && !dragging && !!cutoutUrl && !previewBusy;
 
   return (
     <ScreenFrame
@@ -533,23 +650,6 @@ export function CaptureScreen({
                     },
                   ]}
                 />
-
-                {/* Smart-AI background removal preview, once the frame settles. */}
-                {previewRuns.map((run, index) => (
-                  <View
-                    key={index}
-                    pointerEvents="none"
-                    style={[
-                      styles.previewDim,
-                      {
-                        height: `${cellFracY * 100}%`,
-                        left: `${(previewRegion.x + run.x0 * cellFracX) * 100}%`,
-                        top: `${(previewRegion.y + run.row * cellFracY) * 100}%`,
-                        width: `${(run.x1 - run.x0) * cellFracX * 100}%`,
-                      },
-                    ]}
-                  />
-                ))}
 
                 {/* The frame itself: draggable to move, corner handles to resize freely. */}
                 <View
@@ -640,60 +740,72 @@ export function CaptureScreen({
               </Pressable>
             </View>
           ) : null}
+
+          {/* What the buyer actually gets: the clean cutout, not a blocky overlay. */}
+          {showCutout ? (
+            <View style={styles.cutoutCard}>
+              <Text style={styles.cutoutLabel}>WE'LL BUILD EXACTLY THIS</Text>
+              <Image
+                accessibilityLabel="Your object with the background removed"
+                resizeMode="contain"
+                source={{ uri: cutoutUrl! }}
+                style={styles.cutoutImage}
+              />
+              <Text style={styles.cutoutHint}>
+                Not quite right? Drag the frame or its corners on the photo above.
+              </Text>
+            </View>
+          ) : null}
+
           <PrimaryButton
-            compact
-            label="Lock this frame"
+            label="Looks good — build this"
             onPress={() => lockObject(frame, labelForFrame(frame, detections))}
           />
         </>
       ) : null}
-      {photoBuild && segmentation ? (
+      {photoBuild && segmentation && engineState === 'locked' ? (
         <>
-          <View accessibilityRole="radiogroup" style={styles.modeRow}>
-            {(
-              [
-                { id: 'relief', label: 'Portrait panel' },
-                { id: 'volume', label: 'Full 3D sculpture' },
-              ] as const
-            ).map((option) => {
-              const active = photoBuild.mode === option.id;
+          <Text style={styles.stepLabel}>PICK YOUR STYLE — REAL PREVIEWS FROM YOUR PHOTO</Text>
+          <View accessibilityRole="radiogroup" style={styles.styleGrid}>
+            {STYLE_CHOICES.map((choice) => {
+              const active = photoBuild.mode === choice.mode && photoBuild.style === choice.style;
+              const previewFaces = stylePreviews.find((entry) => entry.id === choice.id)?.faces;
               return (
                 <Pressable
+                  accessibilityLabel={`${choice.label}: ${choice.hint}`}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: active }}
-                  key={option.id}
-                  onPress={() => switchMode(option.id)}
-                  style={[styles.modeChip, active && styles.modeChipActive]}
+                  key={choice.id}
+                  onPress={() => chooseStyle(choice.mode, choice.style)}
+                  style={[styles.styleCard, active && styles.styleCardActive]}
                 >
-                  <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{option.label}</Text>
+                  <View style={styles.stylePreviewBox}>
+                    {previewFaces ? (
+                      <Svg
+                        height="100%"
+                        viewBox={`0 0 ${PREVIEW_VIEW_W} ${PREVIEW_VIEW_H}`}
+                        width="100%"
+                      >
+                        <Rect fill="#17130A" height={PREVIEW_VIEW_H} width={PREVIEW_VIEW_W} />
+                        <G stroke="#0A0C12" strokeLinejoin="round" strokeWidth={0.3}>
+                          {previewFaces.map((face) => (
+                            <Polygon fill={face.fill} key={face.id} points={face.points} />
+                          ))}
+                        </G>
+                      </Svg>
+                    ) : (
+                      <View style={styles.stylePreviewLoading} />
+                    )}
+                  </View>
+                  <Text style={[styles.styleCardTitle, active && styles.styleCardTitleActive]}>
+                    {choice.label}
+                  </Text>
+                  <Text style={styles.styleCardHint}>{choice.hint}</Text>
+                  {active ? <Text style={styles.styleCardCheck}>SELECTED ✓</Text> : null}
                 </Pressable>
               );
             })}
           </View>
-          {photoBuild.mode === 'relief' ? (
-            <View accessibilityRole="radiogroup" style={styles.modeRow}>
-              {(
-                [
-                  { id: 'classic', label: 'Classic B/W' },
-                  { id: 'sepia', label: 'Sepia' },
-                  { id: 'natural', label: 'Natural colour' },
-                ] as const
-              ).map((option) => {
-                const active = photoBuild.style === option.id;
-                return (
-                  <Pressable
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: active }}
-                    key={option.id}
-                    onPress={() => switchStyle(option.id)}
-                    style={[styles.styleChip, active && styles.modeChipActive]}
-                  >
-                    <Text style={[styles.styleChipText, active && styles.modeChipTextActive]}>{option.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
         </>
       ) : null}
 
@@ -717,36 +829,42 @@ export function CaptureScreen({
         </View>
       ) : null}
 
-      <View style={styles.captureRow}>
-        <View style={[styles.hint, captured ? styles.hintCaptured : styles.hintScanning]}>
-          <Text style={styles.hintTitle}>
-            {captured
-              ? photoBuild
-                ? `${photoBuild.label} locked as build target`
-                : 'Sample geometry ready'
-              : Platform.OS === 'web'
-                ? 'Use a real photo'
-                : 'Shoot a real object'}
-          </Text>
-          <Text style={styles.hintBody}>
-            {engineState === 'depth'
-              ? 'Measuring true depth with an on-device model — the first run downloads ~26 MB, after that it is cached.'
-              : engineState === 'segmenting'
-                ? 'AI cutout in progress — works on any background. First run downloads ~35 MB, then it is cached.'
-                : captured
-                  ? 'Capture again to replace this scan.'
-                  : 'Your photo stays on this device; AI cutout, detection, depth, and 3D run locally.'}
-          </Text>
+      {!photoUri ? (
+        <View style={styles.captureRow}>
+          <View style={[styles.hint, captured ? styles.hintCaptured : styles.hintScanning]}>
+            <Text style={styles.hintTitle}>
+              {captured
+                ? 'Sample geometry ready'
+                : Platform.OS === 'web'
+                  ? 'Use a real photo'
+                  : 'Shoot a real object'}
+            </Text>
+            <Text style={styles.hintBody}>
+              {captured
+                ? 'Capture a photo to replace the sample.'
+                : 'Your photo stays on this device; AI cutout, detection, depth, and 3D run locally.'}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Capture a photo"
+            accessibilityRole="button"
+            onPress={capture}
+            style={({ pressed }) => [styles.shutterOuter, pressed && styles.shutterPressed]}
+          >
+            <View style={[styles.shutterInner, captured && styles.shutterCaptured]} />
+          </Pressable>
         </View>
+      ) : (
+        // Photo is in — the big upload section collapses to one quiet action.
         <Pressable
-          accessibilityLabel={captured ? 'Replace the photo' : 'Capture a photo'}
+          accessibilityLabel="Replace the photo"
           accessibilityRole="button"
           onPress={capture}
-          style={({ pressed }) => [styles.shutterOuter, pressed && styles.shutterPressed]}
+          style={({ pressed }) => [styles.replaceLink, pressed && styles.samplePressed]}
         >
-          <View style={[styles.shutterInner, captured && styles.shutterCaptured]} />
+          <Text style={styles.replaceLinkText}>↺ Replace photo</Text>
         </Pressable>
-      </View>
+      )}
 
       {photoUri ? (
         <Pressable
@@ -835,9 +953,97 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10, 12, 18, 0.62)',
     position: 'absolute',
   },
-  previewDim: {
-    backgroundColor: 'rgba(10, 12, 18, 0.55)',
-    position: 'absolute',
+  cutoutCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
+  cutoutLabel: {
+    ...type.micro,
+    color: colors.inkSoft,
+    marginBottom: spacing.sm,
+  },
+  cutoutImage: {
+    borderRadius: radius.sm,
+    height: 190,
+    width: '100%',
+  },
+  cutoutHint: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: spacing.sm,
+  },
+  stepLabel: {
+    ...type.micro,
+    color: colors.inkSoft,
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  styleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  styleCard: {
+    backgroundColor: colors.white,
+    borderColor: 'transparent',
+    borderRadius: radius.lg,
+    borderWidth: 2.5,
+    flexBasis: '47%',
+    flexGrow: 1,
+    padding: spacing.sm,
+  },
+  styleCardActive: {
+    borderColor: colors.ink,
+  },
+  stylePreviewBox: {
+    aspectRatio: PREVIEW_VIEW_W / PREVIEW_VIEW_H,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  stylePreviewLoading: {
+    backgroundColor: '#17130A',
+    flex: 1,
+  },
+  styleCardTitle: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: spacing.sm,
+  },
+  styleCardTitleActive: {
+    color: colors.ink,
+  },
+  styleCardHint: {
+    ...type.micro,
+    color: colors.inkSoft,
+    fontSize: 8,
+    marginTop: 1,
+    textTransform: 'none',
+  },
+  styleCardCheck: {
+    ...type.micro,
+    color: colors.mintDeep,
+    fontSize: 9,
+    marginTop: spacing.xs,
+  },
+  replaceLink: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    minHeight: 44,
+  },
+  replaceLinkText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '800',
   },
   frameBox: {
     borderColor: colors.saffron,

@@ -285,12 +285,15 @@ export async function buildFromPhoto(
     throw new Error('generation timed out');
   }
 
-  onProgress?.(0.92, 'Converting to bricks');
-  // Voxelize once at the lightest profile and reuse it. Generated meshes are
-  // capped at ~10k faces server-side (face_limit), but the voxelizer still runs
-  // synchronously on the main thread, so 'efficient' (res 28) keeps it from
-  // freezing the tab. Voxelizing all three profiles (incl. res-64) would hang.
-  const model = await voxelizeGlbUrlOne(`/api/tripo/model?taskId=${encodeURIComponent(taskId)}`, 'efficient');
+  onProgress?.(0.9, 'Converting to bricks');
+  // The voxelizer is chunked/async now, so a face-level resolution no longer
+  // freezes the tab — 'balanced' (res 44) holds ~4× the detail res 28 did,
+  // which is the difference between a blob and a recognizable subject.
+  const model = await voxelizeGlbUrlOne(
+    `/api/tripo/model?taskId=${encodeURIComponent(taskId)}`,
+    'balanced',
+    (fraction) => onProgress?.(0.9 + fraction * 0.1, 'Converting to bricks'),
+  );
   onProgress?.(1, 'Done');
   return {
     hasDepth: true,
