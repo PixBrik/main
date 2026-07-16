@@ -18,11 +18,19 @@ interface ObjectSculptureProps {
  * engine that builds real photos, not an illustration of one.
  */
 
-/** Side profile along +x = toe. Generic high-top: sole, toe cap, collar. */
+/**
+ * Side profile along +x = toe. The high-top "L" silhouette that reads as a
+ * shoe: a FLAT low vamp, a STEEP near-vertical collar rise at the back, and
+ * a rounded toe dome — not a continuous diagonal (which reads as a wedge).
+ */
 function topProfile(x: number): number {
-  if (x > 1.3) return Math.max(0.55, 0.95 - (x - 1.3) * 0.4);
-  if (x > 0.2) return 0.95 + (1.3 - x) * 0.45;
-  return Math.min(2.35, 1.45 + (0.2 - x) * 0.7);
+  if (x > 1.35) {
+    const t = (x - 1.35) / 1.0;
+    return Math.max(0.5, 1.0 - t * t * 0.55); // toe dome
+  }
+  if (x > -0.2) return 1.0; // flat vamp
+  if (x > -0.55) return 1.0 + ((-0.2 - x) / 0.35) * 1.5; // steep collar rise
+  return 2.5; // collar
 }
 
 function halfWidth(x: number): number {
@@ -32,26 +40,32 @@ function halfWidth(x: number): number {
 }
 
 function classifySneaker(x: number, y: number, z: number): VoxelZone | null {
-  if (x < -2.3 || x > 2.35 || y < 0) return null;
+  if (x < -2.0 || x > 2.2 || y < 0) return null;
   if (Math.abs(z) > halfWidth(x)) return null;
   const top = topProfile(x);
-  if (y > top) return null;
-  // Ankle opening (hollow) so the collar reads from above.
-  if (x < -0.3 && x > -1.9 && y > top - 0.3 && Math.abs(z) < 0.34) return null;
+
+  // Tongue: raised pad peeking above the vamp, in front of the collar.
+  const onTongue = x > -0.15 && x < 0.45 && Math.abs(z) < 0.32 && y <= 1.5;
+  if (y > top && !onTongue) return null;
+
+  // Ankle opening (hollow) behind the tongue.
+  if (x < -0.55 && x > -1.9 && y > top - 0.3 && Math.abs(z) < 0.34) return null;
+
   if (y < 0.14) return 'dark'; // outsole
-  if (y < 0.42) return 'cream'; // midsole
+  if (y < 0.45) return 'cream'; // midsole
   if (x > 1.15 && y < 1.0) return 'cream'; // toe cap
-  if (x < -1.75 && y < 1.35) return 'cream'; // heel patch
-  if (y > top - 0.32 && x < 0.3) return 'dark'; // collar rim
-  if (x > 0.1 && x < 1.2) {
-    const laceY = 0.98 + (1.2 - x) * 0.42;
-    if (Math.abs(y - laceY) < 0.17 && Math.abs(z) < 0.42) return 'dark'; // laces
+  if (x < -1.55 && y < 1.3) return 'cream'; // heel patch
+  if (onTongue && y > top) return y > 1.32 ? 'dark' : 'accent'; // tongue + dark tip
+  if (y > top - 0.3 && x < -0.55) return 'dark'; // collar rim
+  // Lace bars across the flat vamp top.
+  if (x > 0.3 && x < 1.15 && y > 0.8 && Math.abs(z) < 0.48) {
+    if (Math.round(x / 0.3) % 2 === 0) return 'dark';
   }
   return 'accent'; // red upper
 }
 
 const SNEAKER_RED = '#C2371E';
-const YAW = 0.55;
+const YAW = 0.42;
 
 /** Fit pre-built faces into a target box within the panel's viewBox. */
 function fitFaces(
@@ -101,7 +115,7 @@ function PhotoSneaker() {
 export function ObjectSculpture({ scanLines = false }: ObjectSculptureProps) {
   const { wireFaces, brickFaces } = useMemo(() => {
     const model = voxelize(classifySneaker, 0.16, {
-      minX: -2.4, maxX: 2.4, minY: 0, maxY: 2.6, minZ: -0.9, maxZ: 0.9,
+      minX: -2.1, maxX: 2.3, minY: 0, maxY: 2.7, minZ: -0.9, maxZ: 0.9,
     });
     const probe = buildRenderFaces(YAW, SNEAKER_RED, model, { baseY: 0, centerX: 0, scale: 1 });
     const wire = buildRenderFaces(YAW, SNEAKER_RED, model, fitFaces(probe, { x: 236, y: 84, width: 132, height: 136 }));
