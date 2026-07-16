@@ -108,9 +108,15 @@ function surfaceColor(prep: PreparedMesh, point: THREE.Vector3): string {
     triC.fromBufferAttribute(position, c);
     const bary = THREE.Triangle.getBarycoord(tempTarget.point, triA, triB, triC, baryCoord);
     if (bary) {
-      wa = bary.x;
-      wb = bary.y;
-      wc = bary.z;
+      // Inset slightly toward the triangle interior: closest points land
+      // EXACTLY on edges constantly, and on UV-seam edges the interpolated
+      // UV falls one texel outside the texture island into atlas padding
+      // (black/green bleed — the duck's beak sampled black this way).
+      const inset = 0.88;
+      const pad = (1 - inset) / 3;
+      wa = bary.x * inset + pad;
+      wb = bary.y * inset + pad;
+      wc = bary.z * inset + pad;
     }
   }
 
@@ -139,6 +145,62 @@ function toHex(value01: number): string {
   return Math.max(0, Math.min(255, Math.round(value01 * 255)))
     .toString(16)
     .padStart(2, '0');
+}
+
+/** Jitter pattern for supersampled shell colours (fractions of a voxel). */
+const SAMPLE_OFFSETS: ReadonlyArray<readonly [number, number, number]> = [
+  [0, 0, 0],
+  [0.3, 0, 0], [-0.3, 0, 0],
+  [0, 0.3, 0], [0, -0.3, 0],
+  [0, 0, 0.3], [0, 0, -0.3],
+];
+const samplePoint = new THREE.Vector3();
+const nearestProbe = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+
+function nearestPrep(prepared: PreparedMesh[], point: THREE.Vector3): PreparedMesh {
+  let best = prepared[0]!;
+  let bestDist = Infinity;
+  for (const prep of prepared) {
+    const hit = prep.bvh.closestPointToPoint(point, nearestProbe as never);
+    const distance = (hit as { distance?: number } | null)?.distance ?? Infinity;
+    if (distance < bestDist) {
+      bestDist = distance;
+      best = prep;
+    }
+  }
+  return best;
+}
+
+/**
+ * Supersampled colour for a VISIBLE (shell) voxel: seven jittered surface
+ * samples, keep the redmean-medoid. One sample per voxel aliases hard on
+ * photoreal AI textures — a single stray texel (compression noise, a seam
+ * pixel) becomes a whole brick; the medoid ignores outliers while landing on
+ * a colour that genuinely exists in the texture (an average would invent
+ * in-between colours no catalog brick matches).
+ */
+function shellColor(prepared: PreparedMesh[], centre: THREE.Vector3, voxel: number): string {
+  const hexes: string[] = [];
+  for (const [ox, oy, oz] of SAMPLE_OFFSETS) {
+    samplePoint.set(centre.x + ox * voxel, centre.y + oy * voxel, centre.z + oz * voxel);
+    const prep = prepared.length === 1 ? prepared[0]! : nearestPrep(prepared, samplePoint);
+    hexes.push(surfaceColor(prep, samplePoint));
+  }
+  const rgbs = hexes.map(hexToRgb);
+  let bestIndex = 0;
+  let bestSum = Infinity;
+  for (let i = 0; i < rgbs.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < rgbs.length; j++) {
+      if (i === j) continue;
+      sum += colorDistance(rgbs[i]![0], rgbs[i]![1], rgbs[i]![2], rgbs[j]![0], rgbs[j]![1], rgbs[j]![2]);
+    }
+    if (sum < bestSum) {
+      bestSum = sum;
+      bestIndex = i;
+    }
+  }
+  return hexes[bestIndex]!;
 }
 
 const NEIGHBOURS: ReadonlyArray<readonly [number, number, number]> = [
@@ -172,30 +234,87 @@ function hexToRgb(hex: string): Rgb {
  * Palette discipline for mesh builds — the reason photo builds look tidy and
  * raw mesh builds looked "messy": each voxel used to quantize its own texel
  * independently, producing hundreds of near-duplicate catalog colours with
- * no coherent zones. Same recipe as the photo pipeline: deterministic
- * k-means over the sampled colours, a conservative 3D majority smoothing
- * pass (strict ≥4-of-6 vote, so small features like eyes survive), then one
- * catalog colour per cluster.
+ * no coherent zones. Deterministic k-means over the sampled colours, then a
+ * conservative 3D majority smoothing pass, then one catalog colour per
+ * cluster. Three accuracy upgrades over the first version:
+ *
+ * - Adaptive k: the number of distinct catalog colours the raw samples
+ *   already touch is a good proxy for the model's true colour richness — a
+ *   fixed k=10 starved multi-material busts and wasted clusters on uniform
+ *   objects.
+ * - Farthest-point (maximin) seeding: small high-contrast features (eyes on
+ *   a duck, lips on a bust) are guaranteed their own seed. The old
+ *   luma-sorted seeding merged them into their surroundings before k-means
+ *   ever ran.
+ * - Feature protection in smoothing: a cell whose cluster is globally rare
+ *   AND far from the winning neighbour colour is a deliberate detail, not
+ *   noise — the ≥4-of-6 vote must not erase it.
  */
-function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
+function posterizeVoxelColors(cells: VoxelCell[], paletteSize?: number): void {
   if (!cells.length) return;
   const samples: Rgb[] = cells.map((cell) => hexToRgb(cell.colorHex ?? '#cccccc'));
 
-  const k = Math.min(paletteSize, samples.length);
-  const byLuma = [...samples].sort(
-    (a, b) => a[0] * 0.3 + a[1] * 0.59 + a[2] * 0.11 - (b[0] * 0.3 + b[1] * 0.59 + b[2] * 0.11),
-  );
-  let centroids: Rgb[] = Array.from({ length: k }, (_, index) => {
-    const pick = byLuma[Math.floor(((index + 0.5) / k) * byLuma.length)]!;
-    return [...pick] as Rgb;
+  // Subsample for seeding and k-estimation so cost stays bounded on big grids.
+  const stride = Math.max(1, Math.floor(samples.length / 6000));
+  const sub: Rgb[] = [];
+  for (let index = 0; index < samples.length; index += stride) sub.push(samples[index]!);
+
+  let k: number;
+  if (paletteSize) {
+    k = Math.min(paletteSize, samples.length);
+  } else {
+    const distinct = new Set<string>();
+    for (const s of sub) distinct.add(quantizeToCatalog(s[0], s[1], s[2]));
+    k = Math.min(Math.max(8, Math.min(16, distinct.size + 2)), samples.length);
+  }
+
+  // Maximin seeding: first seed nearest the mean, each next seed = the
+  // sample farthest from every seed so far. Deterministic.
+  let meanR = 0, meanG = 0, meanB = 0;
+  for (const s of sub) {
+    meanR += s[0];
+    meanG += s[1];
+    meanB += s[2];
+  }
+  meanR /= sub.length;
+  meanG /= sub.length;
+  meanB /= sub.length;
+  let firstSeed = 0;
+  let firstDistance = Infinity;
+  sub.forEach((s, index) => {
+    const distance = colorDistance(s[0], s[1], s[2], meanR, meanG, meanB);
+    if (distance < firstDistance) {
+      firstDistance = distance;
+      firstSeed = index;
+    }
   });
+  const seeds = [firstSeed];
+  const minDistance = new Float64Array(sub.length).fill(Infinity);
+  while (seeds.length < k) {
+    const last = sub[seeds[seeds.length - 1]!]!;
+    let farthest = 0;
+    let farthestDistance = -1;
+    for (let index = 0; index < sub.length; index++) {
+      const s = sub[index]!;
+      const distance = colorDistance(s[0], s[1], s[2], last[0], last[1], last[2]);
+      if (distance < minDistance[index]!) minDistance[index] = distance;
+      if (minDistance[index]! > farthestDistance) {
+        farthestDistance = minDistance[index]!;
+        farthest = index;
+      }
+    }
+    if (farthestDistance <= 0) break; // fewer distinct colours than k
+    seeds.push(farthest);
+  }
+  let centroids: Rgb[] = seeds.map((index) => [...sub[index]!] as Rgb);
+  const kEff = centroids.length;
 
   const assign = new Int32Array(samples.length);
   for (let iteration = 0; iteration < 8; iteration++) {
     for (let index = 0; index < samples.length; index++) {
       let best = 0;
       let bestDistance = Number.POSITIVE_INFINITY;
-      for (let c = 0; c < k; c++) {
+      for (let c = 0; c < kEff; c++) {
         const s = samples[index]!;
         const distance = colorDistance(s[0], s[1], s[2], centroids[c]![0], centroids[c]![1], centroids[c]![2]);
         if (distance < bestDistance) {
@@ -205,7 +324,7 @@ function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
       }
       assign[index] = best;
     }
-    const sums: number[][] = Array.from({ length: k }, () => [0, 0, 0, 0]);
+    const sums: number[][] = Array.from({ length: kEff }, () => [0, 0, 0, 0]);
     for (let index = 0; index < samples.length; index++) {
       const sum = sums[assign[index]!]!;
       const s = samples[index]!;
@@ -220,8 +339,16 @@ function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
     });
   }
 
+  // Cluster sizes for feature protection.
+  const clusterSizes = new Int32Array(kEff);
+  for (let index = 0; index < samples.length; index++) clusterSizes[assign[index]!]! += 1;
+  const rareLimit = Math.max(8, samples.length * 0.015);
+
   // Conservative 3D majority smoothing: a cell only changes cluster when a
-  // strict majority of its 6-neighbourhood (≥4) agrees on another cluster.
+  // strict majority of its 6-neighbourhood (≥4) agrees on another cluster —
+  // and never when the cell belongs to a rare, strongly-contrasting cluster
+  // (an eye is two voxels of near-black on a sea of yellow: the vote always
+  // goes against it, and it is always right to keep it).
   const indexByCoord = new Map<string, number>();
   cells.forEach((cell, index) => indexByCoord.set(`${cell.i},${cell.j},${cell.k}`, index));
   const smoothed = new Int32Array(assign);
@@ -237,7 +364,18 @@ function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
     }
     for (const [cluster, count] of votes) {
       if (cluster !== assign[index] && count >= 4) {
-        smoothed[index] = cluster;
+        const own = assign[index]!;
+        const ownCentroid = centroids[own]!;
+        const winnerCentroid = centroids[cluster]!;
+        const isProtectedFeature =
+          clusterSizes[own]! < rareLimit &&
+          colorDistance(
+            ownCentroid[0], ownCentroid[1], ownCentroid[2],
+            winnerCentroid[0], winnerCentroid[1], winnerCentroid[2],
+          ) > 100;
+        if (!isProtectedFeature) {
+          smoothed[index] = cluster;
+        }
         break;
       }
     }
@@ -380,31 +518,27 @@ async function voxelizeMeshes(
     if (iz < nz - 1) seed(ix, iy, iz + 1);
   }
 
-  // Pass 3 — keep shell + interior (everything the flood never reached) and
-  // sample colours from the nearest surface.
+  // Pass 3 — keep shell + interior (everything the flood never reached).
+  // Shell voxels are the visible ones and get supersampled colour; interior
+  // voxels are hidden (faces culled) so a single nearest-surface sample is
+  // plenty.
   const cells: VoxelCell[] = [];
   for (let ix = 0; ix < nx; ix++) {
     for (let iy = 0; iy < ny; iy++) {
       for (let iz = 0; iz < nz; iz++) {
-        if (grid[at(ix, iy, iz)] === OUTSIDE) continue;
+        const state = grid[at(ix, iy, iz)];
+        if (state === OUTSIDE) continue;
         centre.set(
           box.min.x + (ix + 0.5) * voxel,
           box.min.y + (iy + 0.5) * voxel,
           box.min.z + (iz + 0.5) * voxel,
         );
-        // Nearest surface across all meshes for colour.
-        let best = prepared[0]!;
-        let bestDist = Infinity;
-        for (const prep of prepared) {
-          const hit = prep.bvh.closestPointToPoint(centre, { point: new THREE.Vector3() } as never);
-          const distance = (hit as { distance?: number }).distance ?? Infinity;
-          if (distance < bestDist) {
-            bestDist = distance;
-            best = prep;
-          }
-        }
+        const colorHex =
+          state === SHELL
+            ? shellColor(prepared, centre, voxel)
+            : surfaceColor(nearestPrep(prepared, centre), centre);
         cells.push({
-          colorHex: surfaceColor(best, centre),
+          colorHex,
           cx: (ix - nx / 2 + 0.5) * worldSize,
           cy: (iy + 0.5) * worldSize,
           cz: (iz - nz / 2 + 0.5) * worldSize,
