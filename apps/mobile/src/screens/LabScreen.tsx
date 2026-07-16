@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 
 import { InkLoader } from '../components/InkLoader';
 import { ScreenFrame } from '../components/ScreenFrame';
+import { hasLastCapture, loadLastCapture } from '../lib/captureStore';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import {
   exportCoachData,
@@ -22,12 +23,14 @@ import {
 import type { Segmentation } from '../lib/photoEngine/segment';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import type { VoxelModel } from '../lib/voxelFox';
-import { colors, fonts, inkAlpha, radius, spacing, type } from '../theme/tokens';
+import { colors, fonts, inkAlpha, radius, saffronAlpha, spacing, type } from '../theme/tokens';
 
 interface LabScreenProps {
   photoUri: string | null;
   segmentation: Segmentation | null;
   onBack: () => void;
+  /** Rehydrate the last persisted capture into app state. */
+  onRestore: (photoUri: string, segmentation: Segmentation) => void;
 }
 
 type CandidateId = 'depth' | TripoVersionId | 'demo';
@@ -54,9 +57,10 @@ interface RunState {
  * an identical viewer — the only variable is the generation model. Used to
  * decide which engine the product should ship with.
  */
-export function LabScreen({ photoUri, segmentation, onBack }: LabScreenProps) {
+export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScreenProps) {
   const live = isLive3DConfigured();
   const hasPhoto = !!photoUri && !!segmentation;
+  const [restorable] = useState(() => hasLastCapture());
 
   const candidates: Candidate[] = [
     {
@@ -144,6 +148,23 @@ export function LabScreen({ photoUri, segmentation, onBack }: LabScreenProps) {
       }
       title="Model lab."
     >
+      {!hasPhoto && restorable ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            const saved = loadLastCapture();
+            if (saved) onRestore(saved.photoUri, saved.segmentation);
+          }}
+          style={({ pressed }) => [styles.restore, pressed && styles.pressed]}
+        >
+          <Text style={styles.restoreTitle}>RESTORE LAST LOCKED PHOTO →</Text>
+          <Text style={styles.restoreBody}>
+            Your most recent locked capture is saved on this device — one tap brings it back so
+            every engine can run on it.
+          </Text>
+        </Pressable>
+      ) : null}
+
       {!live ? (
         <View style={styles.notice}>
           <Text style={styles.noticeText}>
@@ -387,6 +408,25 @@ function Coach({ detectedLabel }: { detectedLabel: string | null }) {
 }
 
 const styles = StyleSheet.create({
+  restore: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.lg,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  restoreTitle: {
+    color: colors.saffron,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+  restoreBody: {
+    ...type.body,
+    color: saffronAlpha(0.75),
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: spacing.sm,
+  },
   notice: {
     backgroundColor: inkAlpha(0.08),
     borderRadius: radius.md,

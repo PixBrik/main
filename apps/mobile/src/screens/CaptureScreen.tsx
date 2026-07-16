@@ -6,6 +6,7 @@ import { InkLoader } from '../components/InkLoader';
 import { ObjectSculpture } from '../components/ObjectSculpture';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
+import { saveLastCapture } from '../lib/captureStore';
 import { labelOverride } from '../lib/feedbackStore';
 import { categorize, infoForCategory } from '../lib/photoEngine/classify';
 import { classifyMaskedObject, preloadOpenVocab } from '../lib/photoEngine/openVocab';
@@ -367,6 +368,8 @@ export function CaptureScreen({
       });
       onObjectLocked(models);
       setEngineState('locked');
+      // Persist the capture so the lab (#lab) can restore it after a reload.
+      void saveLastCapture(photoUri, result);
     } catch {
       setEngineState('failed');
     } finally {

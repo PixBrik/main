@@ -324,7 +324,18 @@ export default function App() {
           />
         );
       case 'lab':
-        return <LabScreen onBack={goBack} photoUri={photoUri} segmentation={photoSegmentation} />;
+        return (
+          <LabScreen
+            onBack={goBack}
+            onRestore={(uri, segmentation) => {
+              setPhotoUri(uri);
+              setPhotoSegmentation(segmentation);
+              setSampleUsed(false);
+            }}
+            photoUri={photoUri}
+            segmentation={photoSegmentation}
+          />
+        );
       case 'admin':
         return <AdminScreen onBack={goBack} />;
       case 'checkout':
