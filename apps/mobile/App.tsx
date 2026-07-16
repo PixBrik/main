@@ -77,6 +77,9 @@ export default function App() {
   const [buildFill, setBuildFill] = useState<BuildFill>('full');
   const [true3DState, setTrue3DState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [true3DNote, setTrue3DNote] = useState('');
+  // Approve-first flow: the generated 3D model waits here (with its raw
+  // stills) for a yes/no before any brick conversion happens.
+  const [pending3D, setPending3D] = useState<{ meshUrl: string; stills: string[] } | null>(null);
   const [dimensionWorking, setDimensionWorking] = useState(false);
   const [libraryGenerating, setLibraryGenerating] = useState(false);
 
@@ -153,25 +156,47 @@ export default function App() {
     }
   };
 
+  /**
+   * Approve-first True-3D: generate the mesh (Meshy-6 preferred, Tripo
+   * fallback), show its raw stills for a yes/no, and only convert to bricks
+   * after approval. No photo / live generation off → the demo mesh walks
+   * the same flow so it stays demonstrable.
+   */
   const rebuildTrue3D = async () => {
     setTrue3DState('working');
     setTrue3DNote('');
     try {
       const mod = await import('./src/lib/photoEngine/imageTo3D');
-      // Real photo + live generation on → send it to Tripo. Otherwise fall
-      // back to the demo mesh so the pipeline is always demonstrable.
-      if (photoUri && mod.isLive3DConfigured()) {
-        const models = await mod.buildFromPhoto(photoUri, photoSegmentation, (fraction, note) => {
-          setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`);
-        });
-        setPhotoBuild(models);
-        saveBuild(models.label, models.models.balanced, colors.blue);
-      } else {
-        const demo = mod.DEMO_MESHES[0];
-        const models = await mod.buildFromMeshUrl(demo.url, demo.label);
-        setPhotoUri(null);
-        setPhotoBuild(models);
-      }
+      const meshUrl =
+        photoUri && mod.isLive3DConfigured()
+          ? await mod.generateMeshFromPhoto(photoUri, photoSegmentation, {
+              onProgress: (fraction, note) => setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
+            })
+          : mod.DEMO_MESHES[0].url;
+      setTrue3DNote('Preparing the preview');
+      const { snapshotGlb } = await import('./src/lib/photoEngine/meshSnapshot');
+      const stills = await snapshotGlb(meshUrl).catch(() => [] as string[]);
+      setPending3D({ meshUrl, stills });
+      setTrue3DState('idle');
+    } catch {
+      setTrue3DState('failed');
+    }
+  };
+
+  /** The buyer approved the 3D model — brick it at all three profiles. */
+  const approve3D = async () => {
+    if (!pending3D) return;
+    const meshUrl = pending3D.meshUrl;
+    setPending3D(null);
+    setTrue3DState('working');
+    setTrue3DNote('Converting to bricks');
+    try {
+      const mod = await import('./src/lib/photoEngine/imageTo3D');
+      const models = await mod.buildFromMeshUrlAllProfiles(meshUrl, 'your object', (fraction, note) =>
+        setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
+      );
+      setPhotoBuild(models);
+      saveBuild(models.label, models.models.balanced, colors.blue);
       setTrue3DState('done');
     } catch {
       setTrue3DState('failed');
@@ -301,6 +326,9 @@ export default function App() {
             dimensionWorking={dimensionWorking}
             onToggleDimension={toggleDimension}
             onTrue3D={rebuildTrue3D}
+            onApprove3D={approve3D}
+            onDiscard3D={() => setPending3D(null)}
+            pending3DStills={pending3D?.stills ?? null}
             photoBuild={photoBuild}
             photoUri={photoUri}
             selectedVariant={selectedVariant}

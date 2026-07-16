@@ -562,17 +562,21 @@ async function voxelizeMeshes(
 }
 
 /** Voxelize an already-loaded GLB ArrayBuffer at all three profiles. */
-export async function voxelizeGlb(buffer: ArrayBuffer): Promise<Record<MeshProfile, VoxelModel>> {
+export async function voxelizeGlb(
+  buffer: ArrayBuffer,
+  onProgress?: VoxelizeProgressFn,
+): Promise<Record<MeshProfile, VoxelModel>> {
   const loader = new GLTFLoader();
   const gltf = await loader.parseAsync(buffer, '');
   const prepared = prepare(gltf.scene);
   if (!prepared.length) {
     throw new Error('no meshes in model');
   }
+  // Progress bands weighted roughly by grid volume (28³ ≪ 44³ ≪ 64³).
   return {
-    balanced: await voxelizeMeshes(prepared, 'balanced'),
-    detailed: await voxelizeMeshes(prepared, 'detailed'),
-    efficient: await voxelizeMeshes(prepared, 'efficient'),
+    efficient: await voxelizeMeshes(prepared, 'efficient', (f) => onProgress?.(f * 0.08)),
+    balanced: await voxelizeMeshes(prepared, 'balanced', (f) => onProgress?.(0.08 + f * 0.24)),
+    detailed: await voxelizeMeshes(prepared, 'detailed', (f) => onProgress?.(0.32 + f * 0.68)),
   };
 }
 
@@ -601,10 +605,13 @@ export async function voxelizeGlbUrlOne(
 }
 
 /** Fetch a GLB URL and voxelize it. */
-export async function voxelizeGlbUrl(url: string): Promise<Record<MeshProfile, VoxelModel>> {
+export async function voxelizeGlbUrl(
+  url: string,
+  onProgress?: VoxelizeProgressFn,
+): Promise<Record<MeshProfile, VoxelModel>> {
   const response = await fetch(url);
   const buffer = await response.arrayBuffer();
-  return voxelizeGlb(buffer);
+  return voxelizeGlb(buffer, onProgress);
 }
 
 export const isMeshVoxelizeSupported = true;

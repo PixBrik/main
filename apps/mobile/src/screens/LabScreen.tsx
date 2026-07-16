@@ -35,7 +35,7 @@ interface LabScreenProps {
   onRestore: (photoUri: string, segmentation: Segmentation) => void;
 }
 
-type CandidateId = 'depth' | TripoVersionId | 'multiview' | 'demo';
+type CandidateId = 'depth' | TripoVersionId | 'meshy-6' | 'multiview' | 'demo';
 
 /**
  * Generated meshes stay downloadable for a while after a run — persist their
@@ -110,6 +110,12 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
       note: `image→3D mesh · ${version.note}`,
       cost: '≈30 CR',
     })),
+    {
+      id: 'meshy-6' as const,
+      label: 'Meshy 6',
+      note: 'image→3D mesh · your Meshy account',
+      cost: 'MESHY CR',
+    },
     {
       id: 'multiview' as const,
       label: 'Tripo 360° multiview',
@@ -245,7 +251,9 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
         if (!photoUri) throw new Error('Lock a photo first');
         const { buildFromPhoto } = await import('../lib/photoEngine/imageTo3D');
         models = await buildFromPhoto(photoUri, segmentation, {
-          modelVersion: candidate.id,
+          ...(candidate.id === 'meshy-6'
+            ? { engine: 'meshy' as const }
+            : { modelVersion: candidate.id }),
           onMeshUrl: (meshUrl) => snapshotMesh(candidate.id, meshUrl),
           onProgress: (fraction, note) =>
             patchRun(candidate.id, { progressNote: `${Math.round(fraction * 100)}% · ${note}` }),
@@ -422,7 +430,9 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
               ? 'Winner is the free on-device pipeline — no server change needed; consider hiding the True-3D path.'
               : winner === 'multiview'
                 ? 'Winner is 360° multiview — steer buyers to the 360° capture mode; no server change needed.'
-                : `Set TRIPO_MODEL_VERSION=${winner} in Vercel project settings, then redeploy (env vars only apply to new deploys).`}
+                : winner === 'meshy-6'
+                  ? 'Winner is Meshy 6 — the customer True-3D path already prefers Meshy when MESHY_API_KEY is set on the server; nothing else to change.'
+                  : `Set TRIPO_MODEL_VERSION=${winner} in Vercel project settings, then redeploy (env vars only apply to new deploys).`}
           </Text>
         </View>
       ) : null}

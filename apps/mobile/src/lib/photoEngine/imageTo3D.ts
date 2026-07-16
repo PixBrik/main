@@ -238,7 +238,12 @@ export const TRIPO_VERSIONS = [
 
 export type TripoVersionId = (typeof TRIPO_VERSIONS)[number]['id'];
 
+/** Which hosted image→3D generator to use. */
+export type MeshEngine = 'tripo' | 'meshy';
+
 export interface BuildFromPhotoOptions {
+  /** Generator to use. Default 'tripo' (the lab's version cards). */
+  engine?: MeshEngine;
   /** Specific Tripo generation to use (lab comparisons). Server default otherwise. */
   modelVersion?: TripoVersionId;
   onProgress?: ProgressFn;
@@ -250,63 +255,75 @@ export interface BuildFromPhotoOptions {
   onMeshUrl?: (url: string) => void;
 }
 
-/**
- * Shared Tripo tail: submit a task body to our proxy, poll until the mesh is
- * ready, then voxelize it into bricks. Both the single-photo and multiview
- * paths end here — the only difference between them is the submit body.
- */
-async function generateAndVoxelize(
-  submitBody: Record<string, unknown>,
-  options: BuildFromPhotoOptions,
-): Promise<PhotoModels> {
-  const onProgress = options.onProgress;
-  onProgress?.(0.12, 'Uploading to generator');
-  const submit = await fetch('/api/tripo/submit', {
+const ENGINE_BASE: Record<MeshEngine, string> = {
+  meshy: '/api/meshy',
+  tripo: '/api/tripo',
+};
+
+/** Submit a generation task; resolves to its taskId. */
+async function submitTask(base: string, body: Record<string, unknown>): Promise<string> {
+  const submit = await fetch(`${base}/submit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(submitBody),
+    body: JSON.stringify(body),
   });
   if (!submit.ok) {
     if (submit.status === 402) {
       throw new NoCreditError();
     }
-    const body = (await submit.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || `generation could not start (${submit.status})`);
+    const parsed = (await submit.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(parsed?.error || `generation could not start (${submit.status})`);
   }
   // A dev server without /api answers 200 with HTML — surface that honestly
   // instead of a raw JSON parse error.
   const { taskId } = (await submit.json().catch(() => {
     throw new Error('generator unreachable on this build — run it on the live site');
   })) as { taskId: string };
+  return taskId;
+}
 
-  // Poll our status proxy until the mesh is ready (Tripo takes ~30s–2min).
+/** Poll a submitted task until its mesh is ready; resolves to the mesh URL. */
+async function awaitTask(base: string, taskId: string, onProgress?: ProgressFn): Promise<string> {
   let ready = false;
   for (let attempt = 0; attempt < 90 && !ready; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 2500));
-    const statusRes = await fetch(`/api/tripo/status?taskId=${encodeURIComponent(taskId)}`);
+    const statusRes = await fetch(`${base}/status?taskId=${encodeURIComponent(taskId)}`);
     if (!statusRes.ok) {
       continue;
     }
     const body = (await statusRes.json()) as { status: string; progress?: number; hasModel?: boolean };
     if (body.status === 'success' && body.hasModel) {
       ready = true;
-    } else if (['failed', 'cancelled', 'banned', 'expired'].includes(body.status)) {
+    } else if (['failed', 'cancelled', 'canceled', 'banned', 'expired'].includes(body.status)) {
       throw new Error(`generation ${body.status}`);
     } else {
-      // Map Tripo's 0–100 progress into the 0.15–0.9 band.
+      // Map the generator's 0–100 progress into the 0.15–0.9 band.
       onProgress?.(0.15 + 0.75 * ((body.progress ?? 0) / 100), 'Sculpting 3D model');
     }
   }
   if (!ready) {
     throw new Error('generation timed out');
   }
+  return `${base}/model?taskId=${encodeURIComponent(taskId)}`;
+}
 
+/**
+ * Shared generation tail: submit a task body to a generator proxy, poll
+ * until the mesh is ready, then voxelize it into bricks at 'balanced' (the
+ * lab's comparison fidelity). The single-photo and multiview paths both end
+ * here — only the submit body and engine differ.
+ */
+async function generateAndVoxelize(
+  base: string,
+  submitBody: Record<string, unknown>,
+  options: BuildFromPhotoOptions,
+): Promise<PhotoModels> {
+  const onProgress = options.onProgress;
+  onProgress?.(0.12, 'Uploading to generator');
+  const taskId = await submitTask(base, submitBody);
+  const meshUrl = await awaitTask(base, taskId, onProgress);
   onProgress?.(0.9, 'Converting to bricks');
-  const meshUrl = `/api/tripo/model?taskId=${encodeURIComponent(taskId)}`;
   options.onMeshUrl?.(meshUrl);
-  // The voxelizer is chunked/async now, so a face-level resolution no longer
-  // freezes the tab — 'balanced' (res 44) holds ~4× the detail res 28 did,
-  // which is the difference between a blob and a recognizable subject.
   const model = await voxelizeGlbUrlOne(meshUrl, 'balanced', (fraction) =>
     onProgress?.(0.9 + fraction * 0.1, 'Converting to bricks'),
   );
@@ -318,6 +335,53 @@ async function generateAndVoxelize(
     models: { balanced: model, detailed: model, efficient: model },
     style: 'natural',
   };
+}
+
+/**
+ * Generate a 3D mesh from a photo WITHOUT converting it — the approve-first
+ * buyer flow shows this mesh for a yes/no before any bricks exist. Prefers
+ * Meshy-6 (the owner's tests showed the best busts) and falls back to Tripo
+ * only when the Meshy SUBMIT fails (key unset, out of credits) — never after
+ * a task was created, so a mid-generation failure can't silently double-spend.
+ */
+export async function generateMeshFromPhoto(
+  photoSrc: string,
+  segmentation: Segmentation | null | undefined,
+  options: BuildFromPhotoOptions = {},
+): Promise<string> {
+  if (!isLive3DConfigured()) {
+    throw new NotConfiguredError();
+  }
+  const onProgress = options.onProgress;
+  onProgress?.(0.05, 'Preparing photo');
+  const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const image = await toCompactDataUrl(cutout);
+
+  onProgress?.(0.12, 'Uploading to generator');
+  let base = ENGINE_BASE.meshy;
+  let taskId: string;
+  try {
+    taskId = await submitTask(base, { image });
+  } catch {
+    base = ENGINE_BASE.tripo;
+    taskId = await submitTask(base, { image, modelVersion: options.modelVersion });
+  }
+  return awaitTask(base, taskId, onProgress);
+}
+
+/**
+ * Convert an approved mesh into bricks at ALL THREE profiles, so the result
+ * screen's build-profile tickets show genuinely different small/medium/
+ * detailed builds with real per-profile pricing.
+ */
+export async function buildFromMeshUrlAllProfiles(
+  url: string,
+  label: string,
+  onProgress?: ProgressFn,
+): Promise<PhotoModels> {
+  const models = await voxelizeGlbUrl(url, (fraction) => onProgress?.(fraction, 'Converting to bricks'));
+  onProgress?.(1, 'Done');
+  return { hasDepth: true, label, mode: 'volume', models, style: 'natural' };
 }
 
 /**
@@ -337,11 +401,14 @@ export async function buildFromPhoto(
     throw new NotConfiguredError();
   }
   options.onProgress?.(0.05, 'Preparing photo');
-  // Send Tripo the isolated object (cropped + background removed) whenever
-  // we already have a segmentation for this photo, not the full raw scene.
+  // Send the generator the isolated object (cropped + background removed)
+  // whenever we already have a segmentation for this photo, not the raw scene.
   const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
   const image = await toCompactDataUrl(cutout);
-  return generateAndVoxelize({ image, modelVersion: options.modelVersion }, options);
+  const engine = options.engine ?? 'tripo';
+  const body =
+    engine === 'meshy' ? { image } : { image, modelVersion: options.modelVersion };
+  return generateAndVoxelize(ENGINE_BASE[engine], body, options);
 }
 
 /** The four orbit views, keyed the way the server expects them. */
@@ -373,5 +440,5 @@ export async function buildFromMultiview(
       views[name] = await toCompactDataUrl(shot);
     }
   }
-  return generateAndVoxelize({ modelVersion: options.modelVersion, views }, options);
+  return generateAndVoxelize(ENGINE_BASE.tripo, { modelVersion: options.modelVersion, views }, options);
 }

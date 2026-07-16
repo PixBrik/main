@@ -8,11 +8,17 @@ import type { VoxelModel } from '../voxelFox';
 export type MeshProfile = 'efficient' | 'balanced' | 'detailed';
 export type VoxelizeProgressFn = (fraction: number) => void;
 
-export async function voxelizeGlb(_buffer: ArrayBuffer): Promise<Record<MeshProfile, VoxelModel>> {
+export async function voxelizeGlb(
+  _buffer: ArrayBuffer,
+  _onProgress?: VoxelizeProgressFn,
+): Promise<Record<MeshProfile, VoxelModel>> {
   throw new Error('mesh voxelization is web-only');
 }
 
-export async function voxelizeGlbUrl(_url: string): Promise<Record<MeshProfile, VoxelModel>> {
+export async function voxelizeGlbUrl(
+  _url: string,
+  _onProgress?: VoxelizeProgressFn,
+): Promise<Record<MeshProfile, VoxelModel>> {
   throw new Error('mesh voxelization is web-only');
 }
 

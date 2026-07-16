@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BuildNameField } from '../components/BuildNameField';
 import { BuildPreview } from '../components/BuildPreview';
@@ -25,6 +25,10 @@ interface ResultScreenProps {
   photoUri?: string | null;
   photoBuild?: PhotoModels | null;
   onTrue3D?: () => Promise<void>;
+  /** Raw stills of the generated 3D model awaiting the buyer's approval. */
+  pending3DStills?: string[] | null;
+  onApprove3D?: () => Promise<void>;
+  onDiscard3D?: () => void;
   true3DState?: 'idle' | 'working' | 'done' | 'failed';
   true3DNote?: string;
   onToggleDimension?: () => Promise<void>;
@@ -82,6 +86,9 @@ export function ResultScreen({
   photoUri = null,
   photoBuild = null,
   onTrue3D,
+  pending3DStills = null,
+  onApprove3D,
+  onDiscard3D,
   true3DState = 'idle',
   true3DNote,
   onToggleDimension,
@@ -322,6 +329,48 @@ export function ResultScreen({
         </Pressable>
       ) : null}
 
+      {/* Approve-first: the generated 3D model gets a yes/no BEFORE bricks. */}
+      {pending3DStills && onApprove3D && onDiscard3D ? (
+        <Modal animationType="fade" onRequestClose={onDiscard3D} transparent visible>
+          <View style={styles.approveBackdrop}>
+            <View style={styles.approveCard}>
+              <Text style={styles.approveTitle}>YOUR 3D MODEL IS READY</Text>
+              <Text style={styles.approveBody}>
+                This is the exact 3D shape your bricks will be built from. Happy with it? We’ll
+                brick it in three sizes with real prices.
+              </Text>
+              {pending3DStills.length ? (
+                <View style={styles.approveShots}>
+                  {pending3DStills.map((still, index) => (
+                    <Image
+                      accessibilityLabel={`Generated 3D model, view ${index + 1}`}
+                      key={index}
+                      resizeMode="cover"
+                      source={{ uri: still }}
+                      style={styles.approveShot}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.approveNoShots}>
+                  (Preview images could not be rendered — the model itself is fine.)
+                </Text>
+              )}
+              <PrimaryButton label="Looks right — brick it" onPress={onApprove3D} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={onDiscard3D}
+                style={({ pressed }) => [styles.approveDiscard, pressed && styles.pdfPressed]}
+              >
+                <Text style={styles.approveDiscardText}>
+                  Not quite — discard (generating again costs another run)
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+
       {Platform.OS === 'web' ? (
         <Pressable
           accessibilityRole="button"
@@ -467,6 +516,62 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
     minHeight: 44,
+  },
+  approveBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(23, 19, 10, 0.88)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  approveCard: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.lg,
+    maxWidth: 460,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  approveTitle: {
+    ...type.label,
+    color: colors.ink,
+    fontSize: 16,
+  },
+  approveBody: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+  },
+  approveShots: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  approveShot: {
+    aspectRatio: 460 / 400,
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    flex: 1,
+  },
+  approveNoShots: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 12,
+    marginBottom: spacing.lg,
+  },
+  approveDiscard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    minHeight: 44,
+  },
+  approveDiscardText: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: '800',
   },
   labLinkText: {
     ...type.body,
