@@ -58,10 +58,14 @@ function prepare(root: THREE.Object3D): PreparedMesh[] {
     if (!mesh.isMesh || !mesh.geometry) return;
     const geometry = mesh.geometry.clone();
     geometry.applyMatrix4(mesh.matrixWorld); // bake transform → world space
-    const worldMesh = new THREE.Mesh(geometry, mesh.material);
+    const material = (Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material) as THREE.Material;
+    // Raycast through a double-sided copy: parity counts EVERY wall crossing,
+    // and a FrontSide source material would silently cull the exits.
+    const raycastMaterial = material.clone();
+    raycastMaterial.side = THREE.DoubleSide;
+    const worldMesh = new THREE.Mesh(geometry, raycastMaterial);
     const bvh = new MeshBVH(geometry);
     (geometry as unknown as { boundsTree: MeshBVH }).boundsTree = bvh;
-    const material = Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material;
     prepared.push({
       bvh,
       hasVertexColor: !!geometry.getAttribute('color'),
@@ -223,11 +227,37 @@ function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
 /** Progress callback for the (potentially long) voxelization pass. */
 export type VoxelizeProgressFn = (fraction: number) => void;
 
+/**
+ * Ray directions for the parity vote — each tilted a hair off its axis.
+ * Exactly axis-aligned rays from a regular grid skim flat axis-aligned faces
+ * and shared triangle edges (the duck's flat bottom, for instance), and every
+ * tangent/duplicate hit corrupts the crossing count. A tiny irrational tilt
+ * makes those degenerate alignments impossible while leaving the crossing
+ * topology of interior points unchanged.
+ */
 const RAY_AXES = [
-  new THREE.Vector3(1, 0, 0),
-  new THREE.Vector3(0, 1, 0),
-  new THREE.Vector3(0, 0, 1),
+  new THREE.Vector3(1, 0.00017, 0.00031).normalize(),
+  new THREE.Vector3(0.00031, 1, 0.00017).normalize(),
+  new THREE.Vector3(0.00017, 0.00031, 1).normalize(),
 ] as const;
+
+/**
+ * Crossing count robust to duplicate hits: a ray passing through an edge
+ * shared by two triangles reports two intersections at the same distance —
+ * counting both flips the parity. Hits arrive sorted by distance; collapse
+ * any run closer together than epsilon into one crossing.
+ */
+function countCrossings(hits: ReadonlyArray<{ distance: number }>, epsilon: number): number {
+  let crossings = 0;
+  let lastDistance = -Infinity;
+  for (const hit of hits) {
+    if (hit.distance - lastDistance > epsilon) {
+      crossings++;
+      lastDistance = hit.distance;
+    }
+  }
+  return crossings;
+}
 
 /**
  * Yield to the event loop so long grids never freeze the tab. Uses a
@@ -277,6 +307,9 @@ async function voxelizeMeshes(
 
   const raycaster = new THREE.Raycaster();
   raycaster.firstHitOnly = false;
+  // Collapse duplicate hits (shared edges) without merging genuinely thin
+  // double walls — well below a voxel, well above float noise.
+  const crossingEpsilon = maxAxis * 1e-6;
   const meshes = prepared.map((prep) => prep.mesh);
   const centre = new THREE.Vector3();
   const cells: VoxelCell[] = [];
@@ -294,7 +327,7 @@ async function voxelizeMeshes(
         for (const axis of RAY_AXES) {
           raycaster.set(centre, axis);
           const hits = raycaster.intersectObjects(meshes, false);
-          if (hits.length % 2 === 1) insideVotes++;
+          if (countCrossings(hits, crossingEpsilon) % 2 === 1) insideVotes++;
           // Early exit: verdict already decided either way.
           if (insideVotes === 2) break;
         }
