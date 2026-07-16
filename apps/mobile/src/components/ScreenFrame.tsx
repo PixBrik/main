@@ -134,7 +134,10 @@ export function ScreenFrame({
 
   return (
     <View style={styles.frame}>
-      {brandHeader}
+      {/* Full-width hairlines delineate the pinned chrome from the
+          scrolling content — the header and footer share the page colour,
+          so without them the fixed bars visually bleed into the page. */}
+      <View style={styles.brandBar}>{brandHeader}</View>
       {scroll ? (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -146,7 +149,11 @@ export function ScreenFrame({
       ) : (
         content
       )}
-      {footer ? <View style={styles.footer}>{footer}</View> : null}
+      {footer ? (
+        <View style={styles.footerBar}>
+          <View style={styles.footer}>{footer}</View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -158,6 +165,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  brandBar: {
+    backgroundColor: colors.saffron,
+    borderBottomColor: inkAlpha(0.12),
+    borderBottomWidth: 1,
+    width: '100%',
   },
   brandRow: {
     alignItems: 'center',
@@ -256,12 +269,18 @@ const styles = StyleSheet.create({
   body: {
     marginTop: spacing.xl,
   },
+  footerBar: {
+    backgroundColor: colors.saffron,
+    borderTopColor: inkAlpha(0.12),
+    borderTopWidth: 1,
+    width: '100%',
+  },
   footer: {
     alignSelf: 'center',
     maxWidth: 520,
     paddingBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     width: '100%',
   },
 });
