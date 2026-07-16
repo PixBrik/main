@@ -8,6 +8,8 @@
  * shots the capture screen coaches the user toward.
  */
 
+import { bgThresholdBias } from '../feedbackStore';
+
 export interface Segmentation {
   /** Mask grid, row-major, GRID×GRID. */
   mask: boolean[];
@@ -132,7 +134,9 @@ export async function segmentRegion(uri: string, region: Region, grid: number = 
     deviation += colorDistance(pixels, cell * 4, mean);
   }
   deviation /= border.length;
-  const threshold = Math.max(38, deviation * 2.4);
+  // Coach feedback nudges this bias: >1 treats borderline pixels as
+  // background more aggressively, <1 keeps them as object.
+  const threshold = Math.max(38, deviation * 2.4) * bgThresholdBias();
 
   const rough: boolean[] = new Array(grid * grid);
   for (let cell = 0; cell < grid * grid; cell++) {

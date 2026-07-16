@@ -1,9 +1,18 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
+import {
+  exportCoachData,
+  getTuning,
+  listFeedback,
+  resetTuning,
+  submitFeedback,
+  type FeedbackEntry,
+} from '../lib/feedbackStore';
+import type { ObjectCategory } from '../lib/photoEngine/classify';
 import {
   DEMO_MESHES,
   isLive3DConfigured,
@@ -216,7 +225,164 @@ export function LabScreen({ photoUri, segmentation, onBack }: LabScreenProps) {
           </Text>
         </View>
       ) : null}
+
+      <Coach detectedLabel={segmentation?.categoryLabel ?? null} />
     </ScreenFrame>
+  );
+}
+
+const CATEGORY_CHOICES: ObjectCategory[] = ['portrait', 'person', 'animal', 'vehicle', 'building', 'plant', 'food', 'object'];
+
+/**
+ * Coach: structured feedback that adjusts real pipeline parameters
+ * immediately, plus a free-advice log for the next engineering pass.
+ */
+function Coach({ detectedLabel }: { detectedLabel: string | null }) {
+  const [entries, setEntries] = useState<FeedbackEntry[]>(() => listFeedback());
+  const [lastApplied, setLastApplied] = useState<string | null>(null);
+  const [advice, setAdvice] = useState('');
+  const [wrongLabel, setWrongLabel] = useState('');
+  const [pickingCategory, setPickingCategory] = useState(false);
+  const tuning = getTuning();
+
+  const record = (input: Parameters<typeof submitFeedback>[0]) => {
+    const entry = submitFeedback(input);
+    setEntries(listFeedback());
+    setLastApplied(entry.applied);
+  };
+
+  const exportData = () => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const blob = new Blob([exportCoachData()], { type: 'application/json' });
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = 'pixbrik-coach-feedback.json';
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  };
+
+  return (
+    <View style={styles.coach}>
+      <Text style={styles.coachTitle}>COACH</Text>
+      <Text style={styles.coachIntro}>
+        Structured feedback changes the pipeline immediately on this device; written advice is
+        logged with context and exported for the next engine improvement. The AI models themselves
+        are frozen — honest limits.
+      </Text>
+
+      <Text style={styles.coachLabel}>BACKGROUND REMOVAL</Text>
+      <View style={styles.coachRow}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => record({ kind: 'bg-kept-too-much' })}
+          style={({ pressed }) => [styles.coachChip, pressed && styles.pressed]}
+        >
+          <Text style={styles.coachChipText}>KEPT TOO MUCH BACKGROUND</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => record({ kind: 'bg-ate-object' })}
+          style={({ pressed }) => [styles.coachChip, pressed && styles.pressed]}
+        >
+          <Text style={styles.coachChipText}>REMOVED PART OF THE OBJECT</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.coachMeta}>
+        Current threshold bias: {tuning.bgThresholdBias.toFixed(1)}× (1.0 = stock)
+      </Text>
+
+      <Text style={styles.coachLabel}>WRONG CATEGORY</Text>
+      <TextInput
+        accessibilityLabel="The label that was tagged wrong"
+        onChangeText={setWrongLabel}
+        placeholder={detectedLabel ? `Label to correct (e.g. ${detectedLabel.toLowerCase()})` : 'Label to correct (e.g. object)'}
+        placeholderTextColor={inkAlpha(0.45)}
+        style={styles.coachInput}
+        value={wrongLabel}
+      />
+      {pickingCategory ? (
+        <View style={styles.coachRowWrap}>
+          {CATEGORY_CHOICES.map((category) => (
+            <Pressable
+              accessibilityRole="button"
+              key={category}
+              onPress={() => {
+                record({ correctedCategory: category, kind: 'wrong-category', label: wrongLabel || detectedLabel || 'object' });
+                setPickingCategory(false);
+              }}
+              style={({ pressed }) => [styles.coachChip, pressed && styles.pressed]}
+            >
+              <Text style={styles.coachChipText}>{category.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setPickingCategory(true)}
+          style={({ pressed }) => [styles.coachChip, pressed && styles.pressed]}
+        >
+          <Text style={styles.coachChipText}>IT SHOULD BE… →</Text>
+        </Pressable>
+      )}
+
+      <Text style={styles.coachLabel}>ADVICE FOR THIS KIND OF PHOTO</Text>
+      <TextInput
+        accessibilityLabel="Free-form advice"
+        multiline
+        onChangeText={setAdvice}
+        placeholder="e.g. This render beat the others because the face survived — always preserve eye contrast on portraits."
+        placeholderTextColor={inkAlpha(0.45)}
+        style={[styles.coachInput, styles.coachTextarea]}
+        value={advice}
+      />
+      <Pressable
+        accessibilityRole="button"
+        disabled={!advice.trim()}
+        onPress={() => {
+          record({ kind: 'advice', note: advice });
+          setAdvice('');
+        }}
+        style={({ pressed }) => [styles.coachSubmit, !advice.trim() && styles.coachDisabled, pressed && styles.pressed]}
+      >
+        <Text style={styles.coachSubmitText}>LOG ADVICE</Text>
+      </Pressable>
+
+      {lastApplied ? (
+        <View style={styles.appliedNote}>
+          <Text style={styles.appliedText}>→ {lastApplied}</Text>
+        </View>
+      ) : null}
+
+      {entries.length ? (
+        <>
+          <Text style={styles.coachLabel}>HISTORY ({entries.length})</Text>
+          {entries.slice(0, 6).map((entry) => (
+            <View key={entry.id} style={styles.historyRow}>
+              <Text style={styles.historyKind}>{entry.kind.replace(/-/g, ' ').toUpperCase()}</Text>
+              <Text numberOfLines={2} style={styles.historyText}>
+                {entry.note ?? entry.applied}
+              </Text>
+            </View>
+          ))}
+          <View style={styles.coachRow}>
+            <Pressable accessibilityRole="button" onPress={exportData} style={({ pressed }) => [styles.coachChip, pressed && styles.pressed]}>
+              <Text style={styles.coachChipText}>EXPORT JSON</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                resetTuning();
+                setLastApplied('Tuning reset to stock (feedback history kept).');
+              }}
+              style={({ pressed }) => [styles.coachChip, pressed && styles.pressed]}
+            >
+              <Text style={styles.coachChipText}>RESET TUNING</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -352,5 +518,122 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     marginTop: spacing.sm,
+  },
+  coach: {
+    borderTopColor: inkAlpha(0.2),
+    borderTopWidth: 2,
+    marginTop: spacing.md,
+    paddingTop: spacing.xl,
+  },
+  coachTitle: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  coachIntro: {
+    ...type.body,
+    color: inkAlpha(0.66),
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: spacing.sm,
+  },
+  coachLabel: {
+    ...type.micro,
+    color: inkAlpha(0.55),
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  coachRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  coachRowWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  coachChip: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+  },
+  coachChipText: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 10,
+    letterSpacing: 0.6,
+  },
+  coachMeta: {
+    ...type.micro,
+    color: inkAlpha(0.45),
+    marginTop: spacing.sm,
+    textTransform: 'none',
+  },
+  coachInput: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    color: colors.ink,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    marginBottom: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  coachTextarea: {
+    minHeight: 88,
+    paddingTop: spacing.md,
+    textAlignVertical: 'top',
+  },
+  coachSubmit: {
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  coachDisabled: {
+    opacity: 0.35,
+  },
+  coachSubmitText: {
+    color: colors.saffron,
+    fontFamily: fonts.display,
+    fontSize: 12,
+    letterSpacing: 0.4,
+  },
+  appliedNote: {
+    backgroundColor: inkAlpha(0.08),
+    borderRadius: radius.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
+  appliedText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  historyRow: {
+    borderBottomColor: inkAlpha(0.1),
+    borderBottomWidth: 1,
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  historyKind: {
+    ...type.micro,
+    color: inkAlpha(0.5),
+    fontSize: 8,
+  },
+  historyText: {
+    ...type.body,
+    color: inkAlpha(0.8),
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
   },
 });

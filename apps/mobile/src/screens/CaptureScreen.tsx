@@ -6,6 +6,7 @@ import { InkLoader } from '../components/InkLoader';
 import { ObjectSculpture } from '../components/ObjectSculpture';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
+import { labelOverride } from '../lib/feedbackStore';
 import { categorize, infoForCategory } from '../lib/photoEngine/classify';
 import { classifyMaskedObject, preloadOpenVocab } from '../lib/photoEngine/openVocab';
 import { estimateDepthGrid, isDepthSupported } from '../lib/photoEngine/depth';
@@ -344,6 +345,12 @@ export function CaptureScreen({
       result.face = face;
       if (face && !info.faces) {
         info = infoForCategory('portrait', share);
+      }
+      // A category the user corrected via Coach feedback wins over every
+      // heuristic — that is the whole point of teaching it.
+      const taught = labelOverride(label);
+      if (taught) {
+        info = infoForCategory(taught, share);
       }
       result.categoryLabel = info.displayName;
       result.preserveFeatures = info.faces;
