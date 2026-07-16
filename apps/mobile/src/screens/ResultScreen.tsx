@@ -213,6 +213,16 @@ export function ResultScreen({
         </Pressable>
       ) : null}
 
+      {Platform.OS === 'web' && photoUri ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onNavigate('lab')}
+          style={({ pressed }) => [styles.labLink, pressed && styles.pdfPressed]}
+        >
+          <Text style={styles.labLinkText}>Compare 3D engines side by side (lab) →</Text>
+        </Pressable>
+      ) : null}
+
       {Platform.OS === 'web' ? (
         <Pressable
           accessibilityRole="button"
@@ -384,6 +394,17 @@ const styles = StyleSheet.create({
     ...type.body,
     color: colors.white,
     fontSize: 14,
+    fontWeight: '800',
+  },
+  labLink: {
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    minHeight: 44,
+  },
+  labLinkText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 13,
     fontWeight: '800',
   },
   true3d: {

@@ -46,7 +46,15 @@ export default async function handler(req: any, res: any): Promise<void> {
     // Cheaper model by default — the mesh gets voxelized into bricks, so
     // high-end mesh fidelity is wasted. Override with TRIPO_MODEL_VERSION
     // (e.g. "v1.4-20240625" = cheapest, "v2.5-20250123" = default/better).
-    const modelVersion = process.env.TRIPO_MODEL_VERSION || 'v2.0-20240919';
+    // The client may request a specific version (the model-comparison lab),
+    // but ONLY from this whitelist — this endpoint is public and each task
+    // spends real credits, so arbitrary versions must not be accepted.
+    const ALLOWED_VERSIONS = new Set(['v1.4-20240625', 'v2.0-20240919', 'v2.5-20250123']);
+    const requested: unknown = req.body?.modelVersion;
+    const modelVersion =
+      (typeof requested === 'string' && ALLOWED_VERSIONS.has(requested) && requested) ||
+      process.env.TRIPO_MODEL_VERSION ||
+      'v2.0-20240919';
     // Cap mesh complexity so the browser can voxelize it without freezing. The
     // mesh is turned into a coarse brick grid, so a low face count loses nothing
     // and keeps the GLB small + the download fast. Override via TRIPO_FACE_LIMIT.

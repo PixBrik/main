@@ -23,6 +23,7 @@ import { PurchaseScreen } from './src/screens/PurchaseScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
 import { AdminScreen } from './src/screens/AdminScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
+import { LabScreen } from './src/screens/LabScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { StoresScreen } from './src/screens/StoresScreen';
 import type { LibraryEntry } from './src/data/carLibrary';
@@ -311,6 +312,8 @@ export default function App() {
             onNavigate={navigate}
           />
         );
+      case 'lab':
+        return <LabScreen onBack={goBack} photoUri={photoUri} segmentation={photoSegmentation} />;
       case 'admin':
         return <AdminScreen onBack={goBack} />;
       case 'checkout':

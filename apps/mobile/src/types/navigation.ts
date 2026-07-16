@@ -11,6 +11,7 @@ export type DemoScreen =
   | 'checkout'
   | 'library'
   | 'admin'
+  | 'lab'
   | 'instructions';
 
 /** Solid build vs hollow (shell-only) build. */

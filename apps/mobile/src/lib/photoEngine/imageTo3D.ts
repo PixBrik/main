@@ -207,6 +207,25 @@ async function toCompactDataUrl(src: string, max = 1024, quality = 0.85): Promis
 export type ProgressFn = (fraction: number, note: string) => void;
 
 /**
+ * Tripo generations the comparison lab can request. Must stay in sync with
+ * the server-side whitelist in api/tripo/submit.ts. Credit costs are per
+ * Tripo's pricing and can differ per version — treat as estimates.
+ */
+export const TRIPO_VERSIONS = [
+  { id: 'v1.4-20240625', label: 'Tripo v1.4', note: 'oldest · cheapest' },
+  { id: 'v2.0-20240919', label: 'Tripo v2.0', note: 'current default' },
+  { id: 'v2.5-20250123', label: 'Tripo v2.5', note: 'newest available' },
+] as const;
+
+export type TripoVersionId = (typeof TRIPO_VERSIONS)[number]['id'];
+
+export interface BuildFromPhotoOptions {
+  /** Specific Tripo generation to use (lab comparisons). Server default otherwise. */
+  modelVersion?: TripoVersionId;
+  onProgress?: ProgressFn;
+}
+
+/**
  * Live path: photo → Tripo (via /api/tripo proxy) → GLB → bricks.
  * The key is held server-side; this only talks to our own origin.
  * Throws NotConfiguredError when the live path is off, NoCreditError when the
@@ -215,8 +234,11 @@ export type ProgressFn = (fraction: number, note: string) => void;
 export async function buildFromPhoto(
   photoSrc: string,
   segmentation?: Segmentation | null,
-  onProgress?: ProgressFn,
+  onProgressOrOptions?: ProgressFn | BuildFromPhotoOptions,
 ): Promise<PhotoModels> {
+  const options: BuildFromPhotoOptions =
+    typeof onProgressOrOptions === 'function' ? { onProgress: onProgressOrOptions } : (onProgressOrOptions ?? {});
+  const onProgress = options.onProgress;
   if (!isLive3DConfigured()) {
     throw new NotConfiguredError();
   }
@@ -230,7 +252,7 @@ export async function buildFromPhoto(
   const submit = await fetch('/api/tripo/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image }),
+    body: JSON.stringify({ image, modelVersion: options.modelVersion }),
   });
   if (!submit.ok) {
     if (submit.status === 402) {
