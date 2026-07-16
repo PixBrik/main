@@ -3,6 +3,8 @@ import { Image, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View
 import Svg, { G, Polygon, Rect } from 'react-native-svg';
 
 import { InkLoader } from '../components/InkLoader';
+import { isLightDevice } from '../lib/deviceProfile';
+import { downscalePhoto } from '../lib/downscalePhoto';
 import { fitFacesToBox } from '../lib/fitFaces';
 import { pickPhoto } from '../lib/pickPhoto';
 import { ObjectSculpture } from '../components/ObjectSculpture';
@@ -246,7 +248,11 @@ export function CaptureScreen({
       return;
     }
     setEngineState('detecting');
-    preloadOpenVocab(); // warm the category model while the user picks
+    // Light devices skip CLIP entirely — warming it here is what tips a
+    // phone tab over its memory budget before the buyer even locks.
+    if (!isLightDevice()) {
+      preloadOpenVocab(); // warm the category model while the user picks
+    }
     const found = await detectObjects(uri);
     setDetections(found);
     const seed = bestDetection(found);
@@ -423,8 +429,12 @@ export function CaptureScreen({
   );
 
   const capture = async () => {
-    const uri = await pickPhoto();
-    if (uri) {
+    const picked = await pickPhoto();
+    if (picked) {
+      // Work on a ≤1600px copy: phone cameras hand over 12-megapixel files,
+      // and carrying those through the pipeline kills mobile browser tabs.
+      const uri =
+        Platform.OS === 'web' ? await downscalePhoto(picked).catch(() => picked) : picked;
       setSelectedLabel(null);
       setDetections([]);
       setFrame(WHOLE_PHOTO_REGION);
@@ -445,13 +455,20 @@ export function CaptureScreen({
     // heavy synchronous work below has a chance to start.
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
+      // Phones get the lean pipeline: the classic cutout only. The full
+      // stack (SAM + CLIP on top of detection + face) exceeds a mobile
+      // browser tab's memory budget — the OS kills the tab mid-lock and the
+      // buyer lands back on the homepage.
+      const light = isLightDevice();
       // SAM first (works on any background); classic border-colour fallback.
       // Watchdog: if SAM is still crunching after 90 s (cold model download +
       // slow device), fall back so the lock always completes.
-      const samWithTimeout = Promise.race([
-        samSegmentRegion(photoUri, region),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 90000)),
-      ]);
+      const samWithTimeout = light
+        ? Promise.resolve(null)
+        : Promise.race([
+            samSegmentRegion(photoUri, region),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 90000)),
+          ]);
       const result = (await samWithTimeout) ?? (await segmentRegion(photoUri, region));
       if (result.coverage < 0.02) {
         setEngineState('failed');
@@ -464,10 +481,12 @@ export function CaptureScreen({
       const share = region.width * region.height;
       let info = categorize(label, share);
       const [openVocab, face] = await Promise.all([
-        Promise.race([
-          classifyMaskedObject(photoUri, result),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000)),
-        ]),
+        light
+          ? Promise.resolve(null)
+          : Promise.race([
+              classifyMaskedObject(photoUri, result),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000)),
+            ]),
         // Watchdog: face detection is a separate CDN-loaded WASM stack with
         // no timeout of its own — a stalled fetch or WASM alloc failure
         // (memory-constrained mobile) must not hang the lock forever.
