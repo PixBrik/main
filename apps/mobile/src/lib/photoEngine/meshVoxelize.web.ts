@@ -16,6 +16,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree, MeshBVH } from 'three-mesh-bvh';
 
 import { buildModelFromCells, type VoxelCell, type VoxelModel } from '../voxelFox';
+import { colorDistance, quantizeToCatalog } from './voxelizePhoto';
 
 // Accelerate THREE.Mesh raycasts with the BVH extension.
 (THREE.BufferGeometry.prototype as unknown as { computeBoundsTree: typeof computeBoundsTree }).computeBoundsTree =
@@ -111,6 +112,114 @@ function toHex(value01: number): string {
     .padStart(2, '0');
 }
 
+const NEIGHBOURS: ReadonlyArray<readonly [number, number, number]> = [
+  [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+];
+
+/** Drop stray voxels with ≤1 face-neighbours — ray-parity noise, not model. */
+function despeckle(cells: VoxelCell[]): VoxelCell[] {
+  const occupied = new Set(cells.map((cell) => `${cell.i},${cell.j},${cell.k}`));
+  return cells.filter((cell) => {
+    let neighbours = 0;
+    for (const [dx, dy, dz] of NEIGHBOURS) {
+      if (occupied.has(`${cell.i + dx},${cell.j + dy},${cell.k + dz}`)) neighbours++;
+    }
+    return neighbours > 1;
+  });
+}
+
+type Rgb = [number, number, number];
+
+function hexToRgb(hex: string): Rgb {
+  const clean = hex.replace('#', '');
+  return [
+    Number.parseInt(clean.slice(0, 2), 16),
+    Number.parseInt(clean.slice(2, 4), 16),
+    Number.parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+/**
+ * Palette discipline for mesh builds — the reason photo builds look tidy and
+ * raw mesh builds looked "messy": each voxel used to quantize its own texel
+ * independently, producing hundreds of near-duplicate catalog colours with
+ * no coherent zones. Same recipe as the photo pipeline: deterministic
+ * k-means over the sampled colours, a conservative 3D majority smoothing
+ * pass (strict ≥4-of-6 vote, so small features like eyes survive), then one
+ * catalog colour per cluster.
+ */
+function posterizeVoxelColors(cells: VoxelCell[], paletteSize = 10): void {
+  if (!cells.length) return;
+  const samples: Rgb[] = cells.map((cell) => hexToRgb(cell.colorHex ?? '#cccccc'));
+
+  const k = Math.min(paletteSize, samples.length);
+  const byLuma = [...samples].sort(
+    (a, b) => a[0] * 0.3 + a[1] * 0.59 + a[2] * 0.11 - (b[0] * 0.3 + b[1] * 0.59 + b[2] * 0.11),
+  );
+  let centroids: Rgb[] = Array.from({ length: k }, (_, index) => {
+    const pick = byLuma[Math.floor(((index + 0.5) / k) * byLuma.length)]!;
+    return [...pick] as Rgb;
+  });
+
+  const assign = new Int32Array(samples.length);
+  for (let iteration = 0; iteration < 8; iteration++) {
+    for (let index = 0; index < samples.length; index++) {
+      let best = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let c = 0; c < k; c++) {
+        const s = samples[index]!;
+        const distance = colorDistance(s[0], s[1], s[2], centroids[c]![0], centroids[c]![1], centroids[c]![2]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = c;
+        }
+      }
+      assign[index] = best;
+    }
+    const sums: number[][] = Array.from({ length: k }, () => [0, 0, 0, 0]);
+    for (let index = 0; index < samples.length; index++) {
+      const sum = sums[assign[index]!]!;
+      const s = samples[index]!;
+      sum[0]! += s[0];
+      sum[1]! += s[1];
+      sum[2]! += s[2];
+      sum[3]! += 1;
+    }
+    centroids = centroids.map((old, c) => {
+      const sum = sums[c]!;
+      return sum[3]! > 0 ? ([sum[0]! / sum[3]!, sum[1]! / sum[3]!, sum[2]! / sum[3]!] as Rgb) : old;
+    });
+  }
+
+  // Conservative 3D majority smoothing: a cell only changes cluster when a
+  // strict majority of its 6-neighbourhood (≥4) agrees on another cluster.
+  const indexByCoord = new Map<string, number>();
+  cells.forEach((cell, index) => indexByCoord.set(`${cell.i},${cell.j},${cell.k}`, index));
+  const smoothed = new Int32Array(assign);
+  for (let index = 0; index < cells.length; index++) {
+    const cell = cells[index]!;
+    const votes = new Map<number, number>();
+    for (const [dx, dy, dz] of NEIGHBOURS) {
+      const neighbour = indexByCoord.get(`${cell.i + dx},${cell.j + dy},${cell.k + dz}`);
+      if (neighbour !== undefined) {
+        const cluster = assign[neighbour]!;
+        votes.set(cluster, (votes.get(cluster) ?? 0) + 1);
+      }
+    }
+    for (const [cluster, count] of votes) {
+      if (cluster !== assign[index] && count >= 4) {
+        smoothed[index] = cluster;
+        break;
+      }
+    }
+  }
+
+  const clusterHex = centroids.map((centroid) => quantizeToCatalog(centroid[0], centroid[1], centroid[2]));
+  for (let index = 0; index < cells.length; index++) {
+    cells[index]!.colorHex = clusterHex[smoothed[index]!]!;
+  }
+}
+
 /** Voxelize prepared meshes into a FotoBrik model. */
 function voxelizeMeshes(prepared: PreparedMesh[], profile: MeshProfile): VoxelModel {
   const box = new THREE.Box3();
@@ -173,7 +282,9 @@ function voxelizeMeshes(prepared: PreparedMesh[], profile: MeshProfile): VoxelMo
   for (const prep of prepared) {
     (prep.mesh.geometry as unknown as { disposeBoundsTree?: () => void }).disposeBoundsTree?.();
   }
-  return buildModelFromCells(cells, worldSize, { slopes: true });
+  const clean = despeckle(cells);
+  posterizeVoxelColors(clean);
+  return buildModelFromCells(clean, worldSize, { slopes: true });
 }
 
 /** Voxelize an already-loaded GLB ArrayBuffer at all three profiles. */
