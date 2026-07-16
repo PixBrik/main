@@ -13,6 +13,7 @@ import { ArchivoBlack_400Regular } from '@expo-google-fonts/archivo-black';
 
 import { PaperCanvas } from './src/components/PaperCanvas';
 import { BomScreen } from './src/screens/BomScreen';
+import { Capture360Screen } from './src/screens/Capture360Screen';
 import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { InstructionsScreen } from './src/screens/InstructionsScreen';
@@ -232,6 +233,21 @@ export default function App() {
           />
         );
       case 'capture':
+        if (captureMode === 'orbit') {
+          return (
+            <Capture360Screen
+              onBack={goBack}
+              onGenerated={(models, frontUri) => {
+                setPhotoUri(frontUri);
+                setPhotoSegmentation(null);
+                setSampleUsed(false);
+                setPhotoBuild(models);
+                saveBuild(models.label, models.models.balanced, colors.blue);
+                navigate('result');
+              }}
+            />
+          );
+        }
         return (
           <CaptureScreen
             captured={captured}

@@ -1,10 +1,10 @@
-import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Polygon, Rect } from 'react-native-svg';
 
 import { InkLoader } from '../components/InkLoader';
 import { fitFacesToBox } from '../lib/fitFaces';
+import { pickPhoto } from '../lib/pickPhoto';
 import { ObjectSculpture } from '../components/ObjectSculpture';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
@@ -43,33 +43,6 @@ interface CaptureScreenProps {
 }
 
 type EngineState = 'idle' | 'detecting' | 'select' | 'segmenting' | 'depth' | 'locked' | 'failed';
-
-async function pickPhoto(): Promise<string | null> {
-  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 };
-
-  if (Platform.OS !== 'web') {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (permission.granted) {
-        const result = await ImagePicker.launchCameraAsync(options);
-        if (!result.canceled && result.assets[0]) {
-          return result.assets[0].uri;
-        }
-        if (!result.canceled) {
-          return null;
-        }
-      }
-    } catch {
-      // Camera unavailable (simulator, denied hardware) — fall back to the library.
-    }
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync(options);
-  if (!result.canceled && result.assets[0]) {
-    return result.assets[0].uri;
-  }
-  return null;
-}
 
 interface Region {
   x: number;

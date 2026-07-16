@@ -4,6 +4,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { InkLoader } from '../components/InkLoader';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { estimateBuild } from '../lib/brickify';
+import { has360Capture, load360Capture } from '../lib/capture360Store';
 import { hasLastCapture, loadLastCapture } from '../lib/captureStore';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import {
@@ -34,7 +35,7 @@ interface LabScreenProps {
   onRestore: (photoUri: string, segmentation: Segmentation) => void;
 }
 
-type CandidateId = 'depth' | TripoVersionId | 'demo';
+type CandidateId = 'depth' | TripoVersionId | 'multiview' | 'demo';
 
 interface Candidate {
   id: CandidateId;
@@ -68,6 +69,7 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
   const live = isLive3DConfigured();
   const hasPhoto = !!photoUri && !!segmentation;
   const [restorable] = useState(() => hasLastCapture());
+  const [has360] = useState(() => has360Capture());
 
   const candidates: Candidate[] = [
     {
@@ -82,6 +84,14 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
       note: `image→3D mesh · ${version.note}`,
       cost: '≈30 CR',
     })),
+    {
+      id: 'multiview' as const,
+      label: 'Tripo 360° multiview',
+      note: has360
+        ? 'your last 360° capture · real geometry from 4 views'
+        : 'needs a 360° set — Create a build → 360° capture',
+      cost: '≈30 CR',
+    },
     // Free pipeline check: a known-good mesh through the same conversion —
     // shows the raw-3D + brick-proposal comparison without spending credits.
     { id: 'demo' as const, label: 'Demo mesh', note: 'pipeline check · duck GLB · no photo needed', cost: 'FREE' },
@@ -140,6 +150,15 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
         snapshotMesh(candidate.id, DEMO_MESHES[0].url);
         const { buildFromMeshUrlOne } = await import('../lib/photoEngine/imageTo3D');
         models = await buildFromMeshUrlOne(DEMO_MESHES[0].url, DEMO_MESHES[0].label, 'balanced');
+      } else if (candidate.id === 'multiview') {
+        const shots = load360Capture();
+        if (!shots) throw new Error('Capture a 360° set first (Create a build → 360° capture)');
+        const { buildFromMultiview } = await import('../lib/photoEngine/imageTo3D');
+        models = await buildFromMultiview(shots, {
+          onMeshUrl: (meshUrl) => snapshotMesh(candidate.id, meshUrl),
+          onProgress: (fraction, note) =>
+            patchRun(candidate.id, { progressNote: `${Math.round(fraction * 100)}% · ${note}` }),
+        });
       } else {
         if (!photoUri) throw new Error('Lock a photo first');
         const { buildFromPhoto } = await import('../lib/photoEngine/imageTo3D');
@@ -289,20 +308,30 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
             ) : null}
 
             {state.status !== 'running' ? (
-              <Pressable
-                accessibilityRole="button"
-                disabled={!hasPhoto && candidate.id !== 'demo'}
-                onPress={() => run(candidate)}
-                style={({ pressed }) => [
-                  styles.runButton,
-                  (!hasPhoto && candidate.id !== 'demo') && styles.runDisabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.runText}>
-                  {state.status === 'done' || state.status === 'failed' ? 'RUN AGAIN' : 'RUN'}
-                </Text>
-              </Pressable>
+              (() => {
+                const blocked =
+                  candidate.id === 'demo'
+                    ? false
+                    : candidate.id === 'multiview'
+                      ? !has360
+                      : !hasPhoto;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={blocked}
+                    onPress={() => run(candidate)}
+                    style={({ pressed }) => [
+                      styles.runButton,
+                      blocked && styles.runDisabled,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.runText}>
+                      {state.status === 'done' || state.status === 'failed' ? 'RUN AGAIN' : 'RUN'}
+                    </Text>
+                  </Pressable>
+                );
+              })()
             ) : null}
           </View>
         );
@@ -314,7 +343,9 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
           <Text style={styles.verdictText}>
             {winner === 'depth'
               ? 'Winner is the free on-device pipeline — no server change needed; consider hiding the True-3D path.'
-              : `Set TRIPO_MODEL_VERSION=${winner} in Vercel project settings, then redeploy (env vars only apply to new deploys).`}
+              : winner === 'multiview'
+                ? 'Winner is 360° multiview — steer buyers to the 360° capture mode; no server change needed.'
+                : `Set TRIPO_MODEL_VERSION=${winner} in Vercel project settings, then redeploy (env vars only apply to new deploys).`}
           </Text>
         </View>
       ) : null}

@@ -197,7 +197,7 @@ async function compositeCutout(photoUri: string, segmentation: Segmentation): Pr
 
 /** Downscale any image src (data:/blob:/http) to a compact JPEG data URL so
  * the POST body stays under the serverless 4.5 MB limit. Web-only (canvas). */
-async function toCompactDataUrl(src: string, max = 1024, quality = 0.85): Promise<string> {
+export async function toCompactDataUrl(src: string, max = 1024, quality = 0.85): Promise<string> {
   if (typeof document === 'undefined') {
     return src;
   }
@@ -251,33 +251,20 @@ export interface BuildFromPhotoOptions {
 }
 
 /**
- * Live path: photo → Tripo (via /api/tripo proxy) → GLB → bricks.
- * The key is held server-side; this only talks to our own origin.
- * Throws NotConfiguredError when the live path is off, NoCreditError when the
- * Tripo account is out of credit.
+ * Shared Tripo tail: submit a task body to our proxy, poll until the mesh is
+ * ready, then voxelize it into bricks. Both the single-photo and multiview
+ * paths end here — the only difference between them is the submit body.
  */
-export async function buildFromPhoto(
-  photoSrc: string,
-  segmentation?: Segmentation | null,
-  onProgressOrOptions?: ProgressFn | BuildFromPhotoOptions,
+async function generateAndVoxelize(
+  submitBody: Record<string, unknown>,
+  options: BuildFromPhotoOptions,
 ): Promise<PhotoModels> {
-  const options: BuildFromPhotoOptions =
-    typeof onProgressOrOptions === 'function' ? { onProgress: onProgressOrOptions } : (onProgressOrOptions ?? {});
   const onProgress = options.onProgress;
-  if (!isLive3DConfigured()) {
-    throw new NotConfiguredError();
-  }
-  onProgress?.(0.05, 'Preparing photo');
-  // Send Tripo the isolated object (cropped + background removed) whenever
-  // we already have a segmentation for this photo, not the full raw scene.
-  const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
-  const image = await toCompactDataUrl(cutout);
-
   onProgress?.(0.12, 'Uploading to generator');
   const submit = await fetch('/api/tripo/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image, modelVersion: options.modelVersion }),
+    body: JSON.stringify(submitBody),
   });
   if (!submit.ok) {
     if (submit.status === 402) {
@@ -286,7 +273,11 @@ export async function buildFromPhoto(
     const body = (await submit.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error || `generation could not start (${submit.status})`);
   }
-  const { taskId } = (await submit.json()) as { taskId: string };
+  // A dev server without /api answers 200 with HTML — surface that honestly
+  // instead of a raw JSON parse error.
+  const { taskId } = (await submit.json().catch(() => {
+    throw new Error('generator unreachable on this build — run it on the live site');
+  })) as { taskId: string };
 
   // Poll our status proxy until the mesh is ready (Tripo takes ~30s–2min).
   let ready = false;
@@ -327,4 +318,60 @@ export async function buildFromPhoto(
     models: { balanced: model, detailed: model, efficient: model },
     style: 'natural',
   };
+}
+
+/**
+ * Live path: photo → Tripo (via /api/tripo proxy) → GLB → bricks.
+ * The key is held server-side; this only talks to our own origin.
+ * Throws NotConfiguredError when the live path is off, NoCreditError when the
+ * Tripo account is out of credit.
+ */
+export async function buildFromPhoto(
+  photoSrc: string,
+  segmentation?: Segmentation | null,
+  onProgressOrOptions?: ProgressFn | BuildFromPhotoOptions,
+): Promise<PhotoModels> {
+  const options: BuildFromPhotoOptions =
+    typeof onProgressOrOptions === 'function' ? { onProgress: onProgressOrOptions } : (onProgressOrOptions ?? {});
+  if (!isLive3DConfigured()) {
+    throw new NotConfiguredError();
+  }
+  options.onProgress?.(0.05, 'Preparing photo');
+  // Send Tripo the isolated object (cropped + background removed) whenever
+  // we already have a segmentation for this photo, not the full raw scene.
+  const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const image = await toCompactDataUrl(cutout);
+  return generateAndVoxelize({ image, modelVersion: options.modelVersion }, options);
+}
+
+/** The four orbit views, keyed the way the server expects them. */
+export interface MultiviewShots {
+  front: string;
+  left?: string;
+  back?: string;
+  right?: string;
+}
+
+/**
+ * 360° path: 4 photos around the object → Tripo multiview → GLB → bricks.
+ * Real geometry from real photos on every side, instead of the AI
+ * hallucinating whatever the single photo didn't show. Front view required,
+ * at least one more view expected (the server enforces both).
+ */
+export async function buildFromMultiview(
+  shots: MultiviewShots,
+  options: BuildFromPhotoOptions = {},
+): Promise<PhotoModels> {
+  if (!isLive3DConfigured()) {
+    throw new NotConfiguredError();
+  }
+  options.onProgress?.(0.05, 'Preparing your views');
+  const views: Record<string, string> = {};
+  for (const name of ['front', 'left', 'back', 'right'] as const) {
+    const shot = shots[name];
+    if (shot) {
+      views[name] = await toCompactDataUrl(shot);
+    }
+  }
+  return generateAndVoxelize({ modelVersion: options.modelVersion, views }, options);
 }
