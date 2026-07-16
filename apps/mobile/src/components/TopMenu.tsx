@@ -10,6 +10,7 @@ const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
   { label: 'CREATE A BUILD', screen: 'mode' },
   { label: 'OBJECT LIBRARY', screen: 'library' },
   { label: 'MY KIT', screen: 'purchase' },
+  { label: 'MODEL LAB (BETA)', screen: 'lab' },
 ];
 
 /**

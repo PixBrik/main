@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { ScreenFrame } from '../components/ScreenFrame';
+import { estimateBuild } from '../lib/brickify';
 import { hasLastCapture, loadLastCapture } from '../lib/captureStore';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import {
@@ -49,6 +50,12 @@ interface RunState {
   bricks?: number;
   seconds?: number;
   error?: string;
+  /** The engine's raw mesh (when the candidate produces one). */
+  meshUrl?: string;
+  /** Still renders of the raw mesh from three angles. */
+  meshShots?: string[];
+  /** What our catalog proposes for this result: parts, colours, price. */
+  catalog?: { parts: number; colours: number; priceEur: number };
 }
 
 /**
@@ -75,9 +82,9 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
       note: `image→3D mesh · ${version.note}`,
       cost: '≈30 CR',
     })),
-    // Local dev has no /api routes, so offer a free demo mesh to exercise
-    // the lab end-to-end without a deployment or credits.
-    ...(!live ? [{ id: 'demo' as const, label: 'Demo mesh', note: 'pipeline check · duck GLB', cost: 'FREE' }] : []),
+    // Free pipeline check: a known-good mesh through the same conversion —
+    // shows the raw-3D + brick-proposal comparison without spending credits.
+    { id: 'demo' as const, label: 'Demo mesh', note: 'pipeline check · duck GLB · no photo needed', cost: 'FREE' },
   ];
 
   const [runs, setRuns] = useState<Record<string, RunState>>({});
@@ -87,9 +94,29 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
     setRuns((current) => ({ ...current, [id]: { ...(current[id] ?? { status: 'idle' }), ...patch } }));
   };
 
+  /** Render the raw mesh to stills in the background — never blocks the run. */
+  const snapshotMesh = (id: CandidateId, meshUrl: string) => {
+    patchRun(id, { meshUrl });
+    void import('../lib/photoEngine/meshSnapshot')
+      .then(({ snapshotGlb }) => snapshotGlb(meshUrl))
+      .then((shots) => {
+        if (shots.length) patchRun(id, { meshShots: shots });
+      })
+      .catch(() => {
+        // No raw view is not a failed run — the brick result still stands.
+      });
+  };
+
   const run = async (candidate: Candidate) => {
     const startedAt = Date.now();
-    patchRun(candidate.id, { error: undefined, progressNote: 'Starting', status: 'running' });
+    patchRun(candidate.id, {
+      catalog: undefined,
+      error: undefined,
+      meshShots: undefined,
+      meshUrl: undefined,
+      progressNote: 'Starting',
+      status: 'running',
+    });
     try {
       let models: PhotoModels;
       if (candidate.id === 'depth') {
@@ -110,20 +137,35 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
         });
       } else if (candidate.id === 'demo') {
         patchRun(candidate.id, { progressNote: 'Voxelizing demo mesh' });
-        const { buildFromMeshUrl } = await import('../lib/photoEngine/imageTo3D');
-        models = await buildFromMeshUrl(DEMO_MESHES[0].url, DEMO_MESHES[0].label);
+        snapshotMesh(candidate.id, DEMO_MESHES[0].url);
+        const { buildFromMeshUrlOne } = await import('../lib/photoEngine/imageTo3D');
+        models = await buildFromMeshUrlOne(DEMO_MESHES[0].url, DEMO_MESHES[0].label, 'balanced');
       } else {
         if (!photoUri) throw new Error('Lock a photo first');
         const { buildFromPhoto } = await import('../lib/photoEngine/imageTo3D');
         models = await buildFromPhoto(photoUri, segmentation, {
           modelVersion: candidate.id,
+          onMeshUrl: (meshUrl) => snapshotMesh(candidate.id, meshUrl),
           onProgress: (fraction, note) =>
             patchRun(candidate.id, { progressNote: `${Math.round(fraction * 100)}% · ${note}` }),
         });
       }
-      const model = models.models.efficient;
+      // Judge at 'balanced' — the profile buyers actually see by default.
+      const model = models.models.balanced;
+      let catalog: RunState['catalog'];
+      try {
+        const estimate = estimateBuild(model, colors.alarm);
+        catalog = {
+          colours: estimate.full.colorCount,
+          parts: estimate.full.parts,
+          priceEur: estimate.full.bundleEur,
+        };
+      } catch {
+        catalog = undefined;
+      }
       patchRun(candidate.id, {
         bricks: model.brickCount,
+        catalog,
         model,
         seconds: Math.round((Date.now() - startedAt) / 1000),
         status: 'done',
@@ -189,11 +231,41 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
 
             {state.status === 'done' && state.model && isRealisticViewSupported ? (
               <>
+                {state.meshShots ? (
+                  <>
+                    <Text style={styles.sectionTag}>RAW 3D FROM THE ENGINE</Text>
+                    <View style={styles.shotRow}>
+                      {state.meshShots.map((shot, index) => (
+                        <Image
+                          accessibilityLabel={`${candidate.label} raw mesh, view ${index + 1}`}
+                          key={index}
+                          resizeMode="cover"
+                          source={{ uri: shot }}
+                          style={styles.shot}
+                        />
+                      ))}
+                    </View>
+                  </>
+                ) : state.meshUrl ? (
+                  <Text style={styles.sectionNote}>Rendering the raw 3D views…</Text>
+                ) : (
+                  <Text style={styles.sectionNote}>
+                    This engine builds straight from the photo — no intermediate mesh to show.
+                  </Text>
+                )}
+
+                <Text style={styles.sectionTag}>OUR BRICK PROPOSAL</Text>
                 <ThreeBrickView
                   accent={colors.alarm}
                   label={`${candidate.label} brick result`}
                   model={state.model}
                 />
+                {state.catalog ? (
+                  <Text style={styles.catalogRow}>
+                    CATALOG: {state.catalog.parts.toLocaleString('en-US')} PARTS ·{' '}
+                    {state.catalog.colours} COLOURS · ≈€{state.catalog.priceEur.toFixed(0)} KIT
+                  </Text>
+                ) : null}
                 <View style={styles.statsRow}>
                   <Text style={styles.stat}>{state.bricks?.toLocaleString('en-US')} BRICKS</Text>
                   <Text style={styles.stat}>{state.seconds}s</Text>
@@ -475,6 +547,39 @@ const styles = StyleSheet.create({
     fontFamily: fonts.extrabold,
     fontSize: 11,
     letterSpacing: 0.6,
+  },
+  sectionTag: {
+    ...type.micro,
+    color: inkAlpha(0.5),
+    letterSpacing: 0.8,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  sectionNote: {
+    ...type.body,
+    color: inkAlpha(0.6),
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: spacing.sm,
+  },
+  shotRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  shot: {
+    aspectRatio: 460 / 400,
+    backgroundColor: '#17130A',
+    borderRadius: radius.md,
+    flex: 1,
+  },
+  catalogRow: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.6,
+    marginTop: spacing.md,
   },
   statsRow: {
     alignItems: 'center',

@@ -64,6 +64,25 @@ export async function buildFromMeshUrl(url: string, label: string): Promise<Phot
   return { hasDepth: true, label, mode: 'volume', models, style: 'natural' };
 }
 
+/**
+ * Lab variant: voxelize a mesh at ONE profile instead of all three — the lab
+ * compares candidates at a single fidelity, so building the rest is waste.
+ */
+export async function buildFromMeshUrlOne(
+  url: string,
+  label: string,
+  profile: 'efficient' | 'balanced' | 'detailed' = 'balanced',
+): Promise<PhotoModels> {
+  const model = await voxelizeGlbUrlOne(url, profile);
+  return {
+    hasDepth: true,
+    label,
+    mode: 'volume',
+    models: { balanced: model, detailed: model, efficient: model },
+    style: 'natural',
+  };
+}
+
 function hexLuminance(hex: string): number {
   const clean = hex.replace('#', '');
   const r = Number.parseInt(clean.slice(0, 2), 16);
@@ -223,6 +242,12 @@ export interface BuildFromPhotoOptions {
   /** Specific Tripo generation to use (lab comparisons). Server default otherwise. */
   modelVersion?: TripoVersionId;
   onProgress?: ProgressFn;
+  /**
+   * Receives the generated mesh's URL as soon as it is ready, before brick
+   * conversion — the lab uses it to show the raw 3D output next to the
+   * brick proposal.
+   */
+  onMeshUrl?: (url: string) => void;
 }
 
 /**
@@ -286,13 +311,13 @@ export async function buildFromPhoto(
   }
 
   onProgress?.(0.9, 'Converting to bricks');
+  const meshUrl = `/api/tripo/model?taskId=${encodeURIComponent(taskId)}`;
+  options.onMeshUrl?.(meshUrl);
   // The voxelizer is chunked/async now, so a face-level resolution no longer
   // freezes the tab — 'balanced' (res 44) holds ~4× the detail res 28 did,
   // which is the difference between a blob and a recognizable subject.
-  const model = await voxelizeGlbUrlOne(
-    `/api/tripo/model?taskId=${encodeURIComponent(taskId)}`,
-    'balanced',
-    (fraction) => onProgress?.(0.9 + fraction * 0.1, 'Converting to bricks'),
+  const model = await voxelizeGlbUrlOne(meshUrl, 'balanced', (fraction) =>
+    onProgress?.(0.9 + fraction * 0.1, 'Converting to bricks'),
   );
   onProgress?.(1, 'Done');
   return {
