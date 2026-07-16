@@ -156,11 +156,12 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
     const model = models.models.balanced;
     let catalog: RunState['catalog'];
     try {
+      // Hollow = the standard kit buyers are actually quoted.
       const estimate = estimateBuild(model, colors.alarm);
       catalog = {
-        colours: estimate.full.colorCount,
-        parts: estimate.full.parts,
-        priceEur: estimate.full.bundleEur,
+        colours: estimate.hollow.colorCount,
+        parts: estimate.hollow.parts,
+        priceEur: estimate.hollow.bundleEur,
       };
     } catch {
       catalog = undefined;
@@ -352,8 +353,8 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
                 />
                 {state.catalog ? (
                   <Text style={styles.catalogRow}>
-                    CATALOG: {state.catalog.parts.toLocaleString('en-US')} PARTS ·{' '}
-                    {state.catalog.colours} COLOURS · ≈€{state.catalog.priceEur.toFixed(0)} KIT
+                    STANDARD KIT: {state.catalog.parts.toLocaleString('en-US')} PARTS ·{' '}
+                    {state.catalog.colours} COLOURS · ≈€{state.catalog.priceEur.toFixed(0)}
                   </Text>
                 ) : null}
                 <View style={styles.statsRow}>

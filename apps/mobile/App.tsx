@@ -74,7 +74,9 @@ export default function App() {
   const [palette, setPalette] = useState<PaletteMode>('true');
   const [selectedVariant, setSelectedVariant] = useState('balanced');
   const [countryCode, setCountryCode] = useState('FR');
-  const [buildFill, setBuildFill] = useState<BuildFill>('full');
+  // Hollow is the standard kit: identical from the outside, a fraction of
+  // the parts and price. Solid is the collector upsell, not the default.
+  const [buildFill, setBuildFill] = useState<BuildFill>('hollow');
   const [true3DState, setTrue3DState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [true3DNote, setTrue3DNote] = useState('');
   // Approve-first flow: the generated 3D model waits here (with its raw
@@ -339,6 +341,7 @@ export default function App() {
       case 'bom':
         return (
           <BomScreen
+            buildFill={buildFill}
             onBack={goBack}
             onNavigate={navigate}
             photoBuild={photoBuild}

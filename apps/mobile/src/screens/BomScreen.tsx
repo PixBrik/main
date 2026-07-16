@@ -8,13 +8,15 @@ import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
 import { brickify, partUrl } from '../lib/brickify';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { colors, radius, spacing, type } from '../theme/tokens';
-import type { DemoScreen } from '../types/navigation';
+import type { BuildFill, DemoScreen } from '../types/navigation';
 
 interface BomScreenProps {
   onBack: () => void;
   onNavigate: (screen: DemoScreen) => void;
   selectedVariant: string;
   photoBuild?: PhotoModels | null;
+  /** Fill the buyer chose — the parts list must price what they'll receive. */
+  buildFill?: BuildFill;
 }
 
 const THUMB_W = 55;
@@ -70,11 +72,17 @@ function PartThumb({
   );
 }
 
-export function BomScreen({ onBack, onNavigate, selectedVariant, photoBuild = null }: BomScreenProps) {
+export function BomScreen({
+  onBack,
+  onNavigate,
+  selectedVariant,
+  photoBuild = null,
+  buildFill = 'hollow',
+}: BomScreenProps) {
   const bom = useMemo(() => {
     const model = resolveActiveModel(photoBuild, selectedVariant);
-    return brickify(model, accentForVariant(selectedVariant));
-  }, [photoBuild, selectedVariant]);
+    return brickify(model, accentForVariant(selectedVariant), { hollow: buildFill === 'hollow' });
+  }, [photoBuild, selectedVariant, buildFill]);
 
   return (
     <ScreenFrame

@@ -156,9 +156,11 @@ export function PurchaseScreen({
   const totalWhole = Math.floor(shownTotal);
   const totalCents = Math.round((shownTotal - totalWhole) * 100);
 
+  // Hollow first and framed as the standard product — same look from
+  // outside at a fraction of the price; solid is the collector upsell.
   const options = [
-    { id: 'full' as BuildFill, name: 'FULL', meta: `${estimate.full.parts.toLocaleString('en-US')} parts · solid`, price: estimate.full.bundleEur },
-    { id: 'hollow' as BuildFill, name: 'HOLLOW', meta: `${estimate.hollow.parts.toLocaleString('en-US')} parts${savingPct > 0 ? ` · −${savingPct}%` : ''}`, price: estimate.hollow.bundleEur },
+    { id: 'hollow' as BuildFill, name: 'STANDARD', meta: `${estimate.hollow.parts.toLocaleString('en-US')} parts${savingPct > 0 ? ` · −${savingPct}%` : ''}`, price: estimate.hollow.bundleEur },
+    { id: 'full' as BuildFill, name: 'SOLID · COLLECTOR', meta: `${estimate.full.parts.toLocaleString('en-US')} parts · filled core`, price: estimate.full.bundleEur },
   ];
 
   return (
@@ -219,8 +221,8 @@ export function PurchaseScreen({
           })}
         </View>
         <Text style={styles.cardCaption}>
-          Same look from outside — hollow skips the hidden core. Printed step-by-step guide in every
-          box.
+          Same look from outside — the standard kit skips the hidden core. Printed step-by-step
+          guide in every box.
         </Text>
 
         <Text style={styles.shipLabel}>SHIP TO</Text>

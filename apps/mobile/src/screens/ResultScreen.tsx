@@ -119,14 +119,20 @@ export function ResultScreen({
           TICKET_VIEW,
           0.9,
         );
+        // Price the STANDARD kit (hollow): identical from outside, and the
+        // number a buyer can actually afford — a solid detailed build prices
+        // in four digits and belongs behind the collector option, not here.
+        let parts: number | null = null;
         let priceEur: number | null = null;
         try {
-          priceEur = estimateBuild(model, variantAccent).full.bundleEur;
+          const estimate = estimateBuild(model, variantAccent).hollow;
+          parts = estimate.parts;
+          priceEur = estimate.bundleEur;
         } catch {
           priceEur = null;
         }
         next[variant.id] = {
-          pieces: model.brickCount,
+          pieces: parts ?? model.brickCount,
           png: facesToPngDataUrl(faces, TICKET_VIEW, TICKET_VIEW, 3),
           priceEur,
         };
@@ -265,14 +271,15 @@ export function ResultScreen({
               <View style={styles.ticketCopy}>
                 <Text style={styles.ticketTitle}>{variant.name}</Text>
                 <Text style={styles.ticketNote}>
-                  {variant.note} · {card ? card.pieces : variant.pieces} pieces
+                  {variant.note} · {card ? card.pieces.toLocaleString('en-US') : variant.pieces}{' '}
+                  parts
                 </Text>
               </View>
               <View style={styles.ticketPrice}>
                 <Text style={styles.ticketPriceValue}>
                   €{card?.priceEur ? card.priceEur.toFixed(0) : variant.price.toFixed(0)}
                 </Text>
-                <Text style={styles.ticketPriceLabel}>kit estimate</Text>
+                <Text style={styles.ticketPriceLabel}>standard kit</Text>
               </View>
             </Pressable>
           );
