@@ -10,7 +10,7 @@ import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import { demoProject, variants } from '../data/mockData';
 import { estimateBuild } from '../lib/brickify';
-import { facesToPngDataUrl, fitFacesToBox } from '../lib/fitFaces';
+import { facesToPngDataUrl, fitFacesToBox, panelMosaicFaces } from '../lib/fitFaces';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { getVoxelModel, type VoxelModel } from '../lib/voxelFox';
 import { buildRenderFaces } from '../lib/voxelRender';
@@ -113,12 +113,17 @@ export function ResultScreen({
         const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
         const model = photoBuild ? photoBuild.models[profile] : getVoxelModel(profile);
         const variantAccent = accentByName[variant.accent] ?? colors.blue;
-        const faces = fitFacesToBox(
-          buildRenderFaces(0.5, variantAccent, model, { baseY: 0, centerX: 0, scale: 1 }),
-          TICKET_VIEW,
-          TICKET_VIEW,
-          0.9,
-        );
+        // Panels get the head-on mosaic view — the isometric projection sees
+        // them from behind (grey backing only).
+        const faces =
+          photoBuild?.mode === 'relief'
+            ? panelMosaicFaces(model, TICKET_VIEW, TICKET_VIEW, 0.9)
+            : fitFacesToBox(
+                buildRenderFaces(0.5, variantAccent, model, { baseY: 0, centerX: 0, scale: 1 }),
+                TICKET_VIEW,
+                TICKET_VIEW,
+                0.9,
+              );
         // Price the STANDARD kit (hollow): identical from outside, and the
         // number a buyer can actually afford — a solid detailed build prices
         // in four digits and belongs behind the collector option, not here.
@@ -318,10 +323,10 @@ export function ResultScreen({
                 ? `Building a real 3D model… ${true3DNote}`
                 : 'Building a real 3D model…'
               : true3DState === 'done'
-                ? 'True-3D build ready ✓'
+                ? 'Full 3D sculpture ready ✓'
                 : true3DState === 'failed'
-                  ? 'True-3D failed — try again'
-                  : 'Rebuild in true 3D (beta) — real geometry all around'}
+                  ? '3D generation failed — try again'
+                  : 'Make it a full 3D sculpture — AI-generated, you approve it first'}
           </Text>
         </Pressable>
       ) : null}

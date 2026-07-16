@@ -1,4 +1,46 @@
+import type { VoxelModel } from './voxelFox';
 import type { RenderFace } from './voxelRender';
+
+/**
+ * Head-on mosaic view of a relief PANEL: one flat square per front-most cell.
+ * The generic isometric projection views panels from behind — nearly every
+ * visible face is the grey backing, and every style looks like the same
+ * slab. A panel hangs on a wall; render it the way it will be seen.
+ */
+export function panelMosaicFaces(
+  model: VoxelModel,
+  width: number,
+  height: number,
+  fill = 0.92,
+): RenderFace[] {
+  const front = new Map<string, { i: number; j: number; k: number; colorHex?: string }>();
+  let maxI = 0;
+  let maxJ = 0;
+  for (const cell of model.cells) {
+    maxI = Math.max(maxI, cell.i);
+    maxJ = Math.max(maxJ, cell.j);
+    const key = `${cell.i},${cell.j}`;
+    const current = front.get(key);
+    if (!current || cell.k < current.k) front.set(key, cell);
+  }
+  if (!front.size) return [];
+  const scale = Math.min((width * fill) / (maxI + 1), (height * fill) / (maxJ + 1));
+  const offsetX = (width - (maxI + 1) * scale) / 2;
+  const offsetY = (height - (maxJ + 1) * scale) / 2;
+  const faces: RenderFace[] = [];
+  for (const cell of front.values()) {
+    const x = offsetX + cell.i * scale;
+    const y = offsetY + (maxJ - cell.j) * scale;
+    const s = scale * 0.96;
+    faces.push({
+      depth: 0,
+      fill: cell.colorHex ?? '#9BA19D',
+      id: `m${cell.i}-${cell.j}`,
+      points: `${x.toFixed(1)},${y.toFixed(1)} ${(x + s).toFixed(1)},${y.toFixed(1)} ${(x + s).toFixed(1)},${(y + s).toFixed(1)} ${x.toFixed(1)},${(y + s).toFixed(1)}`,
+    });
+  }
+  return faces;
+}
 
 /**
  * Scale and centre projected voxel faces into a target viewBox, so a model

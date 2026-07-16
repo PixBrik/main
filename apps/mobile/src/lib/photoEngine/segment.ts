@@ -161,9 +161,13 @@ export async function segmentRegion(uri: string, region: Region, grid: number = 
     }
   }
 
-  const colors: Array<[number, number, number] | null> = mask.map((on, cell) =>
-    on ? [pixels[cell * 4]!, pixels[cell * 4 + 1]!, pixels[cell * 4 + 2]!] : null,
-  );
+  // Colours for EVERY cell, not just masked ones — full-frame panels flip
+  // the whole mask on, and cells without a colour render as fallback grey.
+  const colors: Array<[number, number, number] | null> = mask.map((_on, cell) => [
+    pixels[cell * 4]!,
+    pixels[cell * 4 + 1]!,
+    pixels[cell * 4 + 2]!,
+  ]);
   const coverage = mask.filter(Boolean).length / mask.length;
 
   return { colors, coverage, grid, mask, region };
