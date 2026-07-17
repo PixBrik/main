@@ -5,6 +5,8 @@ import type { DemoScreen } from '../types/navigation';
 
 interface DemoDockProps {
   active: DemoScreen;
+  /** Keep the current Result tab available while downstream build data is pending. */
+  downstreamDisabled?: boolean;
   onNavigate: (screen: DemoScreen) => void;
 }
 
@@ -15,20 +17,25 @@ const items: ReadonlyArray<{ screen: DemoScreen; label: string; mark: string; ac
   { screen: 'instructions', label: 'Build', mark: '///', accent: colors.saffron },
 ];
 
-export function DemoDock({ active, onNavigate }: DemoDockProps) {
+export function DemoDock({ active, downstreamDisabled = false, onNavigate }: DemoDockProps) {
   return (
     <View accessibilityLabel="Build navigation" accessibilityRole="tablist" style={styles.dock}>
       {items.map((item) => {
         const selected = item.screen === active || (active === 'stores' && item.screen === 'purchase');
+        const disabled = downstreamDisabled && item.screen !== 'result';
         return (
           <Pressable
+            aria-disabled={disabled}
+            aria-selected={selected}
             accessibilityRole="tab"
-            accessibilityState={{ selected }}
+            accessibilityState={{ disabled, selected }}
+            disabled={disabled}
             key={item.screen}
             onPress={() => onNavigate(item.screen)}
             style={({ pressed }) => [
               styles.item,
               selected && [styles.itemSelected, { borderBottomColor: item.accent }],
+              disabled && styles.itemDisabled,
               pressed && styles.pressed,
             ]}
           >
@@ -61,6 +68,9 @@ const styles = StyleSheet.create({
   },
   itemSelected: {
     backgroundColor: colors.panelRaise,
+  },
+  itemDisabled: {
+    opacity: 0.35,
   },
   pressed: {
     opacity: 0.75,

@@ -10,15 +10,17 @@ import { MESHY_BASE, meshyHeaders } from '../_meshy';
 export function buildMeshyRequestBody(image: string) {
   return {
     ai_model: 'meshy-6',
+    hd_texture: true,
     // Preserve the supplied person's/object's appearance instead of asking
     // Meshy to creatively enhance the reference before reconstruction.
     image_enhancement: false,
     image_url: image,
-    // Meshy applies target_polycount only when remeshing is enabled.
-    should_remesh: true,
+    // Meshy documents `false` as its highest-precision triangular output.
+    // Brick voxelization performs the deliberate simplification later, so an
+    // early 10k remesh would only throw away shape before catalog conversion.
+    should_remesh: false,
     should_texture: true,
-    target_polycount: 10000,
-    topology: 'triangle',
+    target_formats: ['glb'],
   } as const;
 }
 
@@ -36,9 +38,8 @@ export default async function handler(req: any, res: any): Promise<void> {
       return;
     }
 
-    // Meshy-6 per the owner's manual tests — it produced the best busts.
-    // Polycount capped like Tripo's face_limit: the mesh becomes a coarse
-    // brick grid, so high poly fidelity is wasted spend + slow downloads.
+    // Meshy-6 keeps its full source geometry here. Catalog-aware voxelization
+    // is the single controlled simplification step after buyer approval.
     const taskRes = await fetch(`${MESHY_BASE}/image-to-3d`, {
       method: 'POST',
       headers: { ...meshyHeaders(), 'Content-Type': 'application/json' },

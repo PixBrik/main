@@ -6,6 +6,18 @@
 
 import { buildModelFromCells, type VoxelCell, type VoxelModel } from './voxelFox';
 import { voxelBaseColor } from './voxelRender';
+import type { PanelStyle, PhotoBuildMode } from './photoEngine/voxelizePhoto';
+
+export type SavedBuildProduct = 'panel' | 'sculpture';
+export type SavedBuildProvenance = 'flat-photo' | 'provider-3d' | 'library';
+
+export interface SavedBuildMetadata {
+  hasDepth: boolean;
+  mode: PhotoBuildMode;
+  product: SavedBuildProduct;
+  provenance: SavedBuildProvenance;
+  style: PanelStyle;
+}
 
 export interface SavedBuild {
   id: string;
@@ -14,6 +26,12 @@ export interface SavedBuild {
   brickCount: number;
   size: number;
   palette: string[];
+  /** Missing on legacy entries; unknown builds must never be claimed as provider 3D. */
+  hasDepth?: boolean;
+  mode?: PhotoBuildMode;
+  product?: SavedBuildProduct;
+  provenance?: SavedBuildProvenance;
+  style?: PanelStyle;
   /** [i, j, k, paletteIndex] per cell — compact enough for localStorage. */
   cells: number[][];
 }
@@ -43,7 +61,12 @@ export function listBuilds(): SavedBuild[] {
   }
 }
 
-export function saveBuild(name: string, model: VoxelModel, accent: string): SavedBuild | null {
+export function saveBuild(
+  name: string,
+  model: VoxelModel,
+  accent: string,
+  metadata: SavedBuildMetadata,
+): SavedBuild | null {
   const store = storage();
   if (!store) return null;
 
@@ -66,6 +89,7 @@ export function saveBuild(name: string, model: VoxelModel, accent: string): Save
     id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     name,
     palette,
+    ...metadata,
     savedAt: new Date().toISOString(),
     size: model.size,
   };

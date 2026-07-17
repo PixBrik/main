@@ -10,6 +10,13 @@
 
 import { bgThresholdBias } from '../feedbackStore';
 
+export interface SegmentationRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface Segmentation {
   /** Mask grid, row-major, GRID×GRID. */
   mask: boolean[];
@@ -19,7 +26,7 @@ export interface Segmentation {
   /** Fraction of the crop covered by the mask (sanity signal). */
   coverage: number;
   /** The photo region this segmentation covers (needed for depth alignment). */
-  region: { x: number; y: number; width: number; height: number };
+  region: SegmentationRegion;
   /** Physical crop width / height before it is sampled onto the square grid. */
   aspectRatio?: number;
   /**
@@ -32,16 +39,19 @@ export interface Segmentation {
   /** Category decided at lock time (drives rebuild defaults). */
   categoryLabel?: string;
   preserveFeatures?: boolean;
+  /** Whether the panel keeps the framed scene or uses a provider cutout. */
+  backgroundMode?: 'scene' | 'smart';
+  /** Source of the occupancy mask; useful for avoiding heuristic reprocessing. */
+  maskSource?: 'full-frame' | 'background-removal';
+  /** Provider used for a smart cutout (the API key always remains server-side). */
+  backgroundRemovalProvider?: 'photoroom' | 'removebg';
+  /** Session-only URI for the provider's full-resolution RGBA PNG. */
+  cutoutUri?: string;
 }
 
 export const SEGMENT_GRID = 68;
 
-interface Region {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+type Region = SegmentationRegion;
 
 interface CropSample {
   aspectRatio: number;

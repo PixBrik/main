@@ -16,6 +16,9 @@ interface StoredCapture {
   at: string;
   photoDataUrl: string;
   segmentation: {
+    aspectRatio?: number;
+    backgroundMode?: Segmentation['backgroundMode'];
+    backgroundRemovalProvider?: Segmentation['backgroundRemovalProvider'];
     grid: number;
     coverage: number;
     region: Segmentation['region'];
@@ -25,6 +28,7 @@ interface StoredCapture {
     face: Segmentation['face'];
     categoryLabel?: string;
     preserveFeatures?: boolean;
+    maskSource?: Segmentation['maskSource'];
   };
 }
 
@@ -69,6 +73,9 @@ export async function saveLastCapture(photoUri: string, segmentation: Segmentati
       at: new Date().toISOString(),
       photoDataUrl,
       segmentation: {
+        aspectRatio: segmentation.aspectRatio,
+        backgroundMode: segmentation.backgroundMode,
+        backgroundRemovalProvider: segmentation.backgroundRemovalProvider,
         categoryLabel: segmentation.categoryLabel,
         colors: segmentation.colors,
         coverage: segmentation.coverage,
@@ -76,6 +83,7 @@ export async function saveLastCapture(photoUri: string, segmentation: Segmentati
         face: segmentation.face ?? null,
         grid: segmentation.grid,
         mask: segmentation.mask.map((on) => (on ? 1 : 0)),
+        maskSource: segmentation.maskSource,
         preserveFeatures: segmentation.preserveFeatures,
         region: segmentation.region,
       },
@@ -99,6 +107,9 @@ export function loadLastCapture(): { photoUri: string; segmentation: Segmentatio
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredCapture;
     const segmentation: Segmentation = {
+      aspectRatio: parsed.segmentation.aspectRatio,
+      backgroundMode: parsed.segmentation.backgroundMode,
+      backgroundRemovalProvider: parsed.segmentation.backgroundRemovalProvider,
       categoryLabel: parsed.segmentation.categoryLabel,
       colors: parsed.segmentation.colors,
       coverage: parsed.segmentation.coverage,
@@ -106,6 +117,7 @@ export function loadLastCapture(): { photoUri: string; segmentation: Segmentatio
       face: parsed.segmentation.face ?? null,
       grid: parsed.segmentation.grid,
       mask: parsed.segmentation.mask.map((bit) => bit === 1),
+      maskSource: parsed.segmentation.maskSource,
       preserveFeatures: parsed.segmentation.preserveFeatures,
       region: parsed.segmentation.region,
     };

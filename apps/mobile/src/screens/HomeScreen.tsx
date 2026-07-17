@@ -16,6 +16,7 @@ import { colors, fonts, inkAlpha, radius, saffronAlpha, shadow, spacing, type } 
 
 interface HomeScreenProps {
   onStart: () => void;
+  onStart3D?: () => void;
   onOpenBuild?: (build: SavedBuild) => void;
   onOpenLibrary?: () => void;
 }
@@ -34,7 +35,7 @@ function StudGlyph({ color, size = 5 }: { color: string; size?: number }) {
   );
 }
 
-export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenProps) {
+export function HomeScreen({ onStart, onStart3D, onOpenBuild, onOpenLibrary }: HomeScreenProps) {
   const { width: viewportWidth } = useWindowDimensions();
   const [builds] = useState<SavedBuild[]>(() => listBuilds());
   const [showAll, setShowAll] = useState(false);
@@ -89,8 +90,9 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
             )}
 
             <Text style={styles.sub}>
-              Preview a buildable brick portrait from your photo on this device, inspect every
-              detail, and decide before you order.
+              Flat panels isolate one photo for the closest likeness. True 3D objects can start
+              from one photo with AI-completed hidden sides; people use four guided views so the
+              back comes from a real photo.
             </Text>
 
             {wide ? (
@@ -100,35 +102,43 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
                   onPress={onStart}
                   style={({ pressed }) => [styles.desktopPrimary, pressed && styles.pressedSlab]}
                 >
-                  <Text style={styles.desktopPrimaryText}>PREVIEW MY PHOTO</Text>
+                  <Text style={styles.desktopPrimaryText}>FLAT PANEL</Text>
                 </Pressable>
-                {onOpenLibrary ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={onOpenLibrary}
-                    style={({ pressed }) => [styles.desktopLibrary, pressed && styles.pressedPill]}
-                  >
-                    <Text style={styles.desktopLibraryText}>OR EXPLORE THE LIBRARY →</Text>
-                  </Pressable>
-                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onStart3D ?? onStart}
+                  style={({ pressed }) => [styles.desktop3D, pressed && styles.pressedSlab]}
+                >
+                  <Text style={styles.desktop3DText}>TRUE 3D</Text>
+                </Pressable>
               </View>
+            ) : null}
+
+            {onOpenLibrary ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onOpenLibrary}
+                style={({ pressed }) => [styles.desktopLibrary, pressed && styles.pressedPill]}
+              >
+                <Text style={styles.desktopLibraryText}>EXPLORE READY-MADE BUILDS →</Text>
+              </Pressable>
             ) : null}
 
             {wide ? (
               <Text style={styles.valueLine}>
-                PANEL PREVIEW FIRST · FULL 3D WITH 4 GUIDED PHOTOS · PARTS MATCHED TO OUR CATALOG
+                FLAT: ONE PHOTO · 3D OBJECTS: AI-COMPLETED SIDES · 3D PEOPLE: 4 REAL VIEWS
               </Text>
             ) : null}
           </View>
 
           <View style={[styles.showcaseColumn, wide && styles.showcaseColumnWide]}>
-            <BuildPath onStart={onStart} />
+            <BuildPath onStart={onStart} onStart3D={onStart3D} />
           </View>
         </View>
 
         {!wide ? (
           <Text style={styles.valueLine}>
-            PANEL PREVIEW FIRST · FULL 3D WITH 4 GUIDED PHOTOS · PARTS MATCHED TO OUR CATALOG
+            FLAT: ONE PHOTO · 3D OBJECTS: AI-COMPLETED SIDES · 3D PEOPLE: 4 REAL VIEWS
           </Text>
         ) : null}
 
@@ -174,17 +184,15 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
           onPress={onStart}
           style={({ pressed }) => [styles.dockSlab, pressed && styles.pressedSlab]}
         >
-          <Text numberOfLines={1} style={styles.dockSlabText}>PREVIEW MY PHOTO</Text>
+          <Text numberOfLines={1} style={styles.dockSlabText}>FLAT PANEL</Text>
         </Pressable>
-        {onOpenLibrary ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onOpenLibrary}
-            style={({ pressed }) => [styles.dockOutline, pressed && styles.pressedSlab]}
-          >
-            <Text style={styles.dockOutlineText}>EXPLORE{'\n'}LIBRARY</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={onStart3D ?? onStart}
+          style={({ pressed }) => [styles.dockOutline, pressed && styles.pressedSlab]}
+        >
+          <Text style={styles.dockOutlineText}>TRUE{'\n'}3D</Text>
+        </Pressable>
         </View>
       </View>
     </View>
@@ -276,7 +284,9 @@ const styles = StyleSheet.create({
     maxWidth: 430,
   },
   desktopActions: {
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.md,
     marginTop: spacing.xxl,
   },
   desktopPrimary: {
@@ -285,9 +295,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
     borderColor: colors.white,
     borderWidth: 4,
+    flex: 1,
     justifyContent: 'center',
     minHeight: 66,
-    paddingHorizontal: spacing.xxl,
+    paddingHorizontal: spacing.md,
   },
   desktopPrimaryText: {
     color: colors.white,
@@ -295,10 +306,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     letterSpacing: 0.1,
   },
+  desktop3D: {
+    ...shadow.card,
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.ink,
+    borderWidth: 4,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 66,
+    paddingHorizontal: spacing.md,
+  },
+  desktop3DText: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    letterSpacing: 0.1,
+  },
   desktopLibrary: {
+    alignSelf: 'flex-start',
     borderBottomColor: colors.ink,
     borderBottomWidth: 2,
-    marginLeft: spacing.lg,
     marginTop: spacing.lg,
     paddingBottom: 3,
   },

@@ -17,6 +17,9 @@ export type DemoScreen =
 /** Solid build vs hollow (shell-only) build. */
 export type BuildFill = 'full' | 'hollow';
 
+/** The two distinct products a buyer can switch between for one photo. */
+export type BuildProduct = 'panel' | 'sculpture';
+
 export type CaptureMode = 'photo' | 'orbit';
 export type TargetSize = 'desk' | 'shelf' | 'statement';
 export type DetailLevel = 'simple' | 'balanced' | 'intricate';

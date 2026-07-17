@@ -32,7 +32,7 @@ export default async function handler(req: any, res: any): Promise<void> {
     }
     const buffer = Buffer.from(await modelRes.arrayBuffer());
     res.setHeader('Content-Type', 'model/gltf-binary');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.status(200).send(buffer);
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'model proxy failed' });

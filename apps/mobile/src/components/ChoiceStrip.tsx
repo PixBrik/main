@@ -9,6 +9,7 @@ interface ChoiceStripProps {
   onPress: () => void;
   accent?: SignalName;
   meta?: string;
+  disabled?: boolean;
 }
 
 export function ChoiceStrip({
@@ -18,18 +19,22 @@ export function ChoiceStrip({
   onPress,
   accent = 'mint',
   meta,
+  disabled = false,
 }: ChoiceStripProps) {
   const signal = signals[accent];
 
   return (
     <Pressable
+      aria-checked={selected}
       accessibilityRole="radio"
-      accessibilityState={{ checked: selected }}
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.strip,
         selected && { backgroundColor: signal.soft, borderColor: colors.ink },
         pressed && styles.pressed,
+        disabled && styles.disabled,
       ]}
     >
       <View style={[styles.rail, { backgroundColor: signal.main }]} />
@@ -74,6 +79,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.82,
+  },
+  disabled: {
+    opacity: 0.45,
   },
   rail: {
     alignSelf: 'stretch',

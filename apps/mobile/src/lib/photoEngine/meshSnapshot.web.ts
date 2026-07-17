@@ -14,8 +14,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const SHOT_W = 460;
 const SHOT_H = 400;
-/** Orbit angles (radians around Y): front three-quarter, side, back quarter. */
-const ANGLES = [0.45, Math.PI / 2 + 0.6, Math.PI + 0.45];
+/**
+ * Exact cardinal approval views in clockwise order: front, right, back, left.
+ * Approval must expose the rear surface directly: a flattering set of only
+ * three-quarter views can hide duplicated faces or other bad unseen-side
+ * texture guesses until after the mesh has already been converted to bricks.
+ */
+const ANGLES = [0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2];
 
 export async function snapshotGlb(url: string): Promise<string[]> {
   if (typeof document === 'undefined') return [];

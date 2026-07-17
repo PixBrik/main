@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -30,11 +30,13 @@ import { StoresScreen } from './src/screens/StoresScreen';
 import type { LibraryEntry } from './src/data/carLibrary';
 import { loadModel, saveBuild } from './src/lib/buildGallery';
 import { NavigationContext } from './src/lib/navigationContext';
+import { requiresGuidedMultiview } from './src/lib/photoEngine/imageTo3D';
 import type { Segmentation } from './src/lib/photoEngine/segment';
 import type { PhotoModels } from './src/lib/photoEngine/voxelizePhoto';
 import { colors } from './src/theme/tokens';
 import type {
   BuildFill,
+  BuildProduct,
   CaptureMode,
   DemoScreen,
   DetailLevel,
@@ -52,7 +54,23 @@ function initialScreen(): DemoScreen {
   return 'home';
 }
 
+function samePhotoInput(a: Segmentation | null, b: Segmentation): boolean {
+  if (!a) return false;
+  const cropMatches = (['x', 'y', 'width', 'height'] as const).every(
+    (key) => Math.abs(a.region[key] - b.region[key]) < 0.0001,
+  );
+  return (
+    cropMatches &&
+    a.backgroundMode === b.backgroundMode &&
+    a.maskSource === b.maskSource &&
+    a.mask.length === b.mask.length &&
+    a.mask.every((value, index) => value === b.mask[index])
+  );
+}
+
 export default function App() {
+  const live3DAvailable =
+    Platform.OS === 'web' && (process.env.EXPO_PUBLIC_TRIPO_ENABLED ?? '') === '1';
   const [fontsLoaded] = useFonts({
     Archivo_500Medium,
     Archivo_600SemiBold,
@@ -65,7 +83,11 @@ export default function App() {
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBuild, setPhotoBuild] = useState<PhotoModels | null>(null);
+  const [panelBuild, setPanelBuild] = useState<PhotoModels | null>(null);
+  const [sculptureBuild, setSculptureBuild] = useState<PhotoModels | null>(null);
+  const [buildProduct, setBuildProduct] = useState<BuildProduct>('panel');
   const [photoSegmentation, setPhotoSegmentation] = useState<Segmentation | null>(null);
+  const humanSubjectRequiresGuided3D = requiresGuidedMultiview(photoSegmentation);
   const [rightsConfirmedUri, setRightsConfirmedUri] = useState<string | null>(null);
   const [sampleUsed, setSampleUsed] = useState(false);
   // A picked photo is already a valid capture-state, even before its brick
@@ -81,10 +103,20 @@ export default function App() {
   const [buildFill, setBuildFill] = useState<BuildFill>('hollow');
   const [true3DState, setTrue3DState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [true3DNote, setTrue3DNote] = useState('');
+  const [true3DError, setTrue3DError] = useState('');
   // Approve-first flow: the generated 3D model waits here (with its raw
   // stills) for a yes/no before any brick conversion happens.
-  const [pending3D, setPending3D] = useState<{ meshUrl: string; stills: string[] } | null>(null);
-  const [dimensionWorking, setDimensionWorking] = useState(false);
+  const [pending3D, setPending3D] = useState<{
+    meshUrl: string;
+    sourceRevision: number;
+    sourceUri: string;
+    stills: string[];
+  } | null>(null);
+  const true3DRequestRef = useRef(false);
+  const currentPhotoUriRef = useRef(photoUri);
+  currentPhotoUriRef.current = photoUri;
+  /** Changes whenever the exact crop/matte input changes, even on the same URI. */
+  const photoInputRevisionRef = useRef(0);
   const [libraryGenerating, setLibraryGenerating] = useState(false);
 
   const generateFromLibrary = async (entry: LibraryEntry, colorHex: string) => {
@@ -97,8 +129,17 @@ export default function App() {
       setRightsConfirmedUri(null);
       setSampleUsed(false);
       setPhotoSegmentation(null);
+      setPanelBuild(null);
+      setSculptureBuild(models);
+      setBuildProduct('sculpture');
       setPhotoBuild(models);
-      saveBuild(entry.name, models.models.balanced, colorHex);
+      saveBuild(entry.name, models.models.balanced, colorHex, {
+        hasDepth: models.hasDepth,
+        mode: models.mode,
+        product: 'sculpture',
+        provenance: 'library',
+        style: models.style,
+      });
       navigate('result');
     } catch (error) {
       // Stay on the library, but never swallow the reason silently.
@@ -135,81 +176,171 @@ export default function App() {
     };
   }, []);
 
-  /** Flat panel ↔ full 3D (depth-inflated) for a photo build. */
-  const toggleDimension = async () => {
-    if (!photoBuild || !photoSegmentation || !photoUri) return;
-    setDimensionWorking(true);
-    try {
-      const nextMode = photoBuild.mode === 'relief' ? 'volume' : 'relief';
-      const seg = photoSegmentation;
-      if (nextMode === 'volume' && seg.depth === undefined) {
-        const { estimateDepthGrid, isDepthSupported } = await import('./src/lib/photoEngine/depth');
-        seg.depth = isDepthSupported() ? await estimateDepthGrid(photoUri, seg.region, seg.grid) : null;
-      }
-      const { buildPhotoModels } = await import('./src/lib/photoEngine/voxelizePhoto');
-      setPhotoBuild(
-        buildPhotoModels(seg, photoBuild.label, nextMode, nextMode === 'relief' ? photoBuild.style : 'natural', {
-          category: seg.categoryLabel,
-          face: seg.face ?? null,
-          preserveFeatures: seg.preserveFeatures ?? false,
-        }),
-      );
-    } catch {
-      // keep current build on failure
-    } finally {
-      setDimensionWorking(false);
-    }
-  };
-
   /**
-   * Approve-first True-3D: generate the mesh (Meshy-6 preferred, Tripo
-   * fallback), show its raw stills for a yes/no, and only convert to bricks
-   * after approval. No photo / live generation off → the demo mesh walks
-   * the same flow so it stays demonstrable.
+   * Approve-first True 3D: a paid provider creates a real textured mesh,
+   * the buyer approves that mesh, and only then do we convert it to bricks.
+   * There is deliberately no demo or depth-relief fallback in this path.
    */
   const rebuildTrue3D = async () => {
+    if (true3DRequestRef.current) return;
+    if (humanSubjectRequiresGuided3D) {
+      setBuildProduct('sculpture');
+      setTrue3DError('People need front, left, back and right photos for True 3D.');
+      setCaptureMode('orbit');
+      navigate('capture');
+      return;
+    }
+    true3DRequestRef.current = true;
+    setBuildProduct('sculpture');
     setTrue3DState('working');
     setTrue3DNote('');
+    setTrue3DError('');
     try {
       const mod = await import('./src/lib/photoEngine/imageTo3D');
-      const meshUrl =
-        photoUri && mod.isLive3DConfigured()
-          ? await mod.generateMeshFromPhoto(photoUri, photoSegmentation, {
-              onProgress: (fraction, note) => setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
-            })
-          : mod.DEMO_MESHES[0].url;
+      if (!photoUri) {
+        throw new Error('Add a photo before generating a 3D sculpture.');
+      }
+      if (!mod.isLive3DConfigured()) {
+        throw new mod.NotConfiguredError();
+      }
+      const sourceUri = photoUri;
+      const sourceRevision = photoInputRevisionRef.current;
+      const meshUrl = await mod.generateMeshFromPhoto(sourceUri, photoSegmentation, {
+        onProgress: (fraction, note) =>
+          setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
+      });
+      if (
+        currentPhotoUriRef.current !== sourceUri ||
+        photoInputRevisionRef.current !== sourceRevision
+      ) {
+        throw new Error('The photo crop or background changed while 3D generation was running. Please start again.');
+      }
       setTrue3DNote('Preparing the preview');
       const { snapshotGlb } = await import('./src/lib/photoEngine/meshSnapshot');
       const stills = await snapshotGlb(meshUrl).catch(() => [] as string[]);
-      setPending3D({ meshUrl, stills });
+      setPending3D({ meshUrl, sourceRevision, sourceUri, stills });
       setTrue3DState('idle');
-    } catch {
+    } catch (error) {
+      setTrue3DError(error instanceof Error ? error.message : '3D generation failed.');
       setTrue3DState('failed');
+    } finally {
+      true3DRequestRef.current = false;
+    }
+  };
+
+  /** Re-render approval stills from the existing mesh without another paid provider task. */
+  const retry3DPreview = async () => {
+    if (!pending3D || true3DRequestRef.current) return;
+    const { meshUrl, sourceRevision, sourceUri } = pending3D;
+    true3DRequestRef.current = true;
+    setTrue3DState('working');
+    setTrue3DNote('Rendering the approval preview');
+    setTrue3DError('');
+    try {
+      if (
+        currentPhotoUriRef.current !== sourceUri ||
+        photoInputRevisionRef.current !== sourceRevision
+      ) {
+        throw new Error('That 3D model belongs to an older photo. Generate it again for this photo.');
+      }
+      const { snapshotGlb } = await import('./src/lib/photoEngine/meshSnapshot');
+      const stills = await snapshotGlb(meshUrl);
+      if (!stills.length) throw new Error('The 3D preview could not be rendered in this browser.');
+      setPending3D((current) =>
+        current?.meshUrl === meshUrl ? { ...current, stills } : current,
+      );
+      setTrue3DState('idle');
+    } catch (error) {
+      setTrue3DError(error instanceof Error ? error.message : 'The 3D preview could not be rendered.');
+      setTrue3DState('failed');
+    } finally {
+      true3DRequestRef.current = false;
     }
   };
 
   /** The buyer approved the 3D model — brick it at all three profiles. */
   const approve3D = async () => {
-    if (!pending3D) return;
-    const meshUrl = pending3D.meshUrl;
+    if (!pending3D || true3DRequestRef.current) return;
+    const { meshUrl, sourceRevision, sourceUri } = pending3D;
+    if (
+      currentPhotoUriRef.current !== sourceUri ||
+      photoInputRevisionRef.current !== sourceRevision
+    ) {
+      setPending3D(null);
+      setTrue3DError('That 3D model belongs to an older photo. Generate it again for this photo.');
+      setTrue3DState('failed');
+      return;
+    }
+    true3DRequestRef.current = true;
     setPending3D(null);
     setTrue3DState('working');
     setTrue3DNote('Converting to bricks');
+    setTrue3DError('');
     try {
       const mod = await import('./src/lib/photoEngine/imageTo3D');
       const models = await mod.buildFromMeshUrlAllProfiles(meshUrl, 'your object', (fraction, note) =>
         setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
       );
+      if (
+        currentPhotoUriRef.current !== sourceUri ||
+        photoInputRevisionRef.current !== sourceRevision
+      ) {
+        throw new Error('The photo crop or background changed while brick conversion was running.');
+      }
+      setSculptureBuild(models);
+      setBuildProduct('sculpture');
       setPhotoBuild(models);
-      saveBuild(models.label, models.models.balanced, colors.blue);
+      saveBuild(models.label, models.models.balanced, colors.blue, {
+        hasDepth: models.hasDepth,
+        mode: models.mode,
+        product: 'sculpture',
+        provenance: 'provider-3d',
+        style: models.style,
+      });
       setTrue3DState('done');
-    } catch {
+    } catch (error) {
+      // Keep the already-paid mesh available so a local conversion retry does
+      // not force the buyer to purchase another provider generation.
+      setPending3D(pending3D);
+      setTrue3DError(error instanceof Error ? error.message : 'Brick conversion failed.');
       setTrue3DState('failed');
+    } finally {
+      true3DRequestRef.current = false;
     }
+  };
+
+  const selectBuildProduct = (product: BuildProduct) => {
+    setBuildProduct(product);
+    setPhotoBuild(product === 'panel' ? panelBuild : sculptureBuild);
+  };
+
+  const recordSegmentation = (next: Segmentation) => {
+    if (!samePhotoInput(photoSegmentation, next)) {
+      photoInputRevisionRef.current += 1;
+      setSculptureBuild(null);
+      setPending3D(null);
+      setTrue3DState('idle');
+      setTrue3DNote('');
+      setTrue3DError('');
+    }
+    setPhotoSegmentation(next);
   };
 
   const navigate = (destination: DemoScreen) => {
     if (destination === screen) {
+      return;
+    }
+
+    const needsApprovedBuild = new Set<DemoScreen>([
+      'bom',
+      'purchase',
+      'stores',
+      'checkout',
+      'instructions',
+    ]).has(destination);
+    const activeBuild = buildProduct === 'panel' ? panelBuild : sculptureBuild;
+    if (needsApprovedBuild && !activeBuild) {
+      setTrue3DError('Generate and approve the 3D sculpture before opening its parts or build steps.');
       return;
     }
 
@@ -219,6 +350,10 @@ export default function App() {
 
   const goBack = () => {
     const destination = history[history.length - 1] ?? 'home';
+    if (destination === 'capture' && panelBuild) {
+      setBuildProduct('panel');
+      setPhotoBuild(panelBuild);
+    }
     setHistory((current) => current.slice(0, -1));
     setScreen(destination);
   };
@@ -228,12 +363,20 @@ export default function App() {
     setPhotoUri(null);
     setRightsConfirmedUri(null);
     setPhotoBuild(null);
+    setPanelBuild(null);
+    setSculptureBuild(null);
+    setBuildProduct('panel');
     setPhotoSegmentation(null);
+    setPending3D(null);
+    setTrue3DState('idle');
+    setTrue3DNote('');
+    setTrue3DError('');
     setHistory([]);
     setScreen('home');
   };
 
   const renderScreen = () => {
+    const activeBuild = buildProduct === 'panel' ? panelBuild : sculptureBuild;
     switch (screen) {
       case 'home':
         return (
@@ -242,22 +385,38 @@ export default function App() {
               const model = loadModel(saved);
               setPhotoUri(null);
               setRightsConfirmedUri(null);
-              setPhotoBuild({
-                hasDepth: false,
+              const restoredAsSculpture =
+                saved.product === 'sculpture' &&
+                (saved.provenance === 'provider-3d' || saved.provenance === 'library');
+              const restoredBuild: PhotoModels = {
+                hasDepth: restoredAsSculpture ? (saved.hasDepth ?? true) : false,
                 label: saved.name,
-                mode: 'volume',
+                mode: restoredAsSculpture ? (saved.mode ?? 'volume') : 'relief',
                 models: { balanced: model, detailed: model, efficient: model },
-                style: 'natural',
-              });
+                style: saved.style ?? 'natural',
+              };
+              setPanelBuild(restoredAsSculpture ? null : restoredBuild);
+              setSculptureBuild(restoredAsSculpture ? restoredBuild : null);
+              setBuildProduct(restoredAsSculpture ? 'sculpture' : 'panel');
+              setPhotoBuild(restoredBuild);
+              setTrue3DState(restoredAsSculpture ? 'done' : 'idle');
               navigate('result');
             }}
             onOpenLibrary={() => navigate('library')}
-            onStart={() => navigate('mode')}
+            onStart={() => {
+              setCaptureMode('photo');
+              navigate('mode');
+            }}
+            onStart3D={() => {
+              setCaptureMode('orbit');
+              navigate('mode');
+            }}
           />
         );
       case 'mode':
         return (
           <ModeScreen
+            full3DAvailable={live3DAvailable}
             onBack={goBack}
             onChange={setCaptureMode}
             onContinue={() => navigate('capture')}
@@ -273,8 +432,19 @@ export default function App() {
                 setPhotoUri(frontUri);
                 setPhotoSegmentation(null);
                 setSampleUsed(false);
+                setPanelBuild(null);
+                setSculptureBuild(models);
+                setBuildProduct('sculpture');
                 setPhotoBuild(models);
-                saveBuild(models.label, models.models.balanced, colors.blue);
+                setPending3D(null);
+                setTrue3DState('done');
+                saveBuild(models.label, models.models.balanced, colors.blue, {
+                  hasDepth: models.hasDepth,
+                  mode: models.mode,
+                  product: 'sculpture',
+                  provenance: 'provider-3d',
+                  style: models.style,
+                });
                 navigate('result');
               }}
             />
@@ -290,27 +460,50 @@ export default function App() {
               navigate('result');
             }}
             onObjectLocked={(models) => {
+              setPanelBuild(models);
+              setBuildProduct('panel');
               setPhotoBuild(models);
-              saveBuild(models.label, models.models.balanced, colors.blue);
+              saveBuild(models.label, models.models.balanced, colors.blue, {
+                hasDepth: models.hasDepth,
+                mode: models.mode,
+                product: 'panel',
+                provenance: 'flat-photo',
+                style: models.style,
+              });
             }}
             onPhotoChange={(uri) => {
+              photoInputRevisionRef.current += 1;
               setPhotoUri(uri);
               setPhotoBuild(null);
+              setPanelBuild(null);
+              setSculptureBuild(null);
+              setBuildProduct('panel');
               setPhotoSegmentation(null);
               setRightsConfirmedUri(null);
+              setPending3D(null);
+              setTrue3DState('idle');
+              setTrue3DNote('');
+              setTrue3DError('');
             }}
             onRightsConfirmedChange={(confirmed) =>
               setRightsConfirmedUri(confirmed && photoUri ? photoUri : null)
             }
-            onSegmentation={setPhotoSegmentation}
+            onSegmentation={recordSegmentation}
             onUseSample={() => {
               setPhotoUri(null);
               setPhotoBuild(null);
+              setPanelBuild(null);
+              setSculptureBuild(null);
+              setBuildProduct('panel');
               setPhotoSegmentation(null);
               setRightsConfirmedUri(null);
+              setPending3D(null);
+              setTrue3DState('idle');
+              setTrue3DNote('');
+              setTrue3DError('');
               setSampleUsed(true);
             }}
-            photoBuild={photoBuild}
+            photoBuild={activeBuild}
             photoUri={photoUri}
             rightsConfirmed={!!photoUri && rightsConfirmedUri === photoUri}
             segmentation={photoSegmentation}
@@ -338,23 +531,30 @@ export default function App() {
             onBack={goBack}
             onNavigate={navigate}
             onSelectVariant={setSelectedVariant}
-            canToggleDimension={!!(photoBuild && photoSegmentation && photoUri)}
-            dimensionMode={photoBuild?.mode}
-            dimensionWorking={dimensionWorking}
+            activeProduct={buildProduct}
+            panelBuild={panelBuild}
+            sculptureBuild={sculptureBuild}
+            onSelectProduct={selectBuildProduct}
             onGuided3D={() => {
               setCaptureMode('orbit');
               navigate('capture');
             }}
-            onToggleDimension={toggleDimension}
             onTrue3D={rebuildTrue3D}
             onApprove3D={approve3D}
-            onDiscard3D={() => setPending3D(null)}
+            onRetry3DPreview={retry3DPreview}
+            onDiscard3D={() => {
+              setPending3D(null);
+              setTrue3DState('idle');
+            }}
             pending3DStills={pending3D?.stills ?? null}
-            photoBuild={photoBuild}
+            photoBuild={activeBuild}
             photoUri={photoUri}
+            humanSubject={humanSubjectRequiresGuided3D}
             selectedVariant={selectedVariant}
             true3DState={true3DState}
             true3DNote={true3DNote}
+            true3DError={true3DError}
+            true3DAvailable={live3DAvailable}
           />
         );
       case 'bom':
@@ -363,7 +563,7 @@ export default function App() {
             buildFill={buildFill}
             onBack={goBack}
             onNavigate={navigate}
-            photoBuild={photoBuild}
+            photoBuild={activeBuild}
             selectedVariant={selectedVariant}
           />
         );
@@ -376,7 +576,7 @@ export default function App() {
             onBuildFillChange={setBuildFill}
             onCountryChange={setCountryCode}
             onNavigate={navigate}
-            photoBuild={photoBuild}
+            photoBuild={activeBuild}
             selectedVariant={selectedVariant}
           />
         );
@@ -396,6 +596,7 @@ export default function App() {
           <LabScreen
             onBack={goBack}
             onRestore={(uri, segmentation) => {
+              photoInputRevisionRef.current += 1;
               setPhotoUri(uri);
               setPhotoSegmentation(segmentation);
               setSampleUsed(false);
@@ -411,12 +612,12 @@ export default function App() {
           <CheckoutScreen
             buildFill={buildFill}
             buildName={
-              photoBuild ? photoBuild.label.charAt(0).toUpperCase() + photoBuild.label.slice(1) : 'Signal Fox'
+              activeBuild ? activeBuild.label.charAt(0).toUpperCase() + activeBuild.label.slice(1) : 'PixBrik build'
             }
             countryCode={countryCode}
             onBack={goBack}
             onDone={restart}
-            photoBuild={photoBuild}
+            photoBuild={activeBuild}
             selectedVariant={selectedVariant}
           />
         );

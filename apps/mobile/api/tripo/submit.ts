@@ -26,7 +26,7 @@ async function uploadImage(dataUrl: string): Promise<UploadResult> {
 
   const form = new FormData();
   form.append('file', new Blob([buffer], { type: mime }), `photo.${ext}`);
-  const upRes = await fetch(`${TRIPO_BASE}/upload`, {
+  const upRes = await fetch(`${TRIPO_BASE}/upload/sts`, {
     method: 'POST',
     headers: authHeaders(),
     body: form,
@@ -57,26 +57,49 @@ export default async function handler(req: any, res: any): Promise<void> {
     // but ONLY from this whitelist — this endpoint is public and each task
     // spends real credits, so arbitrary versions must not be accepted.
     // Multiview needs v2.0+, so v1.4 is excluded on that path.
-    const ALLOWED_VERSIONS = new Set(['v1.4-20240625', 'v2.0-20240919', 'v2.5-20250123']);
-    const MULTIVIEW_VERSIONS = new Set(['v2.0-20240919', 'v2.5-20250123']);
+    const ALLOWED_VERSIONS = new Set([
+      'v1.4-20240625',
+      'v2.0-20240919',
+      'v2.5-20250123',
+      'v3.0-20250812',
+      'v3.1-20260211',
+      'P1-20260311',
+    ]);
+    const MULTIVIEW_VERSIONS = new Set([
+      'v2.0-20240919',
+      'v2.5-20250123',
+      'v3.0-20250812',
+      'v3.1-20260211',
+      'P1-20260311',
+    ]);
     const allowed = isMultiview ? MULTIVIEW_VERSIONS : ALLOWED_VERSIONS;
     const requested: unknown = req.body?.modelVersion;
     const envDefault = process.env.TRIPO_MODEL_VERSION;
     const modelVersion =
       (typeof requested === 'string' && allowed.has(requested) && requested) ||
       (envDefault && allowed.has(envDefault) && envDefault) ||
-      'v2.0-20240919';
-    // Cap mesh complexity so the browser can voxelize it without freezing. The
-    // mesh is turned into a coarse brick grid, so a low face count loses nothing
-    // and keeps the GLB small + the download fast. Override via TRIPO_FACE_LIMIT.
-    const faceLimit = Number(process.env.TRIPO_FACE_LIMIT) || 10000;
+      'v3.1-20260211';
+    // Keep enough source geometry for faces, fingers, handles, and painted
+    // edges. The browser's BVH-backed voxelizer performs the final, deliberate
+    // simplification. P1 currently has a lower documented face ceiling.
+    const configuredFaceLimit = Number(process.env.TRIPO_FACE_LIMIT);
+    const faceLimit =
+      Number.isFinite(configuredFaceLimit) && configuredFaceLimit > 0
+        ? Math.round(configuredFaceLimit)
+        : modelVersion === 'P1-20260311'
+          ? 20000
+          : 100000;
+    const supportsUltraGeometry = /^v3\./.test(modelVersion);
     const shared = {
       model_version: modelVersion,
       face_limit: faceLimit,
-      // Keep the colour texture (needed for the brick recolour) but skip PBR
-      // maps and HD texture — we only sample base colour, so those are wasted
-      // credits. geometry_quality standard is already the cheap default.
+      ...(supportsUltraGeometry ? { geometry_quality: 'detailed' } : {}),
+      // Preserve the source appearance for brick colour sampling. PBR maps are
+      // still skipped because the voxelizer uses base colour, not materials.
+      orientation: 'align_image',
       texture: true,
+      texture_alignment: 'original_image',
+      texture_quality: 'detailed',
       pbr: false,
     };
 
@@ -88,8 +111,8 @@ export default async function handler(req: any, res: any): Promise<void> {
         return;
       }
       const provided = VIEW_ORDER.filter((name) => typeof viewMap[name] === 'string');
-      if (provided.length < 2) {
-        res.status(400).json({ error: 'multiview needs the front plus at least one more view' });
+      if (provided.length !== VIEW_ORDER.length) {
+        res.status(400).json({ error: 'multiview needs all four views: front, left, back and right' });
         return;
       }
       const uploads: Record<string, { ext: string; token: string }> = {};

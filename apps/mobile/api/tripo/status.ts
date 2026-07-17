@@ -22,6 +22,7 @@ export default async function handler(req: any, res: any): Promise<void> {
       status: task.data?.status ?? 'unknown',
       progress: task.data?.progress ?? 0,
       hasModel: !!pickModelUrl(task.data?.output),
+      error: task.message,
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'status failed' });

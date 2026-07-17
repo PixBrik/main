@@ -28,6 +28,7 @@ export default async function handler(req: any, res: any): Promise<void> {
             : (task.status ?? 'unknown').toLowerCase(),
       progress: task.progress ?? 0,
       hasModel: !!task.model_urls?.glb,
+      error: task.task_error?.message,
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'status failed' });

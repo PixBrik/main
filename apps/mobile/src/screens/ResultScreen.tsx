@@ -4,6 +4,7 @@ import Svg, { G, Polygon, Rect } from 'react-native-svg';
 
 import { BuildNameField } from '../components/BuildNameField';
 import { DemoDock } from '../components/DemoDock';
+import { InkLoader } from '../components/InkLoader';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { RotatableBuildPreview } from '../components/RotatableBuildPreview';
 import { ScreenFrame } from '../components/ScreenFrame';
@@ -15,7 +16,7 @@ import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { getVoxelModel, type VoxelModel } from '../lib/voxelFox';
 import { buildRenderFaces } from '../lib/voxelRender';
 import { colors, fonts, radius, shadow, spacing, type } from '../theme/tokens';
-import type { DemoScreen } from '../types/navigation';
+import type { BuildProduct, DemoScreen } from '../types/navigation';
 
 interface ResultScreenProps {
   selectedVariant: string;
@@ -24,18 +25,23 @@ interface ResultScreenProps {
   onNavigate: (screen: DemoScreen) => void;
   photoUri?: string | null;
   photoBuild?: PhotoModels | null;
+  panelBuild?: PhotoModels | null;
+  sculptureBuild?: PhotoModels | null;
+  activeProduct: BuildProduct;
+  onSelectProduct: (product: BuildProduct) => void;
   onGuided3D?: () => void;
   onTrue3D?: () => Promise<void>;
   /** Raw stills of the generated 3D model awaiting the buyer's approval. */
   pending3DStills?: string[] | null;
   onApprove3D?: () => Promise<void>;
   onDiscard3D?: () => void;
+  onRetry3DPreview?: () => Promise<void>;
   true3DState?: 'idle' | 'working' | 'done' | 'failed';
   true3DNote?: string;
-  onToggleDimension?: () => Promise<void>;
-  canToggleDimension?: boolean;
-  dimensionMode?: 'relief' | 'volume';
-  dimensionWorking?: boolean;
+  true3DError?: string;
+  true3DAvailable?: boolean;
+  /** Known portrait/person inputs must use real views instead of one-photo inference. */
+  humanSubject?: boolean;
 }
 
 function buildTimeForParts(parts: number): string {
@@ -90,6 +96,7 @@ interface ProfileCard {
 }
 
 type PreviewMode = 'likeness' | 'angle';
+const MESH_APPROVAL_VIEWS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
 
 export function ResultScreen({
   selectedVariant,
@@ -98,19 +105,24 @@ export function ResultScreen({
   onNavigate,
   photoUri = null,
   photoBuild = null,
+  panelBuild = null,
+  sculptureBuild = null,
+  activeProduct,
+  onSelectProduct,
   onGuided3D,
   onTrue3D,
   pending3DStills = null,
   onApprove3D,
   onDiscard3D,
+  onRetry3DPreview,
   true3DState = 'idle',
   true3DNote,
-  onToggleDimension,
-  canToggleDimension = false,
-  dimensionMode,
-  dimensionWorking = false,
+  true3DError = '',
+  true3DAvailable = false,
+  humanSubject = false,
 }: ResultScreenProps) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>('likeness');
+  const [confirm3D, setConfirm3D] = useState(false);
   const [pdfState, setPdfState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [profileCards, setProfileCards] = useState<Record<string, ProfileCard>>({});
 
@@ -192,71 +204,255 @@ export function ResultScreen({
   }, [likenessFaces]);
   const selectedCard = selected ? profileCards[selected.id] : null;
   const photoStats = photoModel ? describeModel(photoModel, selectedCard?.pieces) : null;
-  const buildName = photoBuild
-    ? photoBuild.label.charAt(0).toUpperCase() + photoBuild.label.slice(1)
+  const namingBuild = photoBuild ?? panelBuild;
+  const buildName = namingBuild
+    ? namingBuild.label.charAt(0).toUpperCase() + namingBuild.label.slice(1)
     : demoProject.name;
+  const awaitingSculpture = activeProduct === 'sculpture' && !sculptureBuild;
+  const generatedSculpture = activeProduct === 'sculpture' && !!sculptureBuild;
 
   return (
     <ScreenFrame
       eyebrow="Build 01 / Generated"
       footer={
         <View style={styles.footerGap}>
-          <PrimaryButton label="Get this kit" onPress={() => onNavigate('bom')} />
-          <DemoDock active="result" onNavigate={onNavigate} />
+          <PrimaryButton
+            disabled={awaitingSculpture}
+            label={awaitingSculpture ? 'Generate and approve the 3D first' : 'Get this kit'}
+            onPress={() => onNavigate('bom')}
+          />
+          <DemoDock
+            active="result"
+            downstreamDisabled={awaitingSculpture}
+            onNavigate={onNavigate}
+          />
         </View>
       }
       onBack={onBack}
       progress={0.62}
       subtitle={
-        photoBuild
-          ? photoBuild.mode === 'relief'
-            ? 'Judge likeness in the head-on panel first. The angled view is optional and naturally looks less like the source photo.'
-            : 'Start with the front reference, then use the angled view to inspect the generated depth and shape.'
-          : 'Start with the front reference, then inspect the optional angled view before sourcing.'
+        awaitingSculpture
+          ? humanSubject
+            ? 'People use four real views so the generator does not invent or mirror a face onto the unseen sides of a head.'
+            : 'This option creates a textured Meshy or Tripo mesh first. One-photo AI guesses unseen sides; you approve the mesh before brick conversion.'
+          : generatedSculpture
+            ? 'This is the brick conversion of the API-generated 3D mesh you approved—not a relief or depth guess.'
+            : 'The flat panel preserves the framed photo directly. Its angled view only shows panel thickness; it is not the 3D sculpture.'
       }
-      title={`${buildName} / Your brick preview`}
+      title={`${buildName} / ${activeProduct === 'sculpture' ? 'True 3D sculpture' : 'Flat photo panel'}`}
     >
       <BuildNameField enabled={!!photoBuild} />
+      {photoUri && panelBuild ? (
+        <View accessibilityLabel="Build product" accessibilityRole="tablist" style={styles.productTabs}>
+          <Pressable
+            aria-selected={activeProduct === 'panel'}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeProduct === 'panel' }}
+            onPress={() => {
+              onSelectProduct('panel');
+              setPreviewMode('likeness');
+            }}
+            style={[styles.productTab, activeProduct === 'panel' && styles.productTabSelected]}
+          >
+            <Text style={styles.productKicker}>READY NOW</Text>
+            <Text style={styles.productTitle}>FLAT PHOTO PANEL</Text>
+            <Text style={styles.productBody}>Best likeness · exact framed photo</Text>
+          </Pressable>
+          <Pressable
+            aria-selected={activeProduct === 'sculpture'}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeProduct === 'sculpture' }}
+            onPress={() => {
+              onSelectProduct('sculpture');
+              setPreviewMode('angle');
+            }}
+            style={[styles.productTab, activeProduct === 'sculpture' && styles.productTabSelected3D]}
+          >
+            <Text style={styles.productKicker}>
+              {sculptureBuild
+                ? 'MESH APPROVED'
+                : pending3DStills
+                  ? 'MESH READY'
+                  : true3DState === 'working'
+                    ? 'GENERATING'
+                    : 'PREMIUM OPTION'}
+            </Text>
+            <Text style={styles.productTitle}>TRUE 3D SCULPTURE</Text>
+            <Text style={styles.productBody}>
+              {humanSubject ? '4 real views required for people' : '1 photo inference or 4-view accuracy'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {awaitingSculpture ? (
+        <View style={styles.generationCard}>
+          <View style={styles.generationHero}>
+            {photoUri ? (
+              <Image
+                accessibilityLabel="Photo selected for true 3D generation"
+                resizeMode="cover"
+                source={{ uri: photoUri }}
+                style={styles.generationPhoto}
+              />
+            ) : null}
+            <View style={styles.generationHeroCopy}>
+              <Text style={styles.generationKicker}>
+                {humanSubject ? 'PERSON DETECTED · REAL VIEWS REQUIRED' : 'REAL MESH FIRST'}
+              </Text>
+              <Text style={styles.generationTitle}>
+                {humanSubject
+                  ? 'CAPTURE EVERY SIDE OF THIS PERSON'
+                  : 'TURN THIS OBJECT PHOTO INTO AN ALL-SIDED 3D MODEL'}
+              </Text>
+              <Text style={styles.generationBody}>
+                {humanSubject
+                  ? 'One portrait cannot show the sides or back of a head. Four guided photos stop the AI from using a guessed or mirrored face as hidden-surface evidence.'
+                  : 'One-photo AI infers—and therefore guesses—the unseen sides of an object. You inspect the raw textured Meshy or Tripo model before brick conversion.'}
+              </Text>
+            </View>
+          </View>
+
+          <View accessibilityLabel="True 3D process" style={styles.pipeline}>
+            <Text style={styles.pipelineStep}>{humanSubject ? '4 REAL VIEWS' : '1 OBJECT PHOTO'}</Text>
+            <Text style={styles.pipelineArrow}>→</Text>
+            <Text style={styles.pipelineStep}>MESHY / TRIPO</Text>
+            <Text style={styles.pipelineArrow}>→</Text>
+            <Text style={styles.pipelineStep}>APPROVE MESH</Text>
+            <Text style={styles.pipelineArrow}>→</Text>
+            <Text style={styles.pipelineStep}>CATALOG BRIKS</Text>
+          </View>
+
+          {true3DState === 'working' ? (
+            <View style={styles.generationProgress}>
+              <InkLoader size={26} stage={true3DNote || 'Generating the textured 3D mesh'} />
+              <Text style={styles.generationProgressText}>
+                Keep this tab open. The sculpture will not be converted to bricks until you approve it.
+              </Text>
+            </View>
+          ) : null}
+
+          {true3DError ? (
+            <View accessibilityRole="alert" style={styles.generationError}>
+              <Text style={styles.generationErrorTitle}>3D GENERATION STOPPED</Text>
+              <Text style={styles.generationErrorText}>{true3DError}</Text>
+            </View>
+          ) : null}
+
+          {humanSubject ? (
+            <>
+              <View style={styles.costNotice}>
+                <Text style={styles.costNoticeTitle}>WHY ONE PHOTO IS BLOCKED</Text>
+                <Text style={styles.costNoticeText}>
+                  A portrait shows only one surface. PixBrik will not pay a provider to guess or mirror a person's unseen head and face surfaces.
+                </Text>
+              </View>
+              <PrimaryButton
+                disabled={!true3DAvailable || !onGuided3D || true3DState === 'working'}
+                label={true3DAvailable ? 'Take 4 guided photos of this person' : 'True 3D is unavailable here'}
+                onPress={() => onGuided3D?.()}
+              />
+            </>
+          ) : (
+            <>
+              <PrimaryButton
+                disabled={!true3DAvailable || !onTrue3D || true3DState === 'working'}
+                label={
+                  true3DState === 'working'
+                    ? 'Generating real 3D…'
+                    : true3DState === 'failed'
+                      ? 'Review and retry 3D generation'
+                      : '1 photo · AI guesses unseen sides'
+                }
+                onPress={() => setConfirm3D(true)}
+              />
+              <Text style={styles.generationDisclosure}>
+                {true3DAvailable
+                  ? 'For non-human objects only. This uploads the framed photo or approved smart cutout and uses one paid generation run; hidden sides are AI inference, not captured evidence.'
+                  : 'True 3D is not enabled on this deployment yet. Configure the server provider before offering this paid option.'}
+              </Text>
+            </>
+          )}
+
+          {!humanSubject && Platform.OS === 'web' && photoUri && onGuided3D ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={true3DState === 'working'}
+              onPress={onGuided3D}
+              style={({ pressed }) => [styles.guided3d, pressed && styles.pdfPressed]}
+            >
+              <View style={styles.guided3dNumber}>
+                <Text style={styles.guided3dNumberText}>4</Text>
+              </View>
+              <View style={styles.guided3dCopy}>
+                <Text style={styles.guided3dTitle}>HIGHER ACCURACY: USE 4 GUIDED PHOTOS</Text>
+                <Text style={styles.guided3dText}>
+                  Front, left, back and right replace hidden-side guesses with real visual evidence.
+                </Text>
+              </View>
+              <Text style={styles.guided3dArrow}>→</Text>
+            </Pressable>
+          ) : null}
+
+          <Text style={styles.noReliefNote}>
+            No relief extrusion and no demo mesh: this route only completes when a real provider mesh is approved.
+          </Text>
+        </View>
+      ) : (
+        <>
       <View accessibilityLabel="Preview mode" accessibilityRole="tablist" style={styles.previewTabs}>
         <Pressable
+          aria-selected={previewMode === 'likeness'}
           accessibilityRole="tab"
           accessibilityState={{ selected: previewMode === 'likeness' }}
           onPress={() => setPreviewMode('likeness')}
           style={[styles.previewTab, previewMode === 'likeness' && styles.previewTabSelected]}
         >
           <Text style={[styles.previewTabText, previewMode === 'likeness' && styles.previewTabTextSelected]}>
-            CLOSEST LIKENESS
+            {activeProduct === 'panel' ? 'FRONT / LIKENESS' : 'FRONT PROJECTION'}
           </Text>
         </Pressable>
         <Pressable
+          aria-selected={previewMode === 'angle'}
           accessibilityRole="tab"
           accessibilityState={{ selected: previewMode === 'angle' }}
           onPress={() => setPreviewMode('angle')}
           style={[styles.previewTab, previewMode === 'angle' && styles.previewTabSelected]}
         >
           <Text style={[styles.previewTabText, previewMode === 'angle' && styles.previewTabTextSelected]}>
-            ANGLED / 3D
+            {activeProduct === 'panel' ? 'PANEL ANGLE' : 'ROTATE 3D'}
           </Text>
         </Pressable>
       </View>
       <View style={[styles.previewGuide, previewMode === 'angle' && styles.previewGuideAngle]}>
         <Text style={[styles.previewGuideTag, previewMode === 'angle' && styles.previewGuideTagAngle]}>
-          {previewMode === 'likeness' ? 'BEST VIEW FOR LIKENESS' : 'OPTIONAL DEPTH VIEW'}
+          {previewMode === 'likeness'
+            ? activeProduct === 'panel'
+              ? 'BEST VIEW FOR LIKENESS'
+              : 'FRONT OF APPROVED SCULPTURE'
+            : activeProduct === 'panel'
+              ? 'PANEL THICKNESS VIEW'
+              : 'REAL ALL-SIDED GEOMETRY'}
         </Text>
         <Text style={styles.previewGuideText}>
           {previewMode === 'likeness'
-            ? 'A straight-on build map: use this view to judge the face, colours and framing.'
-            : 'This view reveals studs and depth. Perspective and lighting can make it look less like the photo.'}
+            ? activeProduct === 'panel'
+              ? 'A straight-on build map: use this view to judge the face, colours and framing.'
+              : 'A front projection of the sculpture generated from the provider mesh you approved.'
+            : activeProduct === 'panel'
+              ? 'This camera only reveals the panel backing and stud depth. It does not turn the photo into a 3D sculpture.'
+              : 'Rotate the catalog-brick sculpture to inspect the geometry inherited from the approved Meshy or Tripo mesh.'}
         </Text>
       </View>
       {previewMode === 'likeness' ? (
         <View
-          accessibilityLabel={`${buildName} closest-likeness, head-on brick panel`}
+          accessibilityLabel={`${buildName} ${activeProduct === 'panel' ? 'head-on brick panel' : 'front sculpture projection'}`}
           accessibilityRole="image"
           style={styles.likenessShell}
         >
           <View style={styles.likenessHeader}>
-            <Text style={styles.likenessHeaderLabel}>HEAD-ON PANEL // BUILD MAP</Text>
+            <Text style={styles.likenessHeaderLabel}>
+              {activeProduct === 'panel' ? 'HEAD-ON PANEL // BUILD MAP' : 'SCULPTURE // FRONT PROJECTION'}
+            </Text>
             <Text style={styles.likenessHeaderCount}>
               {likenessFaces.length.toLocaleString('en-US')} VISIBLE COLOUR CELLS
             </Text>
@@ -293,14 +489,14 @@ export function ResultScreen({
       ) : isRealisticViewSupported ? (
         <ThreeBrickView
           accent={accent}
-          label={`${buildName} optional angled 3D preview`}
+          label={`${buildName} ${activeProduct === 'panel' ? 'angled panel thickness view' : 'rotatable 3D sculpture'}`}
           model={previewModel}
           packedParts={selectedCard?.pieces}
         />
       ) : (
         <RotatableBuildPreview
           accent={accent}
-          label={`${buildName} optional angled build`}
+          label={`${buildName} ${activeProduct === 'panel' ? 'angled panel thickness view' : 'rotatable 3D sculpture'}`}
           modelOverride={previewModel}
           profile={modelProfile}
           sourceUri={photoUri}
@@ -331,6 +527,7 @@ export function ResultScreen({
           const card = profileCards[variant.id];
           return (
             <Pressable
+              aria-checked={isSelected}
               accessibilityRole="radio"
               accessibilityState={{ checked: isSelected }}
               key={variant.id}
@@ -370,78 +567,60 @@ export function ResultScreen({
           );
         })}
       </View>
+        </>
+      )}
 
-      {canToggleDimension && onToggleDimension ? (
-        <Pressable
-          accessibilityRole="button"
-          disabled={dimensionWorking}
-          onPress={async () => {
-            const nextPreview = dimensionMode === 'relief' ? 'angle' : 'likeness';
-            await onToggleDimension();
-            setPreviewMode(nextPreview);
-          }}
-          style={({ pressed }) => [styles.dimension, pressed && styles.pdfPressed]}
+      {confirm3D && onTrue3D && !humanSubject ? (
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setConfirm3D(false)}
+          transparent
+          visible
         >
-          <Text style={styles.dimensionIcon}>{dimensionMode === 'relief' ? '◑' : '▭'}</Text>
-          <Text style={styles.dimensionText}>
-            {dimensionWorking
-              ? 'Estimating relief depth from this photo…'
-              : dimensionMode === 'relief'
-                ? 'Preview estimated relief depth — one-photo guess'
-                : 'Switch back to the closest-likeness panel'}
-          </Text>
-        </Pressable>
-      ) : null}
-
-      {Platform.OS === 'web' && photoUri && onGuided3D ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onGuided3D}
-          style={({ pressed }) => [styles.guided3d, pressed && styles.pdfPressed]}
-        >
-          <View style={styles.guided3dNumber}>
-            <Text style={styles.guided3dNumberText}>4</Text>
+          <View style={styles.approveBackdrop}>
+            <View style={styles.approveCard}>
+              <Text style={styles.approveTitle}>GENERATE ONE-PHOTO 3D FOR THIS OBJECT?</Text>
+              <Text style={styles.approveBody}>
+                PixBrik will upload the framed photo or approved smart cutout to Meshy or Tripo.
+                AI guesses the unseen sides because this photo cannot show them. Before conversion,
+                inspect FRONT, RIGHT, BACK and LEFT—especially the rear surface. If the photo
+                contains a person, do not continue with one-photo inference.
+              </Text>
+              <View style={styles.costNotice}>
+                <Text style={styles.costNoticeTitle}>ONE PAID PROVIDER RUN</Text>
+                <Text style={styles.costNoticeText}>
+                  A retry creates another paid run. Closing this dialog costs nothing.
+                </Text>
+              </View>
+              <PrimaryButton
+                label="This is an object — generate one-photo mesh"
+                onPress={() => {
+                  setConfirm3D(false);
+                  void onTrue3D();
+                }}
+              />
+              {onGuided3D ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setConfirm3D(false);
+                    onGuided3D();
+                  }}
+                  style={({ pressed }) => [styles.approveDiscard, pressed && styles.pdfPressed]}
+                >
+                  <Text style={styles.approveDiscardText}>Contains a person — use 4 real views instead</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setConfirm3D(false)}
+                style={({ pressed }) => [styles.approveDiscard, pressed && styles.pdfPressed]}
+              >
+                <Text style={styles.approveDiscardText}>Not now — no provider run</Text>
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.guided3dCopy}>
-            <Text style={styles.guided3dTitle}>BEST FULL 3D: CAPTURE 4 GUIDED PHOTOS</Text>
-            <Text style={styles.guided3dText}>
-              Front, left, back and right give the sculpture real shape instead of guessed hidden sides.
-            </Text>
-          </View>
-          <Text style={styles.guided3dArrow}>→</Text>
-        </Pressable>
-      ) : null}
-
-      {Platform.OS === 'web' && onTrue3D ? (
-        <Pressable
-          accessibilityRole="button"
-          disabled={true3DState === 'working'}
-          onPress={onTrue3D}
-          style={({ pressed }) => [styles.true3d, pressed && styles.pdfPressed]}
-        >
-          <Text style={styles.true3dIcon}>◆</Text>
-          <Text style={styles.true3dText}>
-            {true3DState === 'working'
-              ? true3DNote
-                ? `Building a real 3D model… ${true3DNote}`
-                : 'Building a real 3D model…'
-              : true3DState === 'done'
-                ? 'Full 3D sculpture ready ✓'
-                : true3DState === 'failed'
-                  ? '3D generation failed — try again'
-                  : 'Try a one-photo 3D sculpture — sides and back are estimated; you approve it first'}
-          </Text>
-        </Pressable>
-      ) : null}
-
-      {Platform.OS === 'web' && photoUri ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => onNavigate('lab')}
-          style={({ pressed }) => [styles.labLink, pressed && styles.pdfPressed]}
-        >
-          <Text style={styles.labLinkText}>Compare 3D engines side by side (lab) →</Text>
-        </Pressable>
+        </Modal>
       ) : null}
 
       {/* Approve-first: the generated 3D model gets a yes/no BEFORE bricks. */}
@@ -451,27 +630,49 @@ export function ResultScreen({
             <View style={styles.approveCard}>
               <Text style={styles.approveTitle}>YOUR 3D MODEL IS READY</Text>
               <Text style={styles.approveBody}>
-                This is the exact 3D shape your bricks will be built from. Happy with it? We’ll
-                brick it in three sizes with real prices.
+                This is the exact 3D shape your bricks will be built from. Inspect FRONT, RIGHT,
+                BACK and LEFT—especially the rear surface—before approving three build sizes.
               </Text>
+              {true3DError ? (
+                <View accessibilityRole="alert" style={styles.generationError}>
+                  <Text style={styles.generationErrorText}>{true3DError}</Text>
+                </View>
+              ) : null}
               {pending3DStills.length ? (
                 <View style={styles.approveShots}>
-                  {pending3DStills.map((still, index) => (
-                    <Image
-                      accessibilityLabel={`Generated 3D model, view ${index + 1}`}
-                      key={index}
-                      resizeMode="cover"
-                      source={{ uri: still }}
-                      style={styles.approveShot}
-                    />
-                  ))}
+                  {pending3DStills.map((still, index) => {
+                    const view = MESH_APPROVAL_VIEWS[index] ?? `VIEW ${index + 1}`;
+                    return (
+                      <View key={view} style={styles.approveShotWrap}>
+                        <Image
+                          accessibilityLabel={`Generated 3D model, ${view.toLowerCase()} view`}
+                          resizeMode="contain"
+                          source={{ uri: still }}
+                          style={styles.approveShot}
+                        />
+                        <Text style={styles.approveShotLabel}>{view}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
-                <Text style={styles.approveNoShots}>
-                  (Preview images could not be rendered — the model itself is fine.)
-                </Text>
+                <View accessibilityRole="alert" style={styles.previewBlocked}>
+                  <Text style={styles.previewBlockedTitle}>PREVIEW REQUIRED</Text>
+                  <Text style={styles.approveNoShots}>
+                    The approval images did not render, so PixBrik will not convert this mesh blindly.
+                    Retrying the preview does not create another provider generation.
+                  </Text>
+                </View>
               )}
-              <PrimaryButton label="Looks right — brick it" onPress={onApprove3D} />
+              {pending3DStills.length ? (
+                <PrimaryButton label="Looks right — brick it" onPress={onApprove3D} />
+              ) : onRetry3DPreview ? (
+                <PrimaryButton
+                  disabled={true3DState === 'working'}
+                  label={true3DState === 'working' ? 'Rendering preview…' : 'Retry preview — no new generation'}
+                  onPress={() => void onRetry3DPreview()}
+                />
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 onPress={onDiscard3D}
@@ -486,7 +687,7 @@ export function ResultScreen({
         </Modal>
       ) : null}
 
-      {Platform.OS === 'web' ? (
+      {Platform.OS === 'web' && !awaitingSculpture ? (
         <Pressable
           accessibilityRole="button"
           disabled={pdfState === 'working'}
@@ -529,6 +730,7 @@ export function ResultScreen({
         </Pressable>
       ) : null}
 
+      {!awaitingSculpture ? (
       <View style={styles.inspectMeta}>
         <View style={styles.inspectMetaRow}>
           <View>
@@ -542,6 +744,7 @@ export function ResultScreen({
         </View>
         <Text style={styles.assumption}>ASSUMPTION / {demoProject.assumption}</Text>
       </View>
+      ) : null}
 
     </ScreenFrame>
   );
@@ -550,6 +753,195 @@ export function ResultScreen({
 const styles = StyleSheet.create({
   footerGap: {
     gap: spacing.md,
+  },
+  productTabs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+    width: '100%',
+  },
+  productTab: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    flex: 1,
+    minHeight: 116,
+    padding: spacing.md,
+  },
+  productTabSelected: {
+    backgroundColor: colors.saffron,
+    borderColor: colors.ink,
+  },
+  productTabSelected3D: {
+    backgroundColor: colors.blueSoft,
+    borderColor: colors.blue,
+  },
+  productKicker: {
+    ...type.micro,
+    color: colors.coral,
+    fontSize: 8,
+    letterSpacing: 1.1,
+  },
+  productTitle: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    lineHeight: 17,
+    marginTop: 5,
+  },
+  productBody: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 4,
+  },
+  generationCard: {
+    ...shadow.card,
+    backgroundColor: colors.panelDark,
+    borderColor: colors.ink,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+    padding: spacing.lg,
+  },
+  generationHero: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  generationPhoto: {
+    aspectRatio: 0.82,
+    backgroundColor: colors.ink,
+    borderColor: colors.saffron,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    width: 108,
+  },
+  generationHeroCopy: {
+    flex: 1,
+  },
+  generationKicker: {
+    ...type.micro,
+    color: colors.saffron,
+    fontSize: 9,
+    letterSpacing: 1.3,
+  },
+  generationTitle: {
+    color: colors.white,
+    fontFamily: fonts.display,
+    fontSize: 19,
+    lineHeight: 22,
+    marginTop: 4,
+  },
+  generationBody: {
+    ...type.body,
+    color: '#C6CDDE',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: spacing.sm,
+  },
+  pipeline: {
+    alignItems: 'center',
+    backgroundColor: '#10131D',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  pipelineStep: {
+    ...type.micro,
+    color: colors.white,
+    fontSize: 8,
+    letterSpacing: 0.7,
+  },
+  pipelineArrow: {
+    color: colors.saffron,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  generationProgress: {
+    alignItems: 'center',
+    backgroundColor: colors.saffron,
+    borderRadius: radius.md,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  generationProgressText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 15,
+    textAlign: 'center',
+  },
+  generationError: {
+    backgroundColor: colors.coralSoft,
+    borderLeftColor: colors.coral,
+    borderLeftWidth: 5,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  generationErrorTitle: {
+    ...type.micro,
+    color: colors.coral,
+    fontSize: 9,
+  },
+  generationErrorText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  generationDisclosure: {
+    ...type.body,
+    color: '#C6CDDE',
+    fontSize: 10,
+    lineHeight: 15,
+    textAlign: 'center',
+  },
+  noReliefNote: {
+    ...type.body,
+    color: colors.saffron,
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 15,
+    textAlign: 'center',
+  },
+  costNotice: {
+    backgroundColor: colors.saffron,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+  },
+  costNoticeTitle: {
+    ...type.micro,
+    color: colors.ink,
+    fontSize: 9,
+  },
+  costNoticeText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  previewBlocked: {
+    backgroundColor: colors.coralSoft,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+  },
+  previewBlockedTitle: {
+    ...type.micro,
+    color: colors.coral,
+    fontSize: 9,
+    marginBottom: 3,
   },
   previewTabs: {
     backgroundColor: colors.paperDeep,
@@ -775,14 +1167,26 @@ const styles = StyleSheet.create({
   },
   approveShots: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  approveShotWrap: {
+    flexBasis: '45%',
+    flexGrow: 1,
   },
   approveShot: {
     aspectRatio: 460 / 400,
     backgroundColor: colors.ink,
     borderRadius: radius.md,
-    flex: 1,
+    width: '100%',
+  },
+  approveShotLabel: {
+    ...type.micro,
+    color: colors.ink,
+    fontSize: 8,
+    marginTop: 4,
+    textAlign: 'center',
   },
   approveNoShots: {
     ...type.body,
@@ -811,8 +1215,8 @@ const styles = StyleSheet.create({
   guided3d: {
     ...shadow.card,
     alignItems: 'center',
-    backgroundColor: colors.mintSoft,
-    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    borderColor: colors.saffron,
     borderRadius: radius.md,
     borderWidth: 2,
     flexDirection: 'row',

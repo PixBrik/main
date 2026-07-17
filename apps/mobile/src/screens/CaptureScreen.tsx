@@ -11,9 +11,15 @@ import { downscalePhoto } from '../lib/downscalePhoto';
 import { labelOverride } from '../lib/feedbackStore';
 import { panelMosaicFaces } from '../lib/fitFaces';
 import { pickPhoto } from '../lib/pickPhoto';
+import {
+  backgroundRemovalErrorMessage,
+  isBackgroundRemovalEnabled,
+  segmentFramedScene,
+  smartIsolateRegion,
+} from '../lib/photoEngine/backgroundRemoval';
 import { categorize, infoForCategory } from '../lib/photoEngine/classify';
 import { detectObjects, isDetectionSupported, type DetectedObject } from '../lib/photoEngine/detect';
-import { segmentRegion, type Segmentation } from '../lib/photoEngine/segment';
+import type { Segmentation } from '../lib/photoEngine/segment';
 import {
   buildPhotoModels,
   voxelizeSegmentation,
@@ -33,8 +39,8 @@ import type { CaptureMode } from '../types/navigation';
  *      handles, no detection chips, no jargon — the same gesture every
  *      avatar cropper uses.
  *   3. "See it in bricks": three REAL previews (classic B/W, sepia, colour)
- *      built from the whole framed photo. Full-frame mosaic panels always
- *      look right; background removal is an optional toggle, not a gate.
+ *      built from the framed photo. Smart isolate is the recommended first
+ *      result when configured, with an explicit upload-labelled action.
  *   4. Continue to sizes and prices. The full-3D sculpture lives on the
  *      result screen as a premium AI-generated upgrade with its own
  *      approve-first step.
@@ -62,6 +68,7 @@ interface CaptureScreenProps {
 }
 
 type Stage = 'idle' | 'loading' | 'framing' | 'building' | 'ready' | 'failed';
+type BackgroundMode = 'scene' | 'smart';
 
 /** Frame aspect (height / width): portrait-ish, right for most gifts. */
 const FRAME_ASPECT = 1.2;
@@ -132,11 +139,25 @@ export function CaptureScreen({
   const dragStart = useRef({ x: 0, y: 0 });
   const [detectedLabel, setDetectedLabel] = useState<string>('photo');
 
-  // Style previews + optional background removal.
-  const [removeBg, setRemoveBg] = useState(false);
+  // Style previews + an honest scene/cutout choice. Smart mode is committed
+  // only after the provider succeeds, so a failed request never loses a build.
+  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>(
+    segmentation?.backgroundMode === 'smart'
+      ? 'smart'
+      : segmentation?.backgroundMode === 'scene'
+        ? 'scene'
+      : Platform.OS === 'web' && isBackgroundRemovalEnabled()
+        ? 'smart'
+        : 'scene',
+  );
+  const [pendingBackgroundMode, setPendingBackgroundMode] = useState<BackgroundMode | null>(null);
+  const [smartError, setSmartError] = useState<string | null>(null);
   const [stylePreviews, setStylePreviews] = useState<Array<{ id: string; faces: RenderFace[] }>>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [largeFaces, setLargeFaces] = useState<Record<string, RenderFace[]>>({});
+  const buildRevisionRef = useRef(0);
+  const currentPhotoUriRef = useRef(photoUri);
+  currentPhotoUriRef.current = photoUri;
 
   // Clear one-off crop restoration state when the current photo is removed.
   useEffect(() => {
@@ -293,6 +314,8 @@ export function CaptureScreen({
   };
 
   const capture = async () => {
+    // Invalidate any cutout/panel request before opening the replacement picker.
+    buildRevisionRef.current += 1;
     const picked = await pickPhoto();
     if (!picked) return;
     setStage('loading');
@@ -305,6 +328,11 @@ export function CaptureScreen({
       setStylePreviews([]);
       setLargeFaces({});
       setDetectedLabel('photo');
+      setBackgroundMode(
+        Platform.OS === 'web' && isBackgroundRemovalEnabled() ? 'smart' : 'scene',
+      );
+      setPendingBackgroundMode(null);
+      setSmartError(null);
       onPhotoChange(uri);
       setStage('framing');
       if (Platform.OS === 'web' && frameW) {
@@ -315,22 +343,28 @@ export function CaptureScreen({
     }
   };
 
-  /**
-   * Build the panel from the framed crop. Full-frame by default (mask all
-   * on — a mosaic of exactly what the buyer framed, no AI to disappoint);
-   * the heuristic cutout only when the buyer switches the toggle on.
-   */
-  const buildPanel = async (withRemoveBg: boolean, style: PanelStyle = 'natural') => {
+  /** Build locally from the scene, or explicitly request a cached smart cutout. */
+  const buildPanel = async (nextMode: BackgroundMode, style: PanelStyle = 'natural') => {
     if (!photoUri || buildingRef.current) return;
+    const sourceUri = photoUri;
+    const buildRevision = ++buildRevisionRef.current;
+    const hadApprovedBuild = !!photoBuild && !!segmentation;
     buildingRef.current = true;
+    setPendingBackgroundMode(nextMode);
+    if (nextMode === 'smart') setSmartError(null);
     setStage('building');
     await new Promise((resolve) => setTimeout(resolve, 30));
     try {
       const region = cropRegion();
-      const seg = await segmentRegion(photoUri, region);
-      if (!withRemoveBg) {
-        for (let index = 0; index < seg.mask.length; index++) seg.mask[index] = true;
-        seg.coverage = 1;
+      const seg =
+        nextMode === 'smart'
+          ? await smartIsolateRegion(sourceUri, region)
+          : await segmentFramedScene(sourceUri, region);
+      if (
+        buildRevisionRef.current !== buildRevision ||
+        currentPhotoUriRef.current !== sourceUri
+      ) {
+        return;
       }
       const share = region.width * region.height;
       let info = categorize(detectedLabel, share);
@@ -344,12 +378,27 @@ export function CaptureScreen({
         category: info.displayName,
       });
       onObjectLocked(models);
+      setBackgroundMode(nextMode);
+      setSmartError(null);
       setStage('ready');
       void saveLastCapture(photoUri, seg);
-    } catch {
-      setStage('failed');
+    } catch (error) {
+      if (
+        buildRevisionRef.current !== buildRevision ||
+        currentPhotoUriRef.current !== sourceUri
+      ) {
+        return;
+      }
+      if (nextMode === 'smart') {
+        setSmartError(backgroundRemovalErrorMessage(error));
+        if (!hadApprovedBuild) setBackgroundMode('scene');
+        setStage(hadApprovedBuild ? 'ready' : 'failed');
+      } else {
+        setStage('failed');
+      }
     } finally {
       buildingRef.current = false;
+      if (buildRevisionRef.current === buildRevision) setPendingBackgroundMode(null);
     }
   };
 
@@ -415,8 +464,9 @@ export function CaptureScreen({
     };
   }, [expandedIndex, segmentation, largeFaces]);
 
-  const framingActive = stage === 'framing' || stage === 'ready' || stage === 'building';
+  const framingActive = stage === 'framing' || stage === 'ready';
   const webFlow = Platform.OS === 'web';
+  const smartAvailable = webFlow && isBackgroundRemovalEnabled();
 
   return (
     <ScreenFrame
@@ -429,8 +479,16 @@ export function CaptureScreen({
           <PrimaryButton disabled label="Building your preview…" onPress={onContinue} />
         ) : photoUri && (stage === 'framing' || stage === 'failed') ? (
           <PrimaryButton
-            label={stage === 'failed' ? 'Try the preview again' : 'See it in bricks'}
-            onPress={() => buildPanel(removeBg)}
+            label={
+              backgroundMode === 'smart'
+                ? stage === 'failed'
+                  ? 'Retry crop upload & isolate'
+                  : 'Upload crop · isolate & preview'
+                : stage === 'failed'
+                  ? 'Try the whole-frame preview again'
+                  : 'Keep whole frame & see in bricks'
+            }
+            onPress={() => buildPanel(backgroundMode)}
           />
         ) : photoBuild || (!photoUri && captured) ? (
           <PrimaryButton
@@ -473,7 +531,16 @@ export function CaptureScreen({
           ) : null}
           {stage === 'building' || stage === 'loading' ? (
             <View style={styles.busyOverlay}>
-              <InkLoader size={28} stage={stage === 'loading' ? 'Reading photo' : 'Building previews'} />
+              <InkLoader
+                size={28}
+                stage={
+                  stage === 'loading'
+                    ? 'Reading photo'
+                    : pendingBackgroundMode === 'smart'
+                      ? 'Smart isolating'
+                      : 'Building previews'
+                }
+              />
             </View>
           ) : null}
         </View>
@@ -519,19 +586,89 @@ export function CaptureScreen({
       ) : null}
 
       {/* ——— Style previews ——— */}
+      {/* Choose the expected output before the first build. Smart isolate is
+          selected by default when configured, while the labelled CTA remains
+          the buyer's explicit consent to upload only the framed crop. */}
+      {photoUri && webFlow && (stage === 'framing' || stage === 'failed') ? (
+        <View style={styles.prebuildBackgroundChoice}>
+          <Text style={styles.stepLabel}>REMOVE THE BACKGROUND?</Text>
+          <View accessibilityRole="radiogroup" style={styles.bgOptionGrid}>
+            <Pressable
+              aria-checked={backgroundMode === 'smart'}
+              accessibilityLabel={
+                smartAvailable
+                  ? 'Smart isolate, recommended: detect the subject contour and remove the background'
+                  : 'Smart isolate is unavailable in this build'
+              }
+              accessibilityRole="radio"
+              accessibilityState={{ checked: backgroundMode === 'smart', disabled: !smartAvailable }}
+              disabled={!smartAvailable}
+              onPress={() => {
+                setSmartError(null);
+                setBackgroundMode('smart');
+              }}
+              style={({ pressed }) => [
+                styles.bgOption,
+                backgroundMode === 'smart' && styles.bgOptionActive,
+                !smartAvailable && styles.bgOptionDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.bgOptionHead}>
+                <Text style={styles.bgOptionTitle}>SMART ISOLATE</Text>
+                <Text style={styles.bgOptionBadge}>
+                  {!smartAvailable
+                    ? 'UNAVAILABLE'
+                    : backgroundMode === 'smart'
+                      ? 'BEST RESULT ✓'
+                      : 'BEST RESULT'}
+                </Text>
+              </View>
+              <Text style={styles.bgOptionText}>
+                Detects the object contour and drops studio, white, or gradient backgrounds. Your
+                framed crop is uploaded only after you tap the preview button.
+              </Text>
+            </Pressable>
+
+            <Pressable
+              aria-checked={backgroundMode === 'scene'}
+              accessibilityLabel="Keep whole frame, including its background"
+              accessibilityRole="radio"
+              accessibilityState={{ checked: backgroundMode === 'scene' }}
+              onPress={() => {
+                setSmartError(null);
+                setBackgroundMode('scene');
+              }}
+              style={({ pressed }) => [
+                styles.bgOption,
+                backgroundMode === 'scene' && styles.bgOptionActive,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.bgOptionHead}>
+                <Text style={styles.bgOptionTitle}>KEEP WHOLE FRAME</Text>
+                {backgroundMode === 'scene' ? <Text style={styles.bgOptionBadge}>SELECTED ✓</Text> : null}
+              </View>
+              <Text style={styles.bgOptionText}>Keeps the background and stays entirely on this device.</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       {stage === 'ready' && photoBuild && segmentation ? (
         <>
           <Text style={styles.stepLabel}>PICK YOUR STYLE — TAP A PREVIEW TO SEE IT LARGER</Text>
-          <View accessibilityRole="radiogroup" style={styles.styleGrid}>
+          <View style={styles.styleGrid}>
             {STYLE_CHOICES.map((choice, index) => {
               const active = photoBuild.style === choice.style;
               const previewFaces = stylePreviews.find((entry) => entry.id === choice.id)?.faces;
               return (
                 <Pressable
+                  aria-pressed={active}
                   accessibilityHint="Opens a larger preview of this style"
                   accessibilityLabel={`${choice.label}: ${choice.hint}`}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: active }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
                   key={choice.id}
                   onPress={() => setExpandedIndex(index)}
                   style={[styles.styleCard, active && styles.styleCardActive]}
@@ -561,28 +698,88 @@ export function CaptureScreen({
             })}
           </View>
 
-          {/* Background removal: an OPTION, never a gate. */}
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{ checked: removeBg }}
-            onPress={() => {
-              const next = !removeBg;
-              setRemoveBg(next);
-              void buildPanel(next, photoBuild.style);
-            }}
-            style={({ pressed }) => [styles.bgToggle, pressed && styles.pressed]}
-          >
-            <View style={[styles.bgToggleBox, removeBg && styles.bgToggleBoxOn]}>
-              {removeBg ? <Text style={styles.bgToggleCheck}>✓</Text> : null}
+          <Text style={styles.stepLabel}>CHOOSE WHAT TO KEEP</Text>
+          <View accessibilityRole="radiogroup" style={styles.bgOptionGrid}>
+            <Pressable
+              aria-checked={backgroundMode === 'scene'}
+              accessibilityHint="Keeps everything inside your frame and does not upload for background removal"
+              accessibilityLabel="Keep scene: use the whole framed photo"
+              accessibilityRole="radio"
+              accessibilityState={{ checked: backgroundMode === 'scene' }}
+              onPress={() => {
+                setSmartError(null);
+                if (backgroundMode !== 'scene') void buildPanel('scene', photoBuild.style);
+              }}
+              style={({ pressed }) => [
+                styles.bgOption,
+                backgroundMode === 'scene' && styles.bgOptionActive,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.bgOptionHead}>
+                <Text style={styles.bgOptionTitle}>KEEP SCENE</Text>
+                {backgroundMode === 'scene' ? <Text style={styles.bgOptionBadge}>SELECTED ✓</Text> : null}
+              </View>
+              <Text style={styles.bgOptionText}>
+                Use the whole frame. No background-removal upload.
+              </Text>
+            </Pressable>
+
+            <Pressable
+              aria-checked={backgroundMode === 'smart'}
+              accessibilityHint="Uploads only this framed crop to the background-removal service"
+              accessibilityLabel={
+                smartAvailable
+                  ? 'Smart isolate: upload this framed crop to isolate the subject'
+                  : 'Smart isolate is unavailable in this build'
+              }
+              accessibilityRole="radio"
+              accessibilityState={{ checked: backgroundMode === 'smart', disabled: !smartAvailable }}
+              disabled={!smartAvailable}
+              onPress={() => {
+                if (backgroundMode !== 'smart' || smartError) {
+                  void buildPanel('smart', photoBuild.style);
+                }
+              }}
+              style={({ pressed }) => [
+                styles.bgOption,
+                backgroundMode === 'smart' && styles.bgOptionActive,
+                !smartAvailable && styles.bgOptionDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.bgOptionHead}>
+                <Text style={styles.bgOptionTitle}>SMART ISOLATE</Text>
+                <Text style={styles.bgOptionBadge}>
+                  {!smartAvailable
+                    ? 'UNAVAILABLE'
+                    : backgroundMode === 'smart'
+                      ? 'SELECTED ✓'
+                      : 'ONLINE'}
+                </Text>
+              </View>
+              <Text style={styles.bgOptionText}>
+                {smartAvailable
+                  ? 'Uploads only this framed crop for processing. PixBrik does not store the upload.'
+                  : 'Unavailable in this build. Keep scene still uses your full frame.'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {smartError ? (
+            <View accessibilityLiveRegion="polite" style={styles.smartError}>
+              <Text style={styles.smartErrorText}>{smartError}</Text>
+              <Text style={styles.smartErrorHint}>Your existing scene is unchanged. Tap Smart isolate to retry.</Text>
             </View>
-            <Text style={styles.bgToggleText}>
-              Remove the background (keeps just the subject — works best on plain backdrops)
-            </Text>
-          </Pressable>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => setStage('framing')}
+            onPress={() => {
+              setBackgroundMode('scene');
+              setSmartError(null);
+              setStage('framing');
+            }}
             style={({ pressed }) => [styles.reframeLink, pressed && styles.pressed]}
           >
             <Text style={styles.reframeLinkText}>← Adjust the framing</Text>
@@ -695,8 +892,8 @@ export function CaptureScreen({
               {Platform.OS === 'web' ? 'Use a real photo' : 'Shoot a real object'}
             </Text>
             <Text style={styles.hintBody}>
-              Your photo stays on this device while you design — nothing is uploaded until you ask
-              for the 3D sculpture.
+              Your photo stays on this device while you frame it. Smart isolate and 3D upload only
+              after you choose those features.
             </Text>
           </View>
           <Pressable
@@ -719,6 +916,7 @@ export function CaptureScreen({
 
       {photoUri ? (
         <Pressable
+          aria-checked={rightsConfirmed}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: rightsConfirmed }}
           onPress={() => onRightsConfirmedChange(!rightsConfirmed)}
@@ -826,6 +1024,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.lg,
   },
+  prebuildBackgroundChoice: {
+    width: '100%',
+  },
   styleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -891,37 +1092,75 @@ const styles = StyleSheet.create({
     fontSize: 9,
     marginTop: spacing.xs,
   },
-  bgToggle: {
+  bgOptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  bgOption: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    flexBasis: '48%',
+    flexGrow: 1,
+    minHeight: 112,
+    minWidth: 190,
+    padding: spacing.md,
+  },
+  bgOptionActive: {
+    borderColor: colors.mintDeep,
+  },
+  bgOptionDisabled: {
+    opacity: 0.5,
+  },
+  bgOptionHead: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.sm,
-    marginTop: spacing.lg,
-    minHeight: 44,
+    justifyContent: 'space-between',
   },
-  bgToggleBox: {
-    alignItems: 'center',
-    borderColor: colors.ink,
-    borderRadius: radius.sm,
-    borderWidth: 1.5,
-    height: 22,
-    justifyContent: 'center',
-    width: 22,
-  },
-  bgToggleBoxOn: {
-    backgroundColor: colors.mintDeep,
-    borderColor: colors.mintDeep,
-  },
-  bgToggleCheck: {
-    color: colors.white,
-    fontSize: 14,
+  bgOptionTitle: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 13,
+    flexShrink: 1,
     fontWeight: '900',
   },
-  bgToggleText: {
+  bgOptionBadge: {
+    ...type.micro,
+    color: colors.inkSoft,
+    fontSize: 8,
+    flexShrink: 1,
+    letterSpacing: 0.8,
+    textAlign: 'right',
+  },
+  bgOptionText: {
     ...type.body,
     color: colors.inkSoft,
-    flex: 1,
     fontSize: 12,
+    lineHeight: 17,
+    marginTop: spacing.sm,
+  },
+  smartError: {
+    backgroundColor: colors.coralSoft,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+  },
+  smartErrorText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  smartErrorHint: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 11,
     lineHeight: 16,
+    marginTop: 2,
   },
   reframeLink: {
     justifyContent: 'center',

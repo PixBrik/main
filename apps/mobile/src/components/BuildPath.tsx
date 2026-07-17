@@ -13,6 +13,7 @@ import Svg, { Circle, Defs, Path, Pattern, Rect } from 'react-native-svg';
 
 import {
   HOME_MOSAIC_ALPHABET,
+  HOME_MOSAIC_EMPTY,
   HOME_MOSAIC_GRID,
   HOME_MOSAICS,
 } from '../data/homeShowcases.generated';
@@ -28,7 +29,8 @@ interface Showcase {
 }
 
 interface BuildPathProps {
-  onStart?: () => void;
+  onStart: () => void;
+  onStart3D?: () => void;
 }
 
 const SHOWCASES: readonly Showcase[] = [
@@ -58,27 +60,45 @@ interface MosaicProps {
 }
 
 /**
- * A real 52×52 catalog-colour panel, rendered as one SVG path per colour.
- * The grouped paths keep all 2,704 visible cells without mounting thousands
- * of React elements. A single repeating overlay supplies the plate seams and
- * stud highlight.
+ * A high-detail catalog-colour subject, rendered as one SVG path per colour.
+ * Empty cells never receive a fill or stud pattern, so the result reads as a
+ * clean brick silhouette instead of a white rectangular backing plate.
  */
 function BrickMosaic({ compact = false, id }: MosaicProps) {
   const data = HOME_MOSAICS[id];
-  const paths = useMemo(() => {
+  const { paths, silhouette, viewBox } = useMemo(() => {
     const grouped = data.palette.map(() => '');
+    let subject = '';
+    const visibleX: number[] = [];
+    const visibleY: number[] = [];
     data.rows.forEach((row, y) => {
       for (let x = 0; x < row.length; x++) {
+        if (row[x] === HOME_MOSAIC_EMPTY) continue;
         const paletteIndex = HOME_MOSAIC_ALPHABET.indexOf(row[x]!);
-        if (paletteIndex >= 0) grouped[paletteIndex] += `M${x} ${y}h1v1h-1z`;
+        if (paletteIndex >= 0) {
+          const cell = `M${x} ${y}h1v1h-1z`;
+          grouped[paletteIndex] += cell;
+          subject += cell;
+          visibleX.push(x);
+          visibleY.push(y);
+        }
       }
     });
-    return grouped;
-  }, [data]);
+    const padding = compact ? 1.5 : 2.5;
+    const minX = Math.min(...visibleX) - padding;
+    const minY = Math.min(...visibleY) - padding;
+    const width = Math.max(...visibleX) - Math.min(...visibleX) + 1 + padding * 2;
+    const height = Math.max(...visibleY) - Math.min(...visibleY) + 1 + padding * 2;
+    return {
+      paths: grouped,
+      silhouette: subject,
+      viewBox: `${minX} ${minY} ${width} ${height}`,
+    };
+  }, [compact, data]);
   const patternId = `home-studs-${id}-${compact ? 'small' : 'large'}`;
 
   return (
-    <Svg height="100%" viewBox={`0 0 ${HOME_MOSAIC_GRID} ${HOME_MOSAIC_GRID}`} width="100%">
+    <Svg height="100%" preserveAspectRatio="xMidYMid meet" viewBox={viewBox} width="100%">
       <Defs>
         <Pattern
           height="1"
@@ -102,11 +122,10 @@ function BrickMosaic({ compact = false, id }: MosaicProps) {
           <Circle cx="0.54" cy="0.57" fill={colors.ink} opacity={compact ? 0.06 : 0.11} r="0.25" />
         </Pattern>
       </Defs>
-      <Rect fill="#FFFFFA" height={HOME_MOSAIC_GRID} width={HOME_MOSAIC_GRID} />
       {paths.map((path, index) => (
         <Path d={path} fill={data.palette[index]} key={`${id}-${data.palette[index]}`} />
       ))}
-      <Rect fill={`url(#${patternId})`} height={HOME_MOSAIC_GRID} width={HOME_MOSAIC_GRID} />
+      <Path d={silhouette} fill={`url(#${patternId})`} />
     </Svg>
   );
 }
@@ -156,7 +175,7 @@ function SourceThumbnail({ alt, id }: Pick<Showcase, 'alt' | 'id'>) {
   );
 }
 
-export function BuildPath({ onStart }: BuildPathProps) {
+export function BuildPath({ onStart, onStart3D }: BuildPathProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
   const reveal = useRef(new Animated.Value(1)).current;
@@ -195,7 +214,7 @@ export function BuildPath({ onStart }: BuildPathProps) {
   return (
     <View style={styles.hero}>
       <View
-        accessibilityLabel={`${active.label.toLowerCase()} example. Source photo beside a deterministic ${HOME_MOSAIC_GRID} by ${HOME_MOSAIC_GRID} panel preview using catalog colours.`}
+        accessibilityLabel={`${active.label.toLowerCase()} example. Source photo beside a subject-only ${HOME_MOSAIC_GRID} by ${HOME_MOSAIC_GRID} detail grid using catalog colours, with the studio background removed.`}
         accessibilityRole="image"
         style={styles.comparisonCard}
       >
@@ -203,7 +222,7 @@ export function BuildPath({ onStart }: BuildPathProps) {
           <View style={styles.headerHalf}>
             <Text numberOfLines={1} style={styles.headerLabel}>PHOTO</Text>
           </View>
-          <View style={[styles.headerHalf, styles.headerHalfRight]}>
+          <View style={styles.headerHalf}>
             <Text numberOfLines={1} style={styles.headerLabel}>BRICK PREVIEW</Text>
           </View>
         </View>
@@ -222,17 +241,18 @@ export function BuildPath({ onStart }: BuildPathProps) {
           <View style={styles.stageHalf}>
             <SourcePhoto alt={active.alt} id={active.id} key={active.id} source={active.source} />
           </View>
-          <View style={[styles.stageHalf, styles.stageHalfRight]}>
+          <View style={[styles.stageHalf, styles.brickStage]}>
             <BrickMosaic id={active.id} />
           </View>
         </Animated.View>
 
         <View style={styles.comparisonFooter}>
           <Text numberOfLines={1} style={styles.footerPrimary}>
-            CLOSEST LIKENESS · FRONT-FACING PANEL
+            SUBJECT ISOLATED · FRONT-FACING PANEL
           </Text>
           <Text numberOfLines={1} style={styles.footerSecondary}>
-            {HOME_MOSAIC_GRID} × {HOME_MOSAIC_GRID} STUDS · CATALOG COLOURS
+            {HOME_MOSAIC_GRID} × {HOME_MOSAIC_GRID} DETAIL GRID ·{' '}
+            {HOME_MOSAICS[active.id].occupiedCells.toLocaleString()} CATALOG-COLOUR STUDS
           </Text>
         </View>
       </View>
@@ -258,7 +278,7 @@ export function BuildPath({ onStart }: BuildPathProps) {
                 <View style={styles.selectorHalf}>
                   <SourceThumbnail alt={showcase.alt} id={showcase.id} />
                 </View>
-                <View style={styles.selectorHalf}>
+                <View style={[styles.selectorHalf, styles.brickStage]}>
                   <BrickMosaic compact id={showcase.id} />
                 </View>
               </View>
@@ -268,6 +288,43 @@ export function BuildPath({ onStart }: BuildPathProps) {
         })}
       </View>
 
+      <View accessibilityLabel="Choose flat panel or true 3D" style={styles.productRail}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onStart}
+          style={({ pressed }) => [
+            styles.productCard,
+            styles.flatProduct,
+            pressed && styles.selectorPressed,
+          ]}
+        >
+          <Text style={styles.flatProductKicker}>FLAT PANEL · ONE PHOTO</Text>
+          <Text style={styles.flatProductTitle}>CLOSEST LIKENESS</Text>
+          <Text style={styles.flatProductBody}>
+            People, pets, or objects. Only the subject becomes catalog-colour bricks.
+          </Text>
+          <Text style={styles.flatProductAction}>PREVIEW FLAT →</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={onStart3D ?? onStart}
+          style={({ pressed }) => [
+            styles.productCard,
+            styles.true3DProduct,
+            pressed && styles.selectorPressed,
+          ]}
+        >
+          <Text style={styles.true3DProductKicker}>TRUE 3D · ALL SIDES</Text>
+          <Text style={styles.true3DProductTitle}>REAL SCULPTURE</Text>
+          <Text style={styles.true3DProductBody}>
+            Objects: one photo, with hidden sides completed by AI.{`\n`}
+            People: four guided views, so the back comes from a real photo.
+          </Text>
+          <Text style={styles.true3DProductAction}>START TRUE 3D →</Text>
+        </Pressable>
+      </View>
+
       <View style={styles.guidance}>
         <View style={styles.guidanceLine}>
           <View style={styles.infoMark}>
@@ -275,16 +332,6 @@ export function BuildPath({ onStart }: BuildPathProps) {
           </View>
           <Text style={styles.guidanceText}>For the closest likeness, choose a clear front-facing photo.</Text>
         </View>
-        {onStart ? (
-          <Pressable
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onStart}
-            style={({ pressed }) => [styles.dimensionLink, pressed && styles.selectorPressed]}
-          >
-            <Text style={styles.dimensionLinkText}>WANT FULL 3D? USE 4 GUIDED PHOTOS →</Text>
-          </Pressable>
-        ) : null}
       </View>
     </View>
   );
@@ -297,16 +344,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   comparisonCard: {
-    ...shadow.card,
-    backgroundColor: colors.white,
-    borderColor: colors.ink,
-    borderWidth: 3,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   comparisonHeader: {
-    borderBottomColor: colors.ink,
-    borderBottomWidth: 2,
     flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
   },
   headerHalf: {
     alignItems: 'center',
@@ -314,10 +357,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 36,
     paddingHorizontal: spacing.xs,
-  },
-  headerHalfRight: {
-    borderLeftColor: colors.ink,
-    borderLeftWidth: 2,
   },
   headerLabel: {
     color: colors.ink,
@@ -328,18 +367,22 @@ const styles = StyleSheet.create({
   comparisonStage: {
     aspectRatio: 2,
     flexDirection: 'row',
+    gap: spacing.md,
     width: '100%',
   },
   stageHalf: {
     flex: 1,
-    overflow: 'hidden',
   },
-  stageHalfRight: {
-    borderLeftColor: colors.ink,
-    borderLeftWidth: 2,
+  brickStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   photoFrame: {
+    ...shadow.card,
     backgroundColor: '#F4EEDC',
+    borderColor: colors.ink,
+    borderWidth: 3,
     flex: 1,
     overflow: 'hidden',
     position: 'relative',
@@ -372,19 +415,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   comparisonFooter: {
-    borderTopColor: colors.ink,
-    borderTopWidth: 2,
+    backgroundColor: colors.ink,
+    marginTop: spacing.md,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
   },
   footerPrimary: {
-    color: colors.ink,
+    color: colors.saffron,
     fontFamily: fonts.extrabold,
     fontSize: 9,
     letterSpacing: 0.4,
   },
   footerSecondary: {
-    color: inkAlpha(0.58),
+    color: 'rgba(255, 255, 255, 0.68)',
     fontFamily: fonts.extrabold,
     fontSize: 8,
     letterSpacing: 0.55,
@@ -414,6 +457,7 @@ const styles = StyleSheet.create({
   },
   selectorPreview: {
     aspectRatio: 1.7,
+    backgroundColor: colors.saffron,
     borderBottomColor: colors.ink,
     borderBottomWidth: 1,
     flexDirection: 'row',
@@ -430,6 +474,84 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     paddingVertical: 7,
     textAlign: 'center',
+  },
+  productRail: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  productCard: {
+    ...shadow.card,
+    borderColor: colors.ink,
+    borderWidth: 3,
+    flex: 1,
+    justifyContent: 'flex-start',
+    minHeight: 180,
+    minWidth: 0,
+    padding: spacing.md,
+  },
+  flatProduct: {
+    backgroundColor: colors.ink,
+  },
+  flatProductKicker: {
+    color: colors.saffron,
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    letterSpacing: 0.6,
+    lineHeight: 11,
+  },
+  flatProductTitle: {
+    color: colors.white,
+    fontFamily: fonts.display,
+    fontSize: 15,
+    lineHeight: 17,
+    marginTop: spacing.sm,
+  },
+  flatProductBody: {
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontFamily: fonts.semibold,
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: spacing.sm,
+  },
+  flatProductAction: {
+    color: colors.saffron,
+    fontFamily: fonts.extrabold,
+    fontSize: 9,
+    letterSpacing: 0.35,
+    marginTop: spacing.md,
+  },
+  true3DProduct: {
+    backgroundColor: colors.white,
+  },
+  true3DProductKicker: {
+    color: colors.alarm,
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    letterSpacing: 0.6,
+    lineHeight: 11,
+  },
+  true3DProductTitle: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 15,
+    lineHeight: 17,
+    marginTop: spacing.sm,
+  },
+  true3DProductBody: {
+    color: inkAlpha(0.72),
+    fontFamily: fonts.semibold,
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: spacing.sm,
+  },
+  true3DProductAction: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 9,
+    letterSpacing: 0.35,
+    marginTop: spacing.md,
   },
   guidance: {
     marginTop: spacing.lg,
@@ -458,19 +580,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 11,
     lineHeight: 16,
-  },
-  dimensionLink: {
-    alignSelf: 'flex-start',
-    borderBottomColor: colors.ink,
-    borderBottomWidth: 1,
-    marginLeft: 30,
-    marginTop: spacing.md,
-    paddingBottom: 2,
-  },
-  dimensionLinkText: {
-    color: colors.ink,
-    fontFamily: fonts.extrabold,
-    fontSize: 10,
-    letterSpacing: 0.35,
   },
 });

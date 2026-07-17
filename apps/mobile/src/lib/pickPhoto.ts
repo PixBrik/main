@@ -7,7 +7,10 @@ import { Platform } from 'react-native';
  * asset URI, or null when the user cancels.
  */
 export async function pickPhoto(): Promise<string | null> {
-  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 };
+  // Preserve the camera reference here; each downstream path performs one
+  // deliberate resize for its own payload. Compressing at pick time and again
+  // before AI generation visibly smears faces, hair, paint edges, and texture.
+  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1 };
 
   if (Platform.OS !== 'web') {
     try {
