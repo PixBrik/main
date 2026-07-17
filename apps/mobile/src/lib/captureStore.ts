@@ -29,6 +29,8 @@ interface StoredCapture {
     categoryLabel?: string;
     preserveFeatures?: boolean;
     maskSource?: Segmentation['maskSource'];
+    isolationQuality?: Segmentation['isolationQuality'];
+    isolationWarning?: string;
   };
 }
 
@@ -82,6 +84,8 @@ export async function saveLastCapture(photoUri: string, segmentation: Segmentati
         depth: segmentation.depth ? Array.from(segmentation.depth) : null,
         face: segmentation.face ?? null,
         grid: segmentation.grid,
+        isolationQuality: segmentation.isolationQuality,
+        isolationWarning: segmentation.isolationWarning,
         mask: segmentation.mask.map((on) => (on ? 1 : 0)),
         maskSource: segmentation.maskSource,
         preserveFeatures: segmentation.preserveFeatures,
@@ -116,6 +120,8 @@ export function loadLastCapture(): { photoUri: string; segmentation: Segmentatio
       depth: parsed.segmentation.depth ? new Float32Array(parsed.segmentation.depth) : null,
       face: parsed.segmentation.face ?? null,
       grid: parsed.segmentation.grid,
+      isolationQuality: parsed.segmentation.isolationQuality,
+      isolationWarning: parsed.segmentation.isolationWarning,
       mask: parsed.segmentation.mask.map((bit) => bit === 1),
       maskSource: parsed.segmentation.maskSource,
       preserveFeatures: parsed.segmentation.preserveFeatures,

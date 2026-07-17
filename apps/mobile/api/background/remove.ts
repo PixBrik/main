@@ -73,6 +73,7 @@ export function selectBackgroundRemovalProvider(
 /** Provider-specific request details; kept separate so they can be tested offline. */
 export function providerRequestSettings(
   provider: BackgroundRemovalProvider,
+  subjectHint?: string,
 ): ProviderRequestSettings {
   if (provider === 'photoroom') {
     return {
@@ -87,6 +88,14 @@ export function providerRequestSettings(
       keyHeader: 'x-api-key',
     };
   }
+  const normalizedHint = subjectHint?.trim().toLowerCase() ?? '';
+  const semanticType = /\b(person|portrait|human)\b/.test(normalizedHint)
+    ? 'person'
+    : /\b(animal|pet|dog|cat)\b/.test(normalizedHint)
+      ? 'animal'
+      : /\b(vehicle|car|transportation)\b/.test(normalizedHint)
+        ? 'transportation'
+        : undefined;
   return {
     endpoint: REMOVE_BG_ENDPOINT,
     fields: [
@@ -94,6 +103,7 @@ export function providerRequestSettings(
       // `preview` is only 0.25 MP and visibly damages hair, fur, spokes, and
       // product edges. `auto` preserves our <=1 MP crop at full resolution.
       ['size', 'auto'],
+      ...(semanticType ? ([['type', semanticType]] as const) : []),
     ],
     keyHeader: 'X-Api-Key',
   };
@@ -246,7 +256,8 @@ export default async function handler(req: any, res: any): Promise<void> {
     validatePngInput(png);
 
     const { key, provider } = selectBackgroundRemovalProvider();
-    const settings = providerRequestSettings(provider);
+    const subjectHint = headerValue(req.headers?.['x-pixbrik-subject-hint']);
+    const settings = providerRequestSettings(provider, subjectHint);
     const form = new FormData();
     form.append('image_file', new Blob([png], { type: 'image/png' }), 'crop.png');
     for (const [name, value] of settings.fields) form.append(name, value);

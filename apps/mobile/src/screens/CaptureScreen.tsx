@@ -16,6 +16,7 @@ import {
   isBackgroundRemovalEnabled,
   segmentFramedScene,
   smartIsolateRegion,
+  type IsolationExpectedBounds,
 } from '../lib/photoEngine/backgroundRemoval';
 import { categorize, infoForCategory } from '../lib/photoEngine/classify';
 import { detectObjects, isDetectionSupported, type DetectedObject } from '../lib/photoEngine/detect';
@@ -138,6 +139,7 @@ export function CaptureScreen({
   zoomRef.current = zoom;
   const dragStart = useRef({ x: 0, y: 0 });
   const [detectedLabel, setDetectedLabel] = useState<string>('photo');
+  const [detectedSubject, setDetectedSubject] = useState<DetectedObject | null>(null);
 
   // Style previews + an honest scene/cutout choice. Smart mode is committed
   // only after the provider succeeds, so a failed request never loses a build.
@@ -289,11 +291,13 @@ export function CaptureScreen({
         detectObjects(uri),
         new Promise<DetectedObject[]>((resolve) => setTimeout(() => resolve([]), 8000)),
       ]);
+      if (currentPhotoUriRef.current !== uri) return;
       if (!found.length) return;
       const best = found.reduce((a, b) =>
         b.score * b.width * b.height > a.score * a.width * a.height ? b : a,
       );
       setDetectedLabel(best.label);
+      setDetectedSubject(best);
       const fh = fw * FRAME_ASPECT;
       const cover = Math.max(fw / natural.w, fh / natural.h);
       // Zoom so the frame roughly covers the detection plus padding.
@@ -328,11 +332,13 @@ export function CaptureScreen({
       setStylePreviews([]);
       setLargeFaces({});
       setDetectedLabel('photo');
+      setDetectedSubject(null);
       setBackgroundMode(
         Platform.OS === 'web' && isBackgroundRemovalEnabled() ? 'smart' : 'scene',
       );
       setPendingBackgroundMode(null);
       setSmartError(null);
+      currentPhotoUriRef.current = uri;
       onPhotoChange(uri);
       setStage('framing');
       if (Platform.OS === 'web' && frameW) {
@@ -356,9 +362,31 @@ export function CaptureScreen({
     await new Promise((resolve) => setTimeout(resolve, 30));
     try {
       const region = cropRegion();
+      const share = region.width * region.height;
+      let info = categorize(detectedLabel, share);
+      const taught = labelOverride(detectedLabel);
+      if (taught) info = infoForCategory(taught, share);
+      let expectedBounds: IsolationExpectedBounds | undefined;
+      if (detectedSubject) {
+        const left = Math.max(region.x, detectedSubject.x);
+        const top = Math.max(region.y, detectedSubject.y);
+        const right = Math.min(region.x + region.width, detectedSubject.x + detectedSubject.width);
+        const bottom = Math.min(region.y + region.height, detectedSubject.y + detectedSubject.height);
+        if (right > left && bottom > top) {
+          expectedBounds = {
+            height: (bottom - top) / region.height,
+            width: (right - left) / region.width,
+            x: (left - region.x) / region.width,
+            y: (top - region.y) / region.height,
+          };
+        }
+      }
       const seg =
         nextMode === 'smart'
-          ? await smartIsolateRegion(sourceUri, region)
+          ? await smartIsolateRegion(sourceUri, region, undefined, {
+              expectedBounds,
+              subjectHint: info.category,
+            })
           : await segmentFramedScene(sourceUri, region);
       if (
         buildRevisionRef.current !== buildRevision ||
@@ -366,10 +394,6 @@ export function CaptureScreen({
       ) {
         return;
       }
-      const share = region.width * region.height;
-      let info = categorize(detectedLabel, share);
-      const taught = labelOverride(detectedLabel);
-      if (taught) info = infoForCategory(taught, share);
       seg.categoryLabel = info.displayName;
       seg.preserveFeatures = false;
       seg.face = null;
@@ -516,7 +540,14 @@ export function CaptureScreen({
           style={[styles.frame, { height: frameH || 300 }]}
           {...(framingActive ? moveResponder.panHandlers : {})}
         >
-          {geometry ? (
+          {stage === 'ready' && backgroundMode === 'smart' && segmentation?.cutoutUri ? (
+            <Image
+              accessibilityLabel="Exact isolated cutout preview"
+              resizeMode="contain"
+              source={{ uri: segmentation.cutoutUri }}
+              style={styles.isolatedPhoto}
+            />
+          ) : geometry ? (
             <Image
               accessibilityLabel="Your photo — drag to reposition"
               source={{ uri: photoUri }}
@@ -528,6 +559,11 @@ export function CaptureScreen({
                 width: geometry.dW,
               }}
             />
+          ) : null}
+          {stage === 'ready' && backgroundMode === 'smart' && segmentation?.cutoutUri ? (
+            <View pointerEvents="none" style={styles.isolatedBadge}>
+              <Text style={styles.isolatedBadgeText}>ISOLATED CUTOUT · CHECK CLOTHING + EDGES</Text>
+            </View>
           ) : null}
           {stage === 'building' || stage === 'loading' ? (
             <View style={styles.busyOverlay}>
@@ -773,6 +809,16 @@ export function CaptureScreen({
             </View>
           ) : null}
 
+          {backgroundMode === 'smart' && segmentation.isolationWarning ? (
+            <View accessibilityLiveRegion="polite" style={styles.smartReview}>
+              <Text style={styles.smartReviewTitle}>CHECK THE CUTOUT</Text>
+              <Text style={styles.smartReviewText}>{segmentation.isolationWarning}</Text>
+              <Text style={styles.smartReviewText}>
+                If any clothing or object part is missing, choose Keep scene or adjust the framing.
+              </Text>
+            </View>
+          ) : null}
+
           <Pressable
             accessibilityRole="button"
             onPress={() => {
@@ -962,6 +1008,24 @@ const styles = StyleSheet.create({
   nativePhoto: {
     height: '100%',
     width: '100%',
+  },
+  isolatedPhoto: {
+    height: '100%',
+    width: '100%',
+  },
+  isolatedBadge: {
+    backgroundColor: 'rgba(23, 19, 10, 0.88)',
+    bottom: spacing.sm,
+    left: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    position: 'absolute',
+  },
+  isolatedBadgeText: {
+    ...type.micro,
+    color: colors.saffron,
+    fontSize: 10,
+    fontWeight: '900',
   },
   busyOverlay: {
     alignItems: 'center',
@@ -1161,6 +1225,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 2,
+  },
+  smartReview: {
+    backgroundColor: colors.saffronSoft,
+    borderColor: colors.saffron,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+  },
+  smartReviewTitle: {
+    ...type.micro,
+    color: colors.ink,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  smartReviewText: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
   },
   reframeLink: {
     justifyContent: 'center',

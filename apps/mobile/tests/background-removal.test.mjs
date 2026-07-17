@@ -116,6 +116,10 @@ test('provider selection honors preference and uses only configured server keys'
   const removeBg = providerRequestSettings('removebg');
   assert.equal(removeBg.endpoint, 'https://api.remove.bg/v1.0/removebg');
   assert.equal(new Map(removeBg.fields).get('size'), 'auto');
+  assert.equal(new Map(providerRequestSettings('removebg', 'portrait').fields).get('type'), 'person');
+  assert.equal(new Map(providerRequestSettings('removebg', 'animal').fields).get('type'), 'animal');
+  assert.equal(new Map(providerRequestSettings('removebg', 'vehicle').fields).get('type'), 'transportation');
+  assert.equal(new Map(providerRequestSettings('removebg', 'object').fields).has('type'), false);
 });
 
 test('multipart extraction preserves PNG bytes and rejects oversized dimensions', async () => {
@@ -145,7 +149,10 @@ test('proxy sends provider multipart settings and returns no-store PNG without l
   const boundary = 'pixbrik-handler-boundary';
   const req = {
     body: multipartBody(fakePng(800, 600), boundary),
-    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    headers: {
+      'content-type': `multipart/form-data; boundary=${boundary}`,
+      'x-pixbrik-subject-hint': 'portrait',
+    },
     method: 'POST',
   };
   const res = responseRecorder();
@@ -187,6 +194,77 @@ test('alpha grid area-averages thin coverage before thresholding', async () => {
   assert.deepEqual(Array.from(alphaToGridMask(rgba, 2, 2, 1, 0.26)), [false]);
 });
 
+test('alpha grid preserves a genuinely opaque thin feature without accepting a one-pixel speck', async () => {
+  const { alphaToGridMask } = await loadTypeScriptModule(clientSourceUrl, {
+    stubs: { './segment': { SEGMENT_GRID: 68 } },
+  });
+  const thin = new Uint8ClampedArray(4 * 4 * 4);
+  thin[3] = 255;
+  assert.deepEqual(Array.from(alphaToGridMask(thin, 4, 4, 1)), [true]);
+
+  const speck = new Uint8ClampedArray(5 * 5 * 4);
+  speck[3] = 255;
+  assert.deepEqual(Array.from(alphaToGridMask(speck, 5, 5, 1)), [false]);
+});
+
+function rectangularMask(grid, left, top, right, bottom) {
+  return new Array(grid * grid).fill(false).map((_, index) => {
+    const x = index % grid;
+    const y = Math.floor(index / grid);
+    return x >= left && x <= right && y >= top && y <= bottom;
+  });
+}
+
+test('integrity gate accepts a complete portrait matte', async () => {
+  const { assessIsolationMask } = await loadTypeScriptModule(clientSourceUrl, {
+    stubs: { './segment': { SEGMENT_GRID: 68 } },
+  });
+  const mask = rectangularMask(20, 4, 1, 15, 18);
+  const result = assessIsolationMask(mask, 20, { subjectHint: 'portrait' });
+  assert.equal(result.verdict, 'accept');
+  assert.equal(result.reason, undefined);
+});
+
+test('integrity gate rejects a transparent-shirt cleft through a person', async () => {
+  const { assessIsolationMask } = await loadTypeScriptModule(clientSourceUrl, {
+    stubs: { './segment': { SEGMENT_GRID: 68 } },
+  });
+  const grid = 24;
+  const mask = rectangularMask(grid, 3, 1, 20, 22);
+  // Simulate a provider treating a light shirt as part of the light backdrop.
+  for (let y = 10; y <= 17; y++) {
+    for (let x = 10; x <= 13; x++) mask[y * grid + x] = false;
+  }
+  const result = assessIsolationMask(mask, grid, { subjectHint: 'person' });
+  assert.equal(result.verdict, 'reject');
+  assert.equal(result.reason, 'subject-core-gap');
+});
+
+test('portrait gate does not confuse the space between legs with missing clothing', async () => {
+  const { assessIsolationMask } = await loadTypeScriptModule(clientSourceUrl, {
+    stubs: { './segment': { SEGMENT_GRID: 68 } },
+  });
+  const grid = 24;
+  const mask = rectangularMask(grid, 7, 1, 16, 22);
+  for (let y = 17; y <= 22; y++) {
+    for (let x = 11; x <= 12; x++) mask[y * grid + x] = false;
+  }
+  assert.notEqual(assessIsolationMask(mask, grid, { subjectHint: 'person' }).reason, 'subject-core-gap');
+});
+
+test('integrity gate rejects a detected object returned with half its expected extent', async () => {
+  const { assessIsolationMask } = await loadTypeScriptModule(clientSourceUrl, {
+    stubs: { './segment': { SEGMENT_GRID: 68 } },
+  });
+  const mask = rectangularMask(20, 3, 8, 16, 12);
+  const result = assessIsolationMask(mask, 20, {
+    expectedBounds: { height: 0.7, width: 0.7, x: 0.15, y: 0.15 },
+    subjectHint: 'vehicle',
+  });
+  assert.equal(result.verdict, 'reject');
+  assert.equal(result.reason, 'incomplete-expected-extent');
+});
+
 test('public feature flag is explicit and defaults off', async () => {
   const off = await loadTypeScriptModule(clientSourceUrl, {
     stubs: { './segment': { SEGMENT_GRID: 68 } },
@@ -202,10 +280,13 @@ test('public feature flag is explicit and defaults off', async () => {
 test('capture flow discloses upload and never substitutes heuristic segmentation', async () => {
   const source = await readFile(captureSourceUrl, 'utf8');
   assert.match(source, /Uploads only this framed crop for processing/);
-  assert.match(source, /smartIsolateRegion\(sourceUri, region\)/);
+  assert.match(source, /smartIsolateRegion\(sourceUri, region, undefined,/);
   assert.match(source, /SMART ISOLATE/);
   assert.match(source, /uploaded only after you tap the preview button/);
   assert.match(source, /buildRevisionRef\.current !== buildRevision/);
   assert.match(source, /setSmartError\(backgroundRemovalErrorMessage\(error\)\)/);
+  assert.match(source, /Exact isolated cutout preview/);
+  assert.match(source, /ISOLATED CUTOUT · CHECK CLOTHING \+ EDGES/);
+  assert.match(source, /expectedBounds/);
   assert.doesNotMatch(source, /segmentRegion/);
 });

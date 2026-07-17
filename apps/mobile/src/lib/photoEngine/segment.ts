@@ -47,6 +47,10 @@ export interface Segmentation {
   backgroundRemovalProvider?: 'photoroom' | 'removebg';
   /** Session-only URI for the provider's full-resolution RGBA PNG. */
   cutoutUri?: string;
+  /** Result of the client-side topology check around a provider alpha matte. */
+  isolationQuality?: 'passed' | 'review';
+  /** Buyer-facing reason that an accepted cutout still deserves a close look. */
+  isolationWarning?: string;
 }
 
 export const SEGMENT_GRID = 68;

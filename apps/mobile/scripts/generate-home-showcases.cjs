@@ -31,11 +31,23 @@ const SOURCES = [
     backgroundTolerance: 20,
     detailBoost: 0.34,
     fringePasses: 8,
-    neutralFringeLuma: 75,
-    neutralFringeChroma: 75,
     fringeSupport: 6,
+    neutralFringeLuma: 115,
+    neutralFringeChroma: 65,
+    backgroundFringeDelta: 80,
+    warmSubjectPalette: true,
+    // A pale garment can be almost identical to a studio backdrop. Once the
+    // jacket establishes both sides of the torso, preserve the supported
+    // interior instead of treating colour alone as proof of background.
+    supportedInterior: { startY: 0.65, maximumGap: 0.3, minimumAnchor: 0.018 },
   },
-  { id: 'pet', file: 'pet-source.png', backgroundTolerance: 19, detailBoost: 0.38 },
+  {
+    id: 'pet',
+    file: 'pet-source.png',
+    backgroundTolerance: 19,
+    detailBoost: 0.38,
+    warmSubjectPalette: true,
+  },
   {
     id: 'car',
     file: 'car-source.png',
@@ -44,10 +56,35 @@ const SOURCES = [
     // The generated studio photograph has a soft floor shadow below the tyres.
     // It is presentation lighting, not part of the physical object.
     floorLimit: 0.77,
-    fringePasses: 8,
-    neutralFringeLuma: 70,
-    neutralFringeChroma: 72,
-    fringeSupport: 5,
+    floorShadow: {
+      startY: 0.67,
+      hardCutY: 0.735,
+      maximumDelta: 50,
+      maximumChroma: 28,
+      minimumPaleLuma: 130,
+      // Below the front bumper/hood, the source contains only its cast shadow.
+      // This reviewed zone is intentionally sample-specific; it is never used
+      // for arbitrary customer uploads.
+      dropRegions: [
+        { minX: 0, maxX: 0.52, minY: 0.68, maxY: 1 },
+      ],
+      // The two wheel regions are semantic foreground, even where polished
+      // rims approach the neutral studio sweep in colour.
+      protectedRegions: [
+        { minX: 0.52, maxX: 0.72, minY: 0.53, maxY: 0.76 },
+        { minX: 0.8, maxX: 0.96, minY: 0.48, maxY: 0.72 },
+      ],
+    },
+    // One conservative pass may drop only pale neutral antialias cells. The
+    // former eight-pass rule is what destroyed the black bodywork.
+    fringePasses: 1,
+    fringeSupport: 3,
+    neutralFringeLuma: 180,
+    neutralFringeChroma: 16,
+    // Black paint, grey glass and chrome are semantically neutral object
+    // colours. Keep them in the neutral catalog family so error diffusion
+    // cannot turn a classic black car into green/purple camouflage.
+    neutralObjectPalette: true,
   },
 ];
 
@@ -81,10 +118,25 @@ function perceptualDelta(a, b) {
   return Math.sqrt(colorDistance(a, b) / 8);
 }
 
-function nearestCatalog(rgb) {
+const neutralCatalogColors = catalogColors.filter(({ rgb }) => {
+  const chroma = Math.max(...rgb) - Math.min(...rgb);
+  return chroma <= 12;
+});
+const warmSubjectCatalogColors = catalogColors.filter(({ rgb: [red, green, blue] }) => {
+  const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+  return chroma <= 12 || (red >= green && red >= blue);
+});
+
+function nearestCatalog(rgb, semanticRgb = rgb, options = {}) {
+  const semanticChroma = Math.max(...semanticRgb) - Math.min(...semanticRgb);
+  const candidates = options.warmSubjectPalette
+    ? warmSubjectCatalogColors
+    : options.neutralObjectPalette && semanticChroma <= 50
+      ? neutralCatalogColors
+      : catalogColors;
   let best = catalogColors[0];
   let bestDistance = Number.POSITIVE_INFINITY;
-  for (const candidate of catalogColors) {
+  for (const candidate of candidates) {
     const distance = colorDistance(rgb, candidate.rgb);
     if (distance < bestDistance) {
       best = candidate;
@@ -243,6 +295,54 @@ function keepLargestComponent(mask, size) {
   return result;
 }
 
+/**
+ * Restore a background-coloured region only when foreground structure on the
+ * same row proves that it belongs inside the subject. This is deliberately a
+ * contextual decision: colour segmentation alone cannot distinguish a white
+ * shirt connected to the bottom crop from a white studio sweep.
+ */
+function restoreSupportedInterior(mask, size, options) {
+  if (!options) return { mask, protectedMask: new Uint8Array(mask.length) };
+
+  const result = new Uint8Array(mask);
+  const protectedMask = new Uint8Array(mask.length);
+  const startY = Math.floor(options.startY * size);
+  const maximumGap = Math.floor(options.maximumGap * size);
+  const minimumAnchor = Math.max(2, Math.floor(options.minimumAnchor * size));
+
+  for (let y = startY; y < size; y++) {
+    const rowStart = y * size;
+    let x = 0;
+    while (x < size) {
+      if (result[rowStart + x]) {
+        x++;
+        continue;
+      }
+      const gapStart = x;
+      while (x < size && !result[rowStart + x]) x++;
+      const gapEnd = x - 1;
+      if (gapStart === 0 || x === size || gapEnd - gapStart + 1 > maximumGap) continue;
+
+      let leftAnchor = 0;
+      for (let anchorX = gapStart - 1; anchorX >= 0 && result[rowStart + anchorX]; anchorX--) {
+        leftAnchor++;
+      }
+      let rightAnchor = 0;
+      for (let anchorX = x; anchorX < size && result[rowStart + anchorX]; anchorX++) {
+        rightAnchor++;
+      }
+      if (leftAnchor < minimumAnchor || rightAnchor < minimumAnchor) continue;
+
+      for (let fillX = gapStart; fillX <= gapEnd; fillX++) {
+        const index = rowStart + fillX;
+        result[index] = 1;
+        protectedMask[index] = 1;
+      }
+    }
+  }
+  return { mask: result, protectedMask };
+}
+
 function sampleForeground(image, mask) {
   const cells = Array.from({ length: GRID * GRID }, () => null);
   for (let gridY = 0; gridY < GRID; gridY++) {
@@ -277,6 +377,75 @@ function sampleForeground(image, mask) {
   return cells;
 }
 
+/** A grid-level confidence layer measured against the learned studio sweep. */
+function sampleBackgroundDelta(image) {
+  const model = rowBackgroundModel(image);
+  const deltas = new Float32Array(GRID * GRID);
+  for (let gridY = 0; gridY < GRID; gridY++) {
+    for (let gridX = 0; gridX < GRID; gridX++) {
+      let total = 0;
+      for (let dy = 0; dy < MASK_SCALE; dy++) {
+        for (let dx = 0; dx < MASK_SCALE; dx++) {
+          const x = gridX * MASK_SCALE + dx;
+          const y = gridY * MASK_SCALE + dy;
+          total += perceptualDelta(
+            pixelAt(image, x, y),
+            expectedBackground(model, x, y, image.size),
+          );
+        }
+      }
+      deltas[gridY * GRID + gridX] = total / (MASK_SCALE * MASK_SCALE);
+    }
+  }
+  return deltas;
+}
+
+/**
+ * Remove a soft studio-floor shadow without reopening the destructive neutral
+ * contour rule. Shadow ownership requires three independent signals: it is
+ * below the object, close to the learned backdrop, and low-chroma. Explicit
+ * wheel regions remain protected because chrome can also be neutral.
+ */
+function removeFloorShadow(cells, backgroundDeltas, options) {
+  if (!options) return cells;
+  const startY = Math.floor(options.startY * GRID);
+  const protectedRegions = options.protectedRegions ?? [];
+  const dropRegions = options.dropRegions ?? [];
+  return cells.map((rgb, index) => {
+    if (!rgb) return null;
+    const x = index % GRID;
+    const y = Math.floor(index / GRID);
+    if (y < startY) return rgb;
+    const normalizedX = (x + 0.5) / GRID;
+    const normalizedY = (y + 0.5) / GRID;
+    const shadowOnly = dropRegions.some((region) =>
+      normalizedX >= region.minX
+      && normalizedX <= region.maxX
+      && normalizedY >= region.minY
+      && normalizedY <= region.maxY,
+    );
+    if (shadowOnly) return null;
+    if (normalizedY >= options.hardCutY) return null;
+    const protectedPart = protectedRegions.some((region) =>
+      normalizedX >= region.minX
+      && normalizedX <= region.maxX
+      && normalizedY >= region.minY
+      && normalizedY <= region.maxY,
+    );
+    if (protectedPart) return rgb;
+    const chroma = Math.max(...rgb) - Math.min(...rgb);
+    const luma = rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114;
+    if (luma >= options.minimumPaleLuma && chroma <= options.maximumChroma) return null;
+    if (
+      backgroundDeltas[index] <= options.maximumDelta
+      && chroma <= options.maximumChroma
+    ) {
+      return null;
+    }
+    return rgb;
+  });
+}
+
 function enhanceDetail(cells, amount) {
   return cells.map((rgb, index) => {
     if (!rgb) return null;
@@ -300,7 +469,7 @@ function enhanceDetail(cells, amount) {
   });
 }
 
-function catalogDither(cells) {
+function catalogDither(cells, options = {}) {
   const working = cells.map((rgb) => (rgb ? [...rgb] : null));
   const mapped = new Array(cells.length).fill(null);
   const diffusion = [
@@ -314,7 +483,9 @@ function catalogDither(cells) {
       const index = y * GRID + x;
       const rgb = working[index];
       if (!rgb) continue;
-      const nearest = nearestCatalog(rgb);
+      // Candidate colour families are selected from the un-diffused source
+      // colour. Diffusion error must never change the semantic class of a cell.
+      const nearest = nearestCatalog(rgb, cells[index], options);
       mapped[index] = nearest.hex;
       const error = rgb.map((value, channel) => value - nearest.rgb[channel]);
       for (const [dx, dy, weight] of diffusion) {
@@ -332,12 +503,17 @@ function catalogDither(cells) {
   return mapped;
 }
 
-function removeBackdropFringe(mapped, options = {}) {
+function removeBackdropFringe(
+  mapped,
+  options = {},
+  protectedCells = new Uint8Array(mapped.length),
+  backgroundDeltas = new Float32Array(mapped.length),
+) {
   let result = [...mapped];
   const passes = options.fringePasses ?? 1;
-  const neutralFringeLuma = options.neutralFringeLuma ?? 180;
-  const neutralFringeChroma = options.neutralFringeChroma ?? 22;
   const fringeSupport = options.fringeSupport ?? 4;
+  const hasNeutralRule = Number.isFinite(options.neutralFringeLuma)
+    && Number.isFinite(options.neutralFringeChroma);
   const at = (x, y) => {
     if (x < 0 || y < 0 || x >= GRID || y >= GRID) return null;
     return result[y * GRID + x];
@@ -356,13 +532,18 @@ function removeBackdropFringe(mapped, options = {}) {
       for (let x = 0; x < GRID; x++) {
         const hex = at(x, y);
         if (!hex) continue;
+        if (protectedCells[y * GRID + x]) continue;
         const [red, green, blue] = hexToRgb(hex);
         const luma = red * 0.299 + green * 0.587 + blue * 0.114;
         const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
         const warmBackdrop = luma > 180 && red > green && green > blue && red - blue > 16;
         const nearWhiteBackdrop = luma > 242 && chroma < 16;
-        const neutralBackdrop = luma > neutralFringeLuma && chroma < neutralFringeChroma;
+        const neutralBackdrop = hasNeutralRule
+          && luma > options.neutralFringeLuma
+          && chroma < options.neutralFringeChroma;
         if (!warmBackdrop && !nearWhiteBackdrop && !neutralBackdrop) continue;
+        if (Number.isFinite(options.backgroundFringeDelta)
+          && backgroundDeltas[y * GRID + x] > options.backgroundFringeDelta) continue;
 
         const onContour = cardinal.some(([dx, dy]) => !at(x + dx, y + dy));
         if (!onContour) continue;
@@ -378,6 +559,24 @@ function removeBackdropFringe(mapped, options = {}) {
     if (!removed) break;
   }
   return result;
+}
+
+function sampleProtectedCells(protectedMask, size) {
+  const cells = new Uint8Array(GRID * GRID);
+  for (let gridY = 0; gridY < GRID; gridY++) {
+    for (let gridX = 0; gridX < GRID; gridX++) {
+      let protectedPixels = 0;
+      for (let dy = 0; dy < MASK_SCALE; dy++) {
+        for (let dx = 0; dx < MASK_SCALE; dx++) {
+          const x = gridX * MASK_SCALE + dx;
+          const y = gridY * MASK_SCALE + dy;
+          protectedPixels += protectedMask[y * size + x];
+        }
+      }
+      if (protectedPixels) cells[gridY * GRID + gridX] = 1;
+    }
+  }
+  return cells;
 }
 
 /** Fringe peeling can expose tiny disconnected antialias/shadow islands. */
@@ -470,12 +669,18 @@ function generateHomeShowcases({ write = true } = {}) {
     if (!fs.existsSync(input)) continue;
     const png = PNG.sync.read(fs.readFileSync(input));
     const image = resizeForMask(png);
-    const mask = floodBackground(image, source.backgroundTolerance, source.floorLimit);
-    const cells = sampleForeground(image, mask);
-    const detailed = enhanceDetail(cells, source.detailBoost);
-    const catalogMapped = catalogDither(detailed);
+    const floodedMask = floodBackground(image, source.backgroundTolerance, source.floorLimit);
+    const restored = restoreSupportedInterior(floodedMask, image.size, source.supportedInterior);
+    const cells = sampleForeground(image, restored.mask);
+    const protectedCells = sampleProtectedCells(restored.protectedMask, image.size);
+    const backgroundDeltas = sampleBackgroundDelta(image);
+    const foregroundCells = removeFloorShadow(cells, backgroundDeltas, source.floorShadow);
+    const detailed = enhanceDetail(foregroundCells, source.detailBoost);
+    const catalogMapped = catalogDither(detailed, source);
     generated[source.id] = {
-      ...encodeMosaic(keepLargestMappedComponent(removeBackdropFringe(catalogMapped, source))),
+      ...encodeMosaic(keepLargestMappedComponent(
+        removeBackdropFringe(catalogMapped, source, protectedCells, backgroundDeltas),
+      )),
       fallbackUri: inlineFallback(png),
     };
   }

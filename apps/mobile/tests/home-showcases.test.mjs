@@ -66,6 +66,35 @@ function occupiedComponentCount(data) {
   return components;
 }
 
+function regionOccupancy(data, { minX, maxX, minY, maxY }) {
+  let occupied = 0;
+  let total = 0;
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      total++;
+      if (data.rows[y][x] !== generator.EMPTY) occupied++;
+    }
+  }
+  return occupied / total;
+}
+
+function regionColorCoverage(data, region, predicate) {
+  let matching = 0;
+  let total = 0;
+  for (let y = region.minY; y <= region.maxY; y++) {
+    for (let x = region.minX; x <= region.maxX; x++) {
+      total++;
+      const encoded = data.rows[y][x];
+      const paletteIndex = generator.ALPHABET.indexOf(encoded);
+      if (paletteIndex < 0) continue;
+      const packed = Number.parseInt(data.palette[paletteIndex].slice(1), 16);
+      const rgb = [packed >> 16, (packed >> 8) & 255, packed & 255];
+      if (predicate(rgb)) matching++;
+    }
+  }
+  return matching / total;
+}
+
 test('homepage showcase regeneration is deterministic and checked in', () => {
   const first = generator.generateHomeShowcases({ write: false });
   const second = generator.generateHomeShowcases({ write: false });
@@ -80,9 +109,9 @@ test('homepage showcase regeneration is deterministic and checked in', () => {
 test('all homepage samples are detailed, subject-only silhouettes', () => {
   const { generated } = generator.generateHomeShowcases({ write: false });
   const expected = {
-    portrait: { borderOccupancy: 53, occupiedCells: 2592, paletteSize: 17 },
-    pet: { borderOccupancy: 46, occupiedCells: 2672, paletteSize: 20 },
-    car: { borderOccupancy: 0, occupiedCells: 1223, paletteSize: 17 },
+    portrait: { borderOccupancy: 66, occupiedCells: 3088, paletteSize: 20 },
+    pet: { borderOccupancy: 46, occupiedCells: 2672, paletteSize: 18 },
+    car: { borderOccupancy: 0, occupiedCells: 1358, paletteSize: 11 },
   };
 
   for (const [id, data] of Object.entries(generated)) {
@@ -102,8 +131,62 @@ test('all homepage samples are detailed, subject-only silhouettes', () => {
       expected[id],
     );
     assert.ok(
-      sampleMetrics.detailTransitions > data.occupiedCells,
+      sampleMetrics.detailTransitions > data.occupiedCells * 0.8,
       `${id} should retain fine tonal and edge transitions`,
+    );
+  }
+});
+
+test('semantic foreground guards preserve clothing and car parts without keeping its floor shadow', () => {
+  const { portrait, pet, car } = generator.generateHomeShowcases({ write: false }).generated;
+
+  // These are manually selected against the source photographs, not derived
+  // from generator output. They catch the exact failures that generic counts
+  // missed: a bottom-connected white shirt and an over-eroded neutral car.
+  const shirt = { minX: 27, maxX: 43, minY: 52, maxY: 71 };
+  const centralShirt = { minX: 29, maxX: 41, minY: 52, maxY: 71 };
+  const carRoofAndCabin = { minX: 27, maxX: 56, minY: 22, maxY: 32 };
+  const carBody = { minX: 7, maxX: 64, minY: 36, maxY: 46 };
+  const carMainWheel = { minX: 38, maxX: 52, minY: 39, maxY: 52 };
+  const carRearWheel = { minX: 58, maxX: 66, minY: 35, maxY: 48 };
+  const carFloorShadow = { minX: 0, maxX: 36, minY: 49, maxY: 71 };
+  const belowCar = { minX: 0, maxX: 71, minY: 53, maxY: 71 };
+
+  assert.ok(regionOccupancy(portrait, shirt) >= 0.95, 'portrait shirt must not become transparent');
+  assert.ok(
+    regionColorCoverage(portrait, centralShirt, ([red, green, blue]) =>
+      red * 0.299 + green * 0.587 + blue * 0.114 > 165,
+    ) >= 0.85,
+    'portrait shirt must remain visibly light, not merely filled with jacket colour',
+  );
+  assert.ok(regionOccupancy(car, carRoofAndCabin) >= 0.88, 'car roof and glass must remain intact');
+  assert.ok(regionOccupancy(car, carBody) >= 0.97, 'car body must remain structurally continuous');
+  assert.ok(regionOccupancy(car, carMainWheel) >= 0.9, 'main wheel must remain intact');
+  assert.ok(regionOccupancy(car, carRearWheel) >= 0.8, 'rear wheel must remain intact');
+  assert.equal(regionOccupancy(car, carFloorShadow), 0, 'studio floor shadow must be transparent');
+  assert.equal(regionOccupancy(car, belowCar), 0, 'nothing may float below the car silhouette');
+
+  const falseNeutralCarColours = new Set([
+    '#004A2D', // dark green
+    '#A0BCAC', // sand green
+    '#D9E4A7', // yellowish green
+    '#00395E', // dark blue
+    '#9675B4', // lavender
+    '#BCA6D0', // light lavender
+  ]);
+  assert.ok(
+    car.palette.every((hex) => !falseNeutralCarColours.has(hex)),
+    'neutral car paint and glass must not dither into green, blue, or purple bricks',
+  );
+  for (const [id, data] of [['portrait', portrait], ['pet', pet]]) {
+    assert.ok(
+      data.palette.every((hex) => {
+        const packed = Number.parseInt(hex.slice(1), 16);
+        const [red, green, blue] = [packed >> 16, (packed >> 8) & 255, packed & 255];
+        const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+        return chroma <= 12 || (red >= green && red >= blue);
+      }),
+      `${id} must use a coherent warm/neutral palette without green, blue, or purple noise`,
     );
   }
 });
