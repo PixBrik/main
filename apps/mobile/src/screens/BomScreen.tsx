@@ -5,7 +5,7 @@ import { DemoDock } from '../components/DemoDock';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
-import { brickify, partUrl } from '../lib/brickify';
+import { brickify, isCatalogStockError, partUrl } from '../lib/brickify';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { colors, radius, spacing, type } from '../theme/tokens';
 import type { BuildFill, DemoScreen } from '../types/navigation';
@@ -81,8 +81,31 @@ export function BomScreen({
 }: BomScreenProps) {
   const bom = useMemo(() => {
     const model = resolveActiveModel(photoBuild, selectedVariant);
-    return brickify(model, accentForVariant(selectedVariant), { hollow: buildFill === 'hollow' });
+    try {
+      return brickify(model, accentForVariant(selectedVariant), { hollow: buildFill === 'hollow' });
+    } catch (error) {
+      if (isCatalogStockError(error)) return null;
+      throw error;
+    }
   }, [photoBuild, selectedVariant, buildFill]);
+
+  if (!bom) {
+    return (
+      <ScreenFrame
+        accent="coral"
+        eyebrow="Catalog stock"
+        footer={<PrimaryButton label="Go back" onPress={onBack} />}
+        title="This kit is unavailable right now."
+        subtitle="Current catalog stock cannot cover every piece in this build. No order has been created."
+      >
+        <View accessibilityRole="alert">
+          <Text style={styles.demoNote}>
+            Go back and choose another build profile, or try this design again when the catalog is refreshed.
+          </Text>
+        </View>
+      </ScreenFrame>
+    );
+  }
 
   return (
     <ScreenFrame

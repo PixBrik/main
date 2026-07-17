@@ -20,6 +20,8 @@ export interface Segmentation {
   coverage: number;
   /** The photo region this segmentation covers (needed for depth alignment). */
   region: { x: number; y: number; width: number; height: number };
+  /** Physical crop width / height before it is sampled onto the square grid. */
+  aspectRatio?: number;
   /**
    * Relative closeness per cell from the depth model, aligned with mask.
    * undefined = not attempted yet, null = attempted but unavailable.
@@ -32,7 +34,7 @@ export interface Segmentation {
   preserveFeatures?: boolean;
 }
 
-export const SEGMENT_GRID = 56;
+export const SEGMENT_GRID = 68;
 
 interface Region {
   x: number;
@@ -41,7 +43,12 @@ interface Region {
   height: number;
 }
 
-export function getCropPixels(uri: string, region: Region, grid: number): Promise<Uint8ClampedArray> {
+interface CropSample {
+  aspectRatio: number;
+  pixels: Uint8ClampedArray;
+}
+
+function getCropSample(uri: string, region: Region, grid: number): Promise<CropSample> {
   return new Promise((resolve, reject) => {
     const image = new (globalThis as unknown as { Image: typeof HTMLImageElement }).Image();
     image.crossOrigin = 'anonymous';
@@ -65,11 +72,24 @@ export function getCropPixels(uri: string, region: Region, grid: number): Promis
         grid,
         grid,
       );
-      resolve(context.getImageData(0, 0, grid, grid).data);
+      resolve({
+        aspectRatio:
+          (region.width * image.naturalWidth) /
+          Math.max(1, region.height * image.naturalHeight),
+        pixels: context.getImageData(0, 0, grid, grid).data,
+      });
     };
     image.onerror = reject;
     image.src = uri;
   });
+}
+
+export async function getCropPixels(
+  uri: string,
+  region: Region,
+  grid: number,
+): Promise<Uint8ClampedArray> {
+  return (await getCropSample(uri, region, grid)).pixels;
 }
 
 function colorDistance(pixels: Uint8ClampedArray, index: number, mean: number[]) {
@@ -77,6 +97,15 @@ function colorDistance(pixels: Uint8ClampedArray, index: number, mean: number[])
   const dg = pixels[index + 1]! - mean[1]!;
   const db = pixels[index + 2]! - mean[2]!;
   return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1]! + sorted[middle]!) / 2
+    : sorted[middle]!;
 }
 
 /** Flood fill on a boolean grid; returns component sizes and labels. */
@@ -112,35 +141,29 @@ export function connectedComponents(mask: boolean[], grid: number) {
 }
 
 export async function segmentRegion(uri: string, region: Region, grid: number = SEGMENT_GRID): Promise<Segmentation> {
-  const pixels = await getCropPixels(uri, region, grid);
+  const { aspectRatio, pixels } = await getCropSample(uri, region, grid);
 
-  // Background model: mean colour of the crop's border ring.
+  // Background model: robust colour of the crop's border ring.
   const border: number[] = [];
   for (let i = 0; i < grid; i++) {
     border.push(i, (grid - 1) * grid + i, i * grid, i * grid + grid - 1);
   }
-  const mean = [0, 0, 0];
-  for (const cell of border) {
-    mean[0]! += pixels[cell * 4]!;
-    mean[1]! += pixels[cell * 4 + 1]!;
-    mean[2]! += pixels[cell * 4 + 2]!;
-  }
-  mean[0]! /= border.length;
-  mean[1]! /= border.length;
-  mean[2]! /= border.length;
-
-  let deviation = 0;
-  for (const cell of border) {
-    deviation += colorDistance(pixels, cell * 4, mean);
-  }
-  deviation /= border.length;
+  // A subject often touches the bottom or side of a portrait crop. Medians
+  // keep those foreground pixels from pulling the background toward skin,
+  // fur, or clothing and making the cutout threshold unusably high.
+  const backgroundColor = [0, 1, 2].map((channel) =>
+    median(border.map((cell) => pixels[cell * 4 + channel]!)),
+  );
+  const deviation = median(
+    border.map((cell) => colorDistance(pixels, cell * 4, backgroundColor)),
+  );
   // Coach feedback nudges this bias: >1 treats borderline pixels as
   // background more aggressively, <1 keeps them as object.
   const threshold = Math.max(38, deviation * 2.4) * bgThresholdBias();
 
   const rough: boolean[] = new Array(grid * grid);
   for (let cell = 0; cell < grid * grid; cell++) {
-    rough[cell] = colorDistance(pixels, cell * 4, mean) > threshold;
+    rough[cell] = colorDistance(pixels, cell * 4, backgroundColor) > threshold;
   }
 
   // Keep the largest foreground component only.
@@ -170,5 +193,5 @@ export async function segmentRegion(uri: string, region: Region, grid: number = 
   ]);
   const coverage = mask.filter(Boolean).length / mask.length;
 
-  return { colors, coverage, grid, mask, region };
+  return { aspectRatio, colors, coverage, grid, mask, region };
 }

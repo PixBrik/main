@@ -8,6 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "generate:home-showcases": "node scripts/generate-home-showcases.cjs",
+    "benchmark:render": "node scripts/benchmark-brick-rendering.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
     "check": "npm run typecheck && npm run test"
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "@types/three": "^0.185.1",
+    "pngjs": "^7.0.0",
     "typescript": "~6.0.3"
   }
 }

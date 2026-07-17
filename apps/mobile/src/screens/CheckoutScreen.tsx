@@ -5,7 +5,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { countries } from '../data/mockData';
 import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
-import { estimateBuild } from '../lib/brickify';
+import { estimateBuild, isCatalogStockError } from '../lib/brickify';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { estimateDelivery } from '../lib/shippingEstimate';
 import { colors, radius, spacing, type } from '../theme/tokens';
@@ -47,10 +47,33 @@ export function CheckoutScreen({
 
   const estimate = useMemo(() => {
     const model = resolveActiveModel(photoBuild, selectedVariant);
-    return estimateBuild(model, accentForVariant(selectedVariant));
+    try {
+      return estimateBuild(model, accentForVariant(selectedVariant));
+    } catch (error) {
+      if (isCatalogStockError(error)) return null;
+      throw error;
+    }
   }, [photoBuild, selectedVariant]);
-  const side = buildFill === 'hollow' ? estimate.hollow : estimate.full;
   const delivery = useMemo(() => estimateDelivery(countryCode), [countryCode]);
+
+  if (!estimate) {
+    return (
+      <ScreenFrame
+        accent="mint"
+        eyebrow="Catalog stock"
+        footer={<PrimaryButton label="Go back" onPress={onBack} />}
+        title="This kit is unavailable right now."
+        subtitle="Current catalog stock cannot cover every piece in this build. No order has been created."
+      >
+        <View accessibilityRole="alert" style={styles.doneCard}>
+          <Text style={styles.doneTitle}>We cannot complete this kit from the current catalog.</Text>
+          <Text style={styles.doneBody}>Go back and choose another build profile, or try again later.</Text>
+        </View>
+      </ScreenFrame>
+    );
+  }
+
+  const side = buildFill === 'hollow' ? estimate.hollow : estimate.full;
   const total = side.bundleEur + delivery.costEur;
 
   const identified = guest || (name.trim().length > 1 && /.+@.+\..+/.test(email));

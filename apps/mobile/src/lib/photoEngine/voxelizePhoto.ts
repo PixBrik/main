@@ -37,10 +37,10 @@ export interface PhotoModels {
   models: Record<BuildProfile, VoxelModel>;
 }
 
-/** Real catalog colours: Black, Dark/Light Bluish Gray, White. */
-const CLASSIC_RAMP = ['#05131D', '#6C6E68', '#A0A5A9', '#FFFFFF'];
-/** Dark Brown, Reddish Brown, Medium Nougat, Light Nougat, White. */
-const SEPIA_RAMP = ['#352100', '#582A12', '#AA7D55', '#F6D7B3', '#FFFFFF'];
+/** Real catalog colours: five neutral values keep facial mid-tones readable. */
+const CLASSIC_RAMP = ['#000000', '#646767', '#A0A19F', '#D9D9D6', '#FFFFFF'];
+/** Seven real warm catalog values preserve more portrait shading than five. */
+const SEPIA_RAMP = ['#3B180D', '#692E14', '#947E5F', '#DD8C59', '#DDC48E', '#F2E0BD', '#FFFFFF'];
 
 const WIDTH_BY_PROFILE: Record<BuildProfile, number> = {
   efficient: 16,
@@ -50,15 +50,15 @@ const WIDTH_BY_PROFILE: Record<BuildProfile, number> = {
 
 /** Relief panels need face-level resolution — like commercial brick portraits. */
 const RELIEF_WIDTH_BY_PROFILE: Record<BuildProfile, number> = {
-  efficient: 30,
-  balanced: 46,
+  efficient: 36,
+  balanced: 52,
   detailed: 68,
 };
 
 /** Dominant tones kept per mode — coherent regions, no confetti. Portrait
  * panels get a richer palette so skin/hair shading survives. */
 const PALETTE_SIZE_BY_MODE: Record<PhotoBuildMode, number> = {
-  relief: 14,
+  relief: 22,
   volume: 8,
 };
 
@@ -188,7 +188,10 @@ function posterize(cells: Cell2D[][], width: number, height: number, paletteSize
     });
   }
 
-  // Cluster index per grid cell, then a 3×3 majority filter to fuse regions.
+  // Cluster index per grid cell, then an edge-aware 3×3 majority filter.
+  // The old unconditional majority pass erased one- and two-cell facial
+  // details (eyes, brows, nostrils) even when the source sampling captured
+  // them. Only isolated, low-contrast colour noise is fused now.
   const clusterGrid: Int32Array = new Int32Array(width * height).fill(-1);
   samples.forEach((sample, index) => {
     clusterGrid[sample.y * width + sample.x] = assign[index]!;
@@ -208,15 +211,40 @@ function posterize(cells: Cell2D[][], width: number, height: number, paletteSize
           if (cluster !== -1) votes.set(cluster, (votes.get(cluster) ?? 0) + 1);
         }
       }
-      let bestCluster = clusterGrid[y * width + x]!;
-      let bestVotes = 0;
+      const currentCluster = clusterGrid[y * width + x]!;
+      const currentVotes = votes.get(currentCluster) ?? 0;
+      let bestCluster = currentCluster;
+      let bestVotes = currentVotes;
       for (const [cluster, count] of votes) {
         if (count > bestVotes) {
           bestVotes = count;
           bestCluster = cluster;
         }
       }
-      smoothed[y * width + x] = bestCluster;
+      if (bestCluster === currentCluster || bestVotes < 6 || currentVotes > 2) continue;
+
+      const cell = cells[y]![x]!;
+      if (!cell.color) continue;
+      let neighbourLuma = 0;
+      let neighbourCount = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          if (clusterGrid[ny * width + nx] !== bestCluster) continue;
+          const color = cells[ny]![nx]!.color;
+          if (!color) continue;
+          neighbourLuma += 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+          neighbourCount++;
+        }
+      }
+      const ownLuma = 0.299 * cell.color[0] + 0.587 * cell.color[1] + 0.114 * cell.color[2];
+      const localContrast = neighbourCount ? Math.abs(ownLuma - neighbourLuma / neighbourCount) : 0;
+      const majorityDistance = distanceTo(cell.color as Rgb, centroids[bestCluster]!);
+      if (localContrast < 18 && majorityDistance < 2200) {
+        smoothed[y * width + x] = bestCluster;
+      }
     }
   }
 
@@ -304,7 +332,7 @@ interface DownsampleResult {
 }
 
 /** Downsample the segmentation to the profile grid, cropped to the object. */
-function downsample(segmentation: Segmentation, targetWidth: number): DownsampleResult {
+function downsample(segmentation: Segmentation, targetWidth: number, fillThreshold = 0.5): DownsampleResult {
   const { grid, mask, colors } = segmentation;
 
   let minX = grid, maxX = -1, minY = grid, maxY = -1;
@@ -324,8 +352,21 @@ function downsample(segmentation: Segmentation, targetWidth: number): Downsample
 
   const sourceWidth = maxX - minX + 1;
   const sourceHeight = maxY - minY + 1;
-  const width = sourceWidth >= sourceHeight ? targetWidth : Math.max(4, Math.round((targetWidth * sourceWidth) / sourceHeight));
-  const height = sourceWidth >= sourceHeight ? Math.max(4, Math.round((targetWidth * sourceHeight) / sourceWidth)) : targetWidth;
+  // Never create apparent detail beyond the segmentation grid. It adds many
+  // bricks but only duplicates source cells, making the result chunkier and
+  // slower without increasing likeness.
+  const cropAspect = Math.max(0.05, segmentation.aspectRatio ?? 1);
+  const physicalAspect = (sourceWidth * cropAspect) / Math.max(sourceHeight, 1);
+  const longestSide = Math.min(
+    targetWidth,
+    Math.max(sourceWidth * cropAspect, sourceHeight),
+  );
+  const width = physicalAspect >= 1
+    ? Math.max(4, Math.round(longestSide))
+    : Math.max(4, Math.round(longestSide * physicalAspect));
+  const height = physicalAspect >= 1
+    ? Math.max(4, Math.round(longestSide / physicalAspect))
+    : Math.max(4, Math.round(longestSide));
 
   const cells: Cell2D[][] = [];
   for (let y = 0; y < height; y++) {
@@ -357,7 +398,7 @@ function downsample(segmentation: Segmentation, targetWidth: number): Downsample
           }
         }
       }
-      const filled = filledCount / Math.max(total, 1) >= 0.5;
+      const filled = filledCount / Math.max(total, 1) >= fillThreshold;
       row.push({
         color: colored ? [r / colored, g / colored, b / colored] : null,
         depth: depthCount ? depthSum / depthCount : undefined,
@@ -378,10 +419,15 @@ function distanceToEdge(cells: Cell2D[][], width: number, height: number): numbe
     for (let x = 0; x < width; x++) {
       if (!cells[y]![x]!.filled) {
         queue.push([x, y]);
+      } else if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+        // The crop hugs the silhouette, so filled edge cells need an explicit
+        // outside-of-grid background seed. Without this, a full rectangular
+        // panel has infinite distance everywhere.
+        distance[y]![x] = 1;
+        queue.push([x, y]);
       }
     }
   }
-  // Border of the grid also counts as background.
   let head = 0;
   const push = (x: number, y: number, d: number) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return;
@@ -407,14 +453,14 @@ function distanceToEdge(cells: Cell2D[][], width: number, height: number): numbe
  * diffusion only flows through masked cells so the silhouette stays crisp.
  */
 function ditherToRamp(cells: Cell2D[][], width: number, height: number, ramp: string[]): void {
-  const luminance = new Float32Array(width * height).fill(-1);
+  const sourceLuminance = new Float32Array(width * height).fill(-1);
   const values: number[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const cell = cells[y]![x]!;
       if (cell.filled && cell.color) {
         const value = 0.299 * cell.color[0] + 0.587 * cell.color[1] + 0.114 * cell.color[2];
-        luminance[y * width + x] = value;
+        sourceLuminance[y * width + x] = value;
         values.push(value);
       }
     }
@@ -428,27 +474,81 @@ function ditherToRamp(cells: Cell2D[][], width: number, height: number, ramp: st
   const high = values[Math.min(values.length - 1, Math.floor(values.length * 0.95))]!;
   const span = Math.max(high - low, 1);
 
-  const steps = ramp.length - 1;
+  // A mild local-contrast pass recovers eyes, brows, mouths and hair strands
+  // from evenly lit photos. It is deliberately capped so skin texture does
+  // not turn into noisy brick confetti.
+  const luminance = new Float32Array(sourceLuminance);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = y * width + x;
-      if (luminance[index]! < 0) continue;
-      const stretched = Math.max(0, Math.min(255, ((luminance[index]! - low) / span) * 255));
-      const level = Math.max(0, Math.min(steps, Math.round((stretched / 255) * steps)));
+      const source = sourceLuminance[index]!;
+      if (source < 0) continue;
+      let localSum = 0;
+      let localCount = 0;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const neighbour = sourceLuminance[ny * width + nx]!;
+          if (neighbour < 0) continue;
+          localSum += neighbour;
+          localCount++;
+        }
+      }
+      const stretched = ((source - low) / span) * 255;
+      const localMean = localCount ? localSum / localCount : source;
+      const detail = Math.max(-48, Math.min(48, ((source - localMean) / span) * 255 * 0.62));
+      luminance[index] = Math.max(0, Math.min(255, stretched + detail));
+    }
+  }
+
+  // Quantize against the catalog colours' real luminance rather than evenly
+  // spaced indices. This avoids overusing a mid-tone whose physical colour
+  // is much lighter or darker than its position in the ramp suggests.
+  const rampLuma = ramp.map((hex) => {
+    const normalized = hex.replace('#', '');
+    const r = Number.parseInt(normalized.slice(0, 2), 16);
+    const g = Number.parseInt(normalized.slice(2, 4), 16);
+    const b = Number.parseInt(normalized.slice(4, 6), 16);
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+  });
+  const rampLow = rampLuma[0] ?? 0;
+  const rampSpan = Math.max((rampLuma[rampLuma.length - 1] ?? 255) - rampLow, 1);
+  const levels = rampLuma.map((value) => ((value - rampLow) / rampSpan) * 255);
+
+  // Serpentine Floyd–Steinberg diffusion avoids the diagonal streaks a
+  // one-direction scan creates across cheeks and other smooth gradients.
+  for (let y = 0; y < height; y++) {
+    const direction = y % 2 === 0 ? 1 : -1;
+    for (let offset = 0; offset < width; offset++) {
+      const x = direction === 1 ? offset : width - 1 - offset;
+      const index = y * width + x;
+      if (sourceLuminance[index]! < 0) continue;
+      const value = Math.max(0, Math.min(255, luminance[index]!));
+      let level = 0;
+      let nearest = Number.POSITIVE_INFINITY;
+      for (let candidate = 0; candidate < levels.length; candidate++) {
+        const difference = Math.abs(value - levels[candidate]!);
+        if (difference < nearest) {
+          nearest = difference;
+          level = candidate;
+        }
+      }
       cells[y]![x]!.posterHex = ramp[level]!;
 
-      const error = stretched - (level / steps) * 255;
+      const error = value - levels[level]!;
       const spread: Array<[number, number, number]> = [
-        [x + 1, y, 7 / 16],
-        [x - 1, y + 1, 3 / 16],
+        [x + direction, y, 7 / 16],
+        [x - direction, y + 1, 3 / 16],
         [x, y + 1, 5 / 16],
-        [x + 1, y + 1, 1 / 16],
+        [x + direction, y + 1, 1 / 16],
       ];
       for (const [nx, ny, weight] of spread) {
         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
         const neighbour = ny * width + nx;
-        if (luminance[neighbour]! >= 0) {
-          luminance[neighbour] = luminance[neighbour]! + error * weight * (span / 255);
+        if (sourceLuminance[neighbour]! >= 0) {
+          luminance[neighbour] = luminance[neighbour]! + error * weight;
         }
       }
     }
@@ -647,7 +747,9 @@ export function voxelizeSegmentation(
   preserveFeatures = false,
 ): VoxelModel {
   const targetWidth = mode === 'relief' ? RELIEF_WIDTH_BY_PROFILE[profile] : WIDTH_BY_PROFILE[profile];
-  const result = downsample(segmentation, targetWidth);
+  // A 35% coverage threshold retains thin hair, glasses and silhouette tips
+  // in a flat panel. Volumes stay at 50% so they remain structurally solid.
+  const result = downsample(segmentation, targetWidth, mode === 'relief' ? 0.35 : 0.5);
   const { cells, width, height } = result;
   if (!width || !height) {
     return buildModelFromCells([], 0.3);
@@ -655,7 +757,7 @@ export function voxelizeSegmentation(
 
   // Animals & people: protect small dark features (eyes, nose, mouth) from
   // the smoothing passes even when no landmark model fired.
-  if (preserveFeatures) {
+  if (preserveFeatures || mode === 'relief') {
     markDarkFeatures(cells, width, height);
   }
 
@@ -664,7 +766,11 @@ export function voxelizeSegmentation(
     ditherToRamp(cells, width, height, style === 'classic' ? CLASSIC_RAMP : SEPIA_RAMP);
   } else {
     posterize(cells, width, height, PALETTE_SIZE_BY_MODE[mode]);
-    fixEdgeColors(cells, distance, width, height);
+    // Only a cut-out silhouette has mixed foreground/background edge pixels.
+    // A full-frame mosaic must keep the buyer's real border colours.
+    if (segmentation.coverage < 0.98) {
+      fixEdgeColors(cells, distance, width, height);
+    }
   }
 
   // Landmark-guaranteed eyes / ears / nose / mouth.
@@ -767,7 +873,7 @@ export function buildPhotoModels(
   segmentation: Segmentation,
   label: string,
   mode: PhotoBuildMode = modeForLabel(label),
-  style: PanelStyle = mode === 'relief' ? 'classic' : 'natural',
+  style: PanelStyle = 'natural',
   options: BuildPhotoOptions = {},
 ): PhotoModels {
   const face = options.face ?? null;

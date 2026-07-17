@@ -17,28 +17,33 @@ export function ModeScreen({ value, onChange, onBack, onContinue }: ModeScreenPr
     <ScreenFrame
       accent="coral"
       eyebrow="1 / Capture mode"
-      footer={<PrimaryButton label="Open camera" onPress={onContinue} />}
+      footer={
+        <PrimaryButton
+          label={value === 'photo' ? 'Preview my photo' : 'Start 4 guided photos'}
+          onPress={onContinue}
+        />
+      }
       onBack={onBack}
       progress={0.12}
-      subtitle="One good photo is enough — straight on, decent light. Want the back captured too? Walk around it."
-      title="One photo is all it takes."
+      subtitle="One clear photo makes the most faithful front-facing panel. Four guided views give the 3D generator the sides and back too."
+      title="Choose likeness or full 3D."
     >
       <View accessibilityRole="radiogroup">
         <ChoiceStrip
           accent="coral"
-          description="Fastest route for a compact interpretation."
-          meta="FAST"
+          description="A dense, buildable relief panel judged straight-on against your original photo."
+          meta="BEST MATCH"
           onPress={() => onChange('photo')}
           selected={value === 'photo'}
-          title="Single photo"
+          title="Photo panel"
         />
         <ChoiceStrip
           accent="mint"
-          description="Walk around it for a fuller, steadier 3D shape."
-          meta="FULL MODEL"
+          description="Capture the front, left, back and right for a fuller sculpture you approve before brick conversion."
+          meta="FULL 3D"
           onPress={() => onChange('orbit')}
           selected={value === 'orbit'}
-          title="360° capture"
+          title="4-view sculpture"
         />
       </View>
     </ScreenFrame>

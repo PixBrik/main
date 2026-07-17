@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { BrandMark } from '../components/BrandMark';
 import { BuildPath } from '../components/BuildPath';
 import { TopMenu } from '../components/TopMenu';
 import { listBuilds, type SavedBuild } from '../lib/buildGallery';
-import { whenVisible } from '../lib/whenVisible';
 import { colors, fonts, inkAlpha, radius, saffronAlpha, shadow, spacing, type } from '../theme/tokens';
 
 interface HomeScreenProps {
@@ -28,68 +34,23 @@ function StudGlyph({ color, size = 5 }: { color: string; size?: number }) {
   );
 }
 
-/** Headline lines rise from clipped line-boxes, staggered. */
-function useLineRise(count: number) {
-  const values = useRef(Array.from({ length: count }, () => new Animated.Value(1))).current;
-  useEffect(() => {
-    return whenVisible(
-      () =>
-        Animated.stagger(
-          90,
-          values.map((value) =>
-            Animated.timing(value, {
-              duration: 420,
-              easing: Easing.bezier(0.22, 1, 0.36, 1),
-              toValue: 0,
-              useNativeDriver: true,
-            }),
-          ),
-        ).start(),
-      () => values.forEach((value) => value.setValue(0)),
-    );
-  }, [values]);
-  return values;
-}
-
 export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenProps) {
+  const { width: viewportWidth } = useWindowDimensions();
   const [builds] = useState<SavedBuild[]>(() => listBuilds());
   const [showAll, setShowAll] = useState(false);
-  const lineRise = useLineRise(2);
-  const dockIn = useRef(new Animated.Value(0)).current;
+  const wide = viewportWidth >= 920;
+  const pageGutter = wide ? spacing.xxl : spacing.xl;
+  const pageWidth = Math.max(260, Math.min(viewportWidth - pageGutter * 2, wide ? 1180 : 472));
+  const headlineSize = wide ? 42 : Math.max(34, Math.min(42, pageWidth / 7.5));
 
-  useEffect(() => {
-    return whenVisible(
-      () =>
-        Animated.spring(dockIn, {
-          damping: 20,
-          delay: 260,
-          stiffness: 180,
-          toValue: 1,
-          useNativeDriver: true,
-        }).start(),
-      () => dockIn.setValue(1),
-    );
-  }, [dockIn]);
-
-  const headline = (text: string, index: number) => (
+  const headline = (text: string) => (
     <View style={styles.lineBox}>
-      <Animated.View
-        style={{
-          transform: [
-            {
-              translateY: lineRise[index]!.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 70],
-              }),
-            },
-          ],
-        }}
+      <Text
+        style={[styles.headline, { fontSize: headlineSize, lineHeight: headlineSize * 0.98 }]}
       >
-        <Text style={styles.headline}>
-          {text}
-          <Text style={styles.headlineStop}>.</Text>
-        </Text>
-      </Animated.View>
+        {text}
+        <Text style={styles.headlineStop}>.</Text>
+      </Text>
     </View>
   );
 
@@ -97,9 +58,12 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { width: pageWidth }, wide && styles.scrollWide]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.topRow}>
-          <BrandMark size={20} />
+          <BrandMark animated={false} size={20} />
           <View style={styles.topActions}>
             {builds.length > 0 ? (
               <Pressable
@@ -114,19 +78,59 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
           </View>
         </View>
 
-        {headline('SHOOT IT', 0)}
-        {headline('BUILD IT', 1)}
+        <View style={[styles.heroGrid, wide && styles.heroGridWide]}>
+          <View style={[styles.introColumn, wide && styles.introColumnWide]}>
+            {headline('YOUR PHOTO')}
+            {wide ? headline('BUILT IN BRICKS') : (
+              <>
+                {headline('BUILT IN')}
+                {headline('BRICKS')}
+              </>
+            )}
 
-        <Text style={styles.sub}>
-          The gift they'll never see coming: a photo of their car, their cat, their face — turned
-          into a brick sculpture they build themselves.
-        </Text>
+            <Text style={styles.sub}>
+              Preview a buildable brick portrait from your photo on this device, inspect every
+              detail, and decide before you order.
+            </Text>
 
-        <BuildPath />
+            {wide ? (
+              <View style={styles.desktopActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onStart}
+                  style={({ pressed }) => [styles.desktopPrimary, pressed && styles.pressedSlab]}
+                >
+                  <Text style={styles.desktopPrimaryText}>PREVIEW MY PHOTO</Text>
+                </Pressable>
+                {onOpenLibrary ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={onOpenLibrary}
+                    style={({ pressed }) => [styles.desktopLibrary, pressed && styles.pressedPill]}
+                  >
+                    <Text style={styles.desktopLibraryText}>OR EXPLORE THE LIBRARY →</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
 
-        <Text style={styles.valueLine}>
-          EVERY KIT: ALL BRICKS, SORTED · PRINTED STEP-BY-STEP GUIDE · SHIPS GIFT-READY
-        </Text>
+            {wide ? (
+              <Text style={styles.valueLine}>
+                PANEL PREVIEW FIRST · FULL 3D WITH 4 GUIDED PHOTOS · PARTS MATCHED TO OUR CATALOG
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={[styles.showcaseColumn, wide && styles.showcaseColumnWide]}>
+            <BuildPath onStart={onStart} />
+          </View>
+        </View>
+
+        {!wide ? (
+          <Text style={styles.valueLine}>
+            PANEL PREVIEW FIRST · FULL 3D WITH 4 GUIDED PHOTOS · PARTS MATCHED TO OUR CATALOG
+          </Text>
+        ) : null}
 
         {builds.length > 0 && onOpenBuild ? (
           <View style={styles.buildsBlock}>
@@ -160,18 +164,8 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
       </ScrollView>
 
       {/* The dock — the only persistent navigation. */}
-      <Animated.View
-        style={[
-          styles.dockWrap,
-          {
-            opacity: dockIn,
-            transform: [
-              { translateY: dockIn.interpolate({ inputRange: [0, 1], outputRange: [120, 0] }) },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.dock}>
+      <View style={styles.dockWrap}>
+        <View style={[styles.dock, { width: Math.min(viewportWidth - spacing.xl, 488) }]}>
         <View style={styles.dockGlyph}>
           <StudGlyph color={colors.saffron} size={6} />
         </View>
@@ -180,7 +174,7 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
           onPress={onStart}
           style={({ pressed }) => [styles.dockSlab, pressed && styles.pressedSlab]}
         >
-          <Text style={styles.dockSlabText}>CREATE A BUILD</Text>
+          <Text numberOfLines={1} style={styles.dockSlabText}>PREVIEW MY PHOTO</Text>
         </Pressable>
         {onOpenLibrary ? (
           <Pressable
@@ -188,11 +182,11 @@ export function HomeScreen({ onStart, onOpenBuild, onOpenLibrary }: HomeScreenPr
             onPress={onOpenLibrary}
             style={({ pressed }) => [styles.dockOutline, pressed && styles.pressedSlab]}
           >
-            <Text style={styles.dockOutlineText}>NO PHOTO?{'\n'}LIBRARY</Text>
+            <Text style={styles.dockOutlineText}>EXPLORE{'\n'}LIBRARY</Text>
           </Pressable>
         ) : null}
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -204,11 +198,11 @@ const styles = StyleSheet.create({
   scroll: {
     alignSelf: 'center',
     flexGrow: 1,
-    maxWidth: 520,
     paddingBottom: 130,
-    paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
-    width: '100%',
+  },
+  scrollWide: {
+    paddingTop: spacing.lg,
   },
   topRow: {
     alignItems: 'center',
@@ -239,12 +233,37 @@ const styles = StyleSheet.create({
   pressedPill: {
     transform: [{ scale: 0.96 }],
   },
+  heroGrid: {
+    width: '100%',
+  },
+  heroGridWide: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.huge,
+  },
+  introColumn: {
+    width: '100%',
+  },
+  introColumnWide: {
+    flexBasis: 430,
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingTop: spacing.huge,
+  },
+  showcaseColumn: {
+    width: '100%',
+  },
+  showcaseColumnWide: {
+    flex: 1,
+    minWidth: 0,
+  },
   lineBox: {
     overflow: 'hidden',
   },
   headline: {
     ...type.display,
     color: colors.ink,
+    letterSpacing: -1.8,
   },
   headlineStop: {
     color: colors.alarm,
@@ -254,13 +273,47 @@ const styles = StyleSheet.create({
     color: inkAlpha(0.72),
     fontFamily: fonts.bold,
     marginTop: spacing.lg,
-    maxWidth: 320,
+    maxWidth: 430,
+  },
+  desktopActions: {
+    alignItems: 'flex-start',
+    marginTop: spacing.xxl,
+  },
+  desktopPrimary: {
+    ...shadow.card,
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    borderColor: colors.white,
+    borderWidth: 4,
+    justifyContent: 'center',
+    minHeight: 66,
+    paddingHorizontal: spacing.xxl,
+  },
+  desktopPrimaryText: {
+    color: colors.white,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    letterSpacing: 0.1,
+  },
+  desktopLibrary: {
+    borderBottomColor: colors.ink,
+    borderBottomWidth: 2,
+    marginLeft: spacing.lg,
+    marginTop: spacing.lg,
+    paddingBottom: 3,
+  },
+  desktopLibraryText: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   valueLine: {
     ...type.micro,
     color: inkAlpha(0.55),
     lineHeight: 16,
     marginBottom: spacing.md,
+    marginTop: spacing.lg,
   },
   buildsBlock: {
     marginTop: spacing.md,
@@ -293,7 +346,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     bottom: 20,
     left: 0,
-    paddingHorizontal: spacing.lg,
     position: 'absolute',
     right: 0,
   },
@@ -322,8 +374,8 @@ const styles = StyleSheet.create({
   dockSlabText: {
     color: colors.ink,
     fontFamily: fonts.display,
-    fontSize: 17,
-    letterSpacing: -0.3,
+    fontSize: 14,
+    letterSpacing: -0.2,
   },
   pressedSlab: {
     transform: [{ scale: 0.97 }],

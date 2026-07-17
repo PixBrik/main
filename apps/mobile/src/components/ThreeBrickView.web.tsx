@@ -17,6 +17,8 @@ interface ThreeBrickViewProps {
   model: VoxelModel;
   accent: string;
   label?: string;
+  /** Catalog-packed pieces; the WebGL stage itself renders voxel cells. */
+  packedParts?: number;
 }
 
 const ROTATION_STEP = Math.PI / 8;
@@ -279,7 +281,12 @@ function createStage(container: HTMLElement): StageHandles {
   };
 }
 
-export function ThreeBrickView({ model, accent, label = 'Realistic 3D brick preview' }: ThreeBrickViewProps) {
+export function ThreeBrickView({
+  model,
+  accent,
+  label = 'Realistic 3D brick preview',
+  packedParts,
+}: ThreeBrickViewProps) {
   const containerRef = useRef<View>(null);
   const stageRef = useRef<StageHandles | null>(null);
   const [ready, setReady] = useState(false);
@@ -311,9 +318,12 @@ export function ThreeBrickView({ model, accent, label = 'Realistic 3D brick prev
       <View style={styles.header}>
         <View style={styles.liveMark}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>REAL 3D // WEBGL</Text>
+          <Text style={styles.liveText}>SHAPE PREVIEW</Text>
         </View>
-        <Text style={styles.count}>{model.brickCount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} BRICKS</Text>
+        <Text numberOfLines={1} style={styles.count}>
+          {model.shell.length.toLocaleString('en-US')} CELLS
+          {packedParts !== undefined ? ` · ${packedParts.toLocaleString('en-US')} PARTS` : ''}
+        </Text>
       </View>
       <View
         accessibilityLabel={label}

@@ -93,6 +93,11 @@ interface CatalogSlope extends CatalogBrick {
   ridge: number;
 }
 
+/** Distinguish expected catalog-capacity failures from programming errors. */
+export function isCatalogStockError(error: unknown): error is Error {
+  return error instanceof Error && error.message.startsWith('Catalog stock cannot cover');
+}
+
 /** 45° slope parts, largest ridge first for greedy packing. */
 const SLOPE_PARTS: CatalogSlope[] = (
   (catalog as unknown as { slopes?: Array<Omit<CatalogSlope, 'w' | 'l' | 'studs'>> }).slopes ?? []
@@ -133,16 +138,25 @@ export function catalogColorFor(hex: string): CatalogColor {
   return best;
 }
 
-/** Nearest colour that actually exists as a buyable element for this part. */
-function availableColorFor(brick: CatalogBrick, wanted: CatalogColor): { color: CatalogColor; substituted: boolean } {
-  if (brick.elements[String(wanted.id)]) {
+/** Nearest buyable colour for this part that still has recorded stock. */
+function stockedColorFor(
+  brick: CatalogBrick,
+  wanted: CatalogColor,
+  stockUsed: Map<string, number>,
+): { color: CatalogColor; substituted: boolean } | null {
+  const hasStock = (colorId: number) => {
+    if (!brick.elements[String(colorId)]) return false;
+    const available = brick.inventory?.[String(colorId)];
+    return available === undefined || (stockUsed.get(`${brick.part}|${colorId}`) ?? 0) < available;
+  };
+  if (hasStock(wanted.id)) {
     return { color: wanted, substituted: false };
   }
   const [r, g, b] = hexToRgb(wanted.rgb);
   let best: CatalogColor | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const color of COLORS) {
-    if (!brick.elements[String(color.id)] || color.trans) continue;
+    if (color.trans || !hasStock(color.id)) continue;
     const [cr, cg, cb] = hexToRgb(color.rgb);
     const distance = colorDistance(r, g, b, cr, cg, cb);
     if (distance < bestDistance) {
@@ -150,7 +164,7 @@ function availableColorFor(brick: CatalogBrick, wanted: CatalogColor): { color: 
       best = color;
     }
   }
-  return best ? { color: best, substituted: true } : { color: wanted, substituted: true };
+  return best ? { color: best, substituted: true } : null;
 }
 
 export interface BrickifyOptions {
@@ -193,6 +207,12 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // part|color -> quantity
   const tally = new Map<string, number>();
   const placements: BrickPlacement[] = [];
+  const stockUsed = new Map<string, number>();
+  const substitutedKeys = new Set<string>();
+  const reserveStock = (part: string, colorId: number) => {
+    const key = `${part}|${colorId}`;
+    stockUsed.set(key, (stockUsed.get(key) ?? 0) + 1);
+  };
   /** Cells consumed by slope parts (the slope cell AND its back cell). */
   const consumed = new Set<string>();
 
@@ -240,19 +260,40 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         let offset = 0;
         while (offset < run.length) {
           const remaining = run.length - offset;
-          const slopePart = SLOPE_PARTS.find((candidate) => candidate.ridge <= remaining) ?? SLOPE_PARTS[SLOPE_PARTS.length - 1]!;
+          // Preserve the preview colour whenever a fitting in-stock slope
+          // exists. A shorter exact-colour slope beats a larger substituted
+          // one because the visible surface must match the approved preview.
+          const wanted = COLORS.find((color) => color.id === colorId)!;
+          let slopePart: CatalogSlope | null = null;
+          let resolved: { color: CatalogColor; substituted: boolean } | null = null;
+          for (const requireExactColor of [true, false]) {
+            for (const candidate of SLOPE_PARTS) {
+              if (candidate.ridge > remaining) continue;
+              const candidateColor = stockedColorFor(candidate, wanted, stockUsed);
+              if (!candidateColor || (requireExactColor && candidateColor.substituted)) continue;
+              slopePart = candidate;
+              resolved = candidateColor;
+              break;
+            }
+            if (slopePart && resolved) break;
+          }
+          if (!slopePart || !resolved) {
+            throw new Error(`Catalog stock cannot cover slope colour ${wanted.name}`);
+          }
           const take = Math.min(slopePart.ridge, remaining);
           const piece = run.slice(offset, offset + take);
           for (const entry of piece) {
             consumed.add(entry.cellKey);
             consumed.add(entry.backKey);
           }
-          const tallyKey = `${slopePart.part}|${colorId}`;
+          const tallyKey = `${slopePart.part}|${resolved.color.id}`;
           tally.set(tallyKey, (tally.get(tallyKey) ?? 0) + 1);
+          reserveStock(slopePart.part, resolved.color.id);
+          if (resolved.substituted) substitutedKeys.add(tallyKey);
           const first = piece[0]!;
           const last = piece[piece.length - 1]!;
           placements.push({
-            colorId,
+            colorId: resolved.color.id,
             i: Math.min(first.i, last.i),
             j: Number(lineKey.split('|')[0]),
             k: Math.min(first.k, last.k),
@@ -289,39 +330,52 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       const [i0, k0] = key.split('|').map(Number) as [number, number];
 
       let placed = false;
-      for (const brick of BRICKS) {
-        for (const [w, l] of brick.w === brick.l ? [[brick.w, brick.l]] : [[brick.w, brick.l], [brick.l, brick.w]]) {
-          let fits = true;
-          for (let di = 0; di < l! && fits; di++) {
-            for (let dk = 0; dk < w! && fits; dk++) {
-              const cellKey = `${i0 + di}|${k0 + dk}`;
-              const cell = layer.get(cellKey);
-              if (!cell || used.has(cellKey) || cell.colorId !== anchor.colorId) {
-                fits = false;
+      // First pass: use only parts sold in the requested colour. Second pass
+      // is the honest last resort for an isolated colour/shape combination.
+      const wanted = COLORS.find((color) => color.id === anchor.colorId)!;
+      for (const requireExactColor of [true, false]) {
+        for (const brick of BRICKS) {
+          const resolved = stockedColorFor(brick, wanted, stockUsed);
+          if (!resolved || (requireExactColor && resolved.substituted)) continue;
+          for (const [w, l] of brick.w === brick.l ? [[brick.w, brick.l]] : [[brick.w, brick.l], [brick.l, brick.w]]) {
+            let fits = true;
+            for (let di = 0; di < l! && fits; di++) {
+              for (let dk = 0; dk < w! && fits; dk++) {
+                const cellKey = `${i0 + di}|${k0 + dk}`;
+                const cell = layer.get(cellKey);
+                if (!cell || used.has(cellKey) || cell.colorId !== anchor.colorId) {
+                  fits = false;
+                }
               }
             }
-          }
-          if (!fits) continue;
-          for (let di = 0; di < l!; di++) {
-            for (let dk = 0; dk < w!; dk++) {
-              used.add(`${i0 + di}|${k0 + dk}`);
+            if (!fits) continue;
+            for (let di = 0; di < l!; di++) {
+              for (let dk = 0; dk < w!; dk++) {
+                used.add(`${i0 + di}|${k0 + dk}`);
+              }
             }
+            const tallyKey = `${brick.part}|${resolved.color.id}`;
+            tally.set(tallyKey, (tally.get(tallyKey) ?? 0) + 1);
+            reserveStock(brick.part, resolved.color.id);
+            if (resolved.substituted) substitutedKeys.add(tallyKey);
+            placements.push({
+              colorId: resolved.color.id,
+              i: i0,
+              j: layerJ,
+              k: k0,
+              part: brick.part,
+              spanI: l!,
+              spanK: w!,
+            });
+            placed = true;
+            break;
           }
-          const tallyKey = `${brick.part}|${anchor.colorId}`;
-          tally.set(tallyKey, (tally.get(tallyKey) ?? 0) + 1);
-          placements.push({
-            colorId: anchor.colorId,
-            i: i0,
-            j: layerJ,
-            k: k0,
-            part: brick.part,
-            spanI: l!,
-            spanK: w!,
-          });
-          placed = true;
-          break;
+          if (placed) break;
         }
         if (placed) break;
+      }
+      if (!placed) {
+        throw new Error(`Catalog stock cannot cover ${wanted.name} at ${i0},${layerJ},${k0}`);
       }
     }
   }
@@ -336,8 +390,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   for (const [key, quantity] of tally) {
     const [part, colorIdRaw] = key.split('|') as [string, string];
     const brick = brickByPart.get(part)!;
-    const wanted = colorById.get(Number(colorIdRaw))!;
-    const { color, substituted } = availableColorFor(brick, wanted);
+    const color = colorById.get(Number(colorIdRaw))!;
+    const substituted = substitutedKeys.has(key);
     const realPrice = brick.prices?.[String(color.id)];
     const unitPrice = realPrice ?? brick.basePriceEur * color.scarcity;
 

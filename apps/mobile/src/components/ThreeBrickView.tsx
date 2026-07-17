@@ -9,6 +9,7 @@ interface ThreeBrickViewProps {
   model: VoxelModel;
   accent: string;
   label?: string;
+  packedParts?: number;
 }
 
 export function ThreeBrickView(_props: ThreeBrickViewProps) {

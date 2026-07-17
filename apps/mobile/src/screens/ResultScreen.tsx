@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { G, Polygon, Rect } from 'react-native-svg';
 
 import { BuildNameField } from '../components/BuildNameField';
-import { BuildPreview } from '../components/BuildPreview';
 import { DemoDock } from '../components/DemoDock';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { RotatableBuildPreview } from '../components/RotatableBuildPreview';
@@ -14,7 +14,7 @@ import { facesToPngDataUrl, fitFacesToBox, panelMosaicFaces } from '../lib/fitFa
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { getVoxelModel, type VoxelModel } from '../lib/voxelFox';
 import { buildRenderFaces } from '../lib/voxelRender';
-import { colors, radius, spacing, type } from '../theme/tokens';
+import { colors, fonts, radius, shadow, spacing, type } from '../theme/tokens';
 import type { DemoScreen } from '../types/navigation';
 
 interface ResultScreenProps {
@@ -24,6 +24,7 @@ interface ResultScreenProps {
   onNavigate: (screen: DemoScreen) => void;
   photoUri?: string | null;
   photoBuild?: PhotoModels | null;
+  onGuided3D?: () => void;
   onTrue3D?: () => Promise<void>;
   /** Raw stills of the generated 3D model awaiting the buyer's approval. */
   pending3DStills?: string[] | null;
@@ -37,7 +38,14 @@ interface ResultScreenProps {
   dimensionWorking?: boolean;
 }
 
-function describeModel(model: VoxelModel) {
+function buildTimeForParts(parts: number): string {
+  const minutes = Math.max(30, Math.round(parts * 0.28));
+  return minutes >= 60
+    ? `${Math.floor(minutes / 60)} h ${(minutes % 60).toString().padStart(2, '0')} min`
+    : `${minutes} min`;
+}
+
+function describeModel(model: VoxelModel, packedParts?: number) {
   let minI = Infinity, maxI = -Infinity, minJ = Infinity, maxJ = -Infinity, minK = Infinity, maxK = -Infinity;
   for (const voxel of model.shell) {
     minI = Math.min(minI, voxel.i); maxI = Math.max(maxI, voxel.i);
@@ -50,9 +58,12 @@ function describeModel(model: VoxelModel) {
   const width = Math.round((maxI - minI + 1) * 0.8);
   const depth = Math.round((maxK - minK + 1) * 0.8);
   const height = Math.round((maxJ - minJ + 1) * 0.96);
-  const minutes = Math.round(model.brickCount * 0.45);
-  const time = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${(minutes % 60).toString().padStart(2, '0')} min` : `${minutes} min`;
-  return { dimensions: `${width} × ${depth} × ${height} cm`, pieces: model.brickCount, time };
+  const pieces = packedParts ?? model.brickCount;
+  return {
+    dimensions: `${width} × ${depth} × ${height} cm`,
+    pieces,
+    time: buildTimeForParts(pieces),
+  };
 }
 
 const accentByName: Readonly<Record<string, string>> = {
@@ -69,6 +80,8 @@ const modelProfileById = {
 
 /** Square viewBox for the per-profile outcome thumbnails on the tickets. */
 const TICKET_VIEW = 76;
+const LIKENESS_VIEW_WIDTH = 720;
+const LIKENESS_VIEW_HEIGHT = 620;
 
 interface ProfileCard {
   png: string | null;
@@ -76,7 +89,7 @@ interface ProfileCard {
   priceEur: number | null;
 }
 
-type PreviewMode = 'real' | 'model' | 'blueprint';
+type PreviewMode = 'likeness' | 'angle';
 
 export function ResultScreen({
   selectedVariant,
@@ -85,6 +98,7 @@ export function ResultScreen({
   onNavigate,
   photoUri = null,
   photoBuild = null,
+  onGuided3D,
   onTrue3D,
   pending3DStills = null,
   onApprove3D,
@@ -96,9 +110,7 @@ export function ResultScreen({
   dimensionMode,
   dimensionWorking = false,
 }: ResultScreenProps) {
-  const [previewMode, setPreviewMode] = useState<PreviewMode>(
-    isRealisticViewSupported ? 'real' : 'model',
-  );
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('likeness');
   const [pdfState, setPdfState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [profileCards, setProfileCards] = useState<Record<string, ProfileCard>>({});
 
@@ -155,7 +167,31 @@ export function ResultScreen({
   const accent = selected ? accentByName[selected.accent] ?? colors.blue : colors.blue;
   const modelProfile = modelProfileById[selected?.id as keyof typeof modelProfileById] ?? 'balanced';
   const photoModel = photoBuild ? photoBuild.models[modelProfile] : null;
-  const photoStats = photoModel ? describeModel(photoModel) : null;
+  const previewModel = photoModel ?? getVoxelModel(modelProfile);
+  const likenessFaces = useMemo(
+    () => panelMosaicFaces(previewModel, LIKENESS_VIEW_WIDTH, LIKENESS_VIEW_HEIGHT, 0.94),
+    [previewModel],
+  );
+  const [likenessPng, setLikenessPng] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLikenessPng(null);
+    const timer = setTimeout(() => {
+      const png = facesToPngDataUrl(
+        likenessFaces,
+        LIKENESS_VIEW_WIDTH,
+        LIKENESS_VIEW_HEIGHT,
+        2,
+      );
+      if (!cancelled) setLikenessPng(png);
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [likenessFaces]);
+  const selectedCard = selected ? profileCards[selected.id] : null;
+  const photoStats = photoModel ? describeModel(photoModel, selectedCard?.pieces) : null;
   const buildName = photoBuild
     ? photoBuild.label.charAt(0).toUpperCase() + photoBuild.label.slice(1)
     : demoProject.name;
@@ -173,58 +209,102 @@ export function ResultScreen({
       progress={0.62}
       subtitle={
         photoBuild
-          ? photoBuild.hasDepth
-            ? 'Depth-mapped 3D interpretation — the front surface follows measured depth from your photo.'
-            : 'Interpretation of your photo — rotate it, compare build profiles, and inspect every part.'
-          : 'Rotate the generated model, compare build profiles, and inspect every part before sourcing.'
+          ? photoBuild.mode === 'relief'
+            ? 'Judge likeness in the head-on panel first. The angled view is optional and naturally looks less like the source photo.'
+            : 'Start with the front reference, then use the angled view to inspect the generated depth and shape.'
+          : 'Start with the front reference, then inspect the optional angled view before sourcing.'
       }
-      title={`${buildName} / Ready to inspect`}
+      title={`${buildName} / Your brick preview`}
     >
       <BuildNameField enabled={!!photoBuild} />
       <View accessibilityLabel="Preview mode" accessibilityRole="tablist" style={styles.previewTabs}>
-        {isRealisticViewSupported ? (
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityState={{ selected: previewMode === 'real' }}
-            onPress={() => setPreviewMode('real')}
-            style={[styles.previewTab, previewMode === 'real' && styles.previewTabSelected]}
-          >
-            <Text style={[styles.previewTabText, previewMode === 'real' && styles.previewTabTextSelected]}>REALISTIC</Text>
-          </Pressable>
-        ) : null}
         <Pressable
           accessibilityRole="tab"
-          accessibilityState={{ selected: previewMode === 'model' }}
-          onPress={() => setPreviewMode('model')}
-          style={[styles.previewTab, previewMode === 'model' && styles.previewTabSelected]}
+          accessibilityState={{ selected: previewMode === 'likeness' }}
+          onPress={() => setPreviewMode('likeness')}
+          style={[styles.previewTab, previewMode === 'likeness' && styles.previewTabSelected]}
         >
-          <Text style={[styles.previewTabText, previewMode === 'model' && styles.previewTabTextSelected]}>SCHEMATIC</Text>
+          <Text style={[styles.previewTabText, previewMode === 'likeness' && styles.previewTabTextSelected]}>
+            CLOSEST LIKENESS
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="tab"
-          accessibilityState={{ selected: previewMode === 'blueprint' }}
-          onPress={() => setPreviewMode('blueprint')}
-          style={[styles.previewTab, previewMode === 'blueprint' && styles.previewTabSelected]}
+          accessibilityState={{ selected: previewMode === 'angle' }}
+          onPress={() => setPreviewMode('angle')}
+          style={[styles.previewTab, previewMode === 'angle' && styles.previewTabSelected]}
         >
-          <Text style={[styles.previewTabText, previewMode === 'blueprint' && styles.previewTabTextSelected]}>BUILD VIEW</Text>
+          <Text style={[styles.previewTabText, previewMode === 'angle' && styles.previewTabTextSelected]}>
+            ANGLED / 3D
+          </Text>
         </Pressable>
       </View>
-      {previewMode === 'real' && isRealisticViewSupported ? (
+      <View style={[styles.previewGuide, previewMode === 'angle' && styles.previewGuideAngle]}>
+        <Text style={[styles.previewGuideTag, previewMode === 'angle' && styles.previewGuideTagAngle]}>
+          {previewMode === 'likeness' ? 'BEST VIEW FOR LIKENESS' : 'OPTIONAL DEPTH VIEW'}
+        </Text>
+        <Text style={styles.previewGuideText}>
+          {previewMode === 'likeness'
+            ? 'A straight-on build map: use this view to judge the face, colours and framing.'
+            : 'This view reveals studs and depth. Perspective and lighting can make it look less like the photo.'}
+        </Text>
+      </View>
+      {previewMode === 'likeness' ? (
+        <View
+          accessibilityLabel={`${buildName} closest-likeness, head-on brick panel`}
+          accessibilityRole="image"
+          style={styles.likenessShell}
+        >
+          <View style={styles.likenessHeader}>
+            <Text style={styles.likenessHeaderLabel}>HEAD-ON PANEL // BUILD MAP</Text>
+            <Text style={styles.likenessHeaderCount}>
+              {likenessFaces.length.toLocaleString('en-US')} VISIBLE COLOUR CELLS
+            </Text>
+          </View>
+          <View style={styles.likenessStage}>
+            {likenessPng ? (
+              <Image resizeMode="contain" source={{ uri: likenessPng }} style={styles.likenessImage} />
+            ) : Platform.OS !== 'web' ? (
+              <Svg
+                height="100%"
+                viewBox={`0 0 ${LIKENESS_VIEW_WIDTH} ${LIKENESS_VIEW_HEIGHT}`}
+                width="100%"
+              >
+                <Rect fill="#17130A" height={LIKENESS_VIEW_HEIGHT} width={LIKENESS_VIEW_WIDTH} />
+                <G stroke="#0A0C12" strokeLinejoin="round" strokeWidth={0.5}>
+                  {likenessFaces.map((face) => (
+                    <Polygon fill={face.fill} key={face.id} points={face.points} />
+                  ))}
+                </G>
+              </Svg>
+            ) : (
+              <View style={styles.likenessLoading}>
+                <Text style={styles.likenessLoadingText}>RENDERING BUILD MAP…</Text>
+              </View>
+            )}
+            {photoUri ? (
+              <View pointerEvents="none" style={styles.sourceChip}>
+                <Image resizeMode="cover" source={{ uri: photoUri }} style={styles.sourceImage} />
+                <Text style={styles.sourceLabel}>SOURCE PHOTO</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : isRealisticViewSupported ? (
         <ThreeBrickView
           accent={accent}
-          label={`${buildName} realistic 3D preview`}
-          model={photoModel ?? getVoxelModel(modelProfile)}
+          label={`${buildName} optional angled 3D preview`}
+          model={previewModel}
+          packedParts={selectedCard?.pieces}
         />
-      ) : previewMode === 'model' ? (
+      ) : (
         <RotatableBuildPreview
           accent={accent}
-          label={`${buildName} ${selected?.name ?? 'Balanced'} build`}
-          modelOverride={photoModel}
+          label={`${buildName} optional angled build`}
+          modelOverride={previewModel}
           profile={modelProfile}
           sourceUri={photoUri}
         />
-      ) : (
-        <BuildPreview accent={accent} label="Static assembly view" />
       )}
       <View style={styles.stats}>
         <View style={styles.stat}>
@@ -295,17 +375,40 @@ export function ResultScreen({
         <Pressable
           accessibilityRole="button"
           disabled={dimensionWorking}
-          onPress={onToggleDimension}
+          onPress={async () => {
+            const nextPreview = dimensionMode === 'relief' ? 'angle' : 'likeness';
+            await onToggleDimension();
+            setPreviewMode(nextPreview);
+          }}
           style={({ pressed }) => [styles.dimension, pressed && styles.pdfPressed]}
         >
           <Text style={styles.dimensionIcon}>{dimensionMode === 'relief' ? '◑' : '▭'}</Text>
           <Text style={styles.dimensionText}>
             {dimensionWorking
-              ? 'Rebuilding with AI depth…'
+              ? 'Estimating relief depth from this photo…'
               : dimensionMode === 'relief'
-                ? 'See the full 3D version — AI adds depth'
-                : 'Switch back to the flat panel'}
+                ? 'Preview estimated relief depth — one-photo guess'
+                : 'Switch back to the closest-likeness panel'}
           </Text>
+        </Pressable>
+      ) : null}
+
+      {Platform.OS === 'web' && photoUri && onGuided3D ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onGuided3D}
+          style={({ pressed }) => [styles.guided3d, pressed && styles.pdfPressed]}
+        >
+          <View style={styles.guided3dNumber}>
+            <Text style={styles.guided3dNumberText}>4</Text>
+          </View>
+          <View style={styles.guided3dCopy}>
+            <Text style={styles.guided3dTitle}>BEST FULL 3D: CAPTURE 4 GUIDED PHOTOS</Text>
+            <Text style={styles.guided3dText}>
+              Front, left, back and right give the sculpture real shape instead of guessed hidden sides.
+            </Text>
+          </View>
+          <Text style={styles.guided3dArrow}>→</Text>
         </Pressable>
       ) : null}
 
@@ -326,7 +429,7 @@ export function ResultScreen({
                 ? 'Full 3D sculpture ready ✓'
                 : true3DState === 'failed'
                   ? '3D generation failed — try again'
-                  : 'Make it a full 3D sculpture — AI-generated, you approve it first'}
+                  : 'Try a one-photo 3D sculpture — sides and back are estimated; you approve it first'}
           </Text>
         </Pressable>
       ) : null}
@@ -391,12 +494,20 @@ export function ResultScreen({
             setPdfState('working');
             try {
               const { generateInstructionsPdf } = await import('../lib/instructionsPdf');
-              const canvas = typeof document !== 'undefined' ? document.querySelector('canvas') : null;
               await generateInstructionsPdf({
                 accent,
                 buildName,
-                heroImage: canvas ? canvas.toDataURL('image/png') : null,
-                model: photoModel ?? getVoxelModel(modelProfile),
+                // The guide should always use the exact head-on build map,
+                // regardless of which optional preview tab is currently open.
+                heroImage:
+                  likenessPng ??
+                  facesToPngDataUrl(
+                    likenessFaces,
+                    LIKENESS_VIEW_WIDTH,
+                    LIKENESS_VIEW_HEIGHT,
+                    2,
+                  ),
+                model: previewModel,
               });
               setPdfState('done');
             } catch {
@@ -441,19 +552,20 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   previewTabs: {
-    alignSelf: 'flex-start',
     backgroundColor: colors.paperDeep,
     borderRadius: radius.md,
     flexDirection: 'row',
     marginBottom: spacing.md,
     padding: 3,
+    width: '100%',
   },
   previewTab: {
     alignItems: 'center',
     borderRadius: radius.sm,
+    flex: 1,
     justifyContent: 'center',
     minHeight: 44,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
   previewTabSelected: {
     backgroundColor: colors.blue,
@@ -463,9 +575,114 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: 9,
     letterSpacing: 1.1,
+    textAlign: 'center',
   },
   previewTabTextSelected: {
     color: colors.white,
+  },
+  previewGuide: {
+    backgroundColor: colors.saffron,
+    borderLeftColor: colors.ink,
+    borderLeftWidth: 5,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  previewGuideAngle: {
+    backgroundColor: colors.blueSoft,
+    borderLeftColor: colors.blue,
+  },
+  previewGuideTag: {
+    ...type.micro,
+    color: colors.ink,
+    fontSize: 9,
+    letterSpacing: 1.2,
+  },
+  previewGuideTagAngle: {
+    color: colors.blue,
+  },
+  previewGuideText: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  likenessShell: {
+    backgroundColor: '#10131D',
+    borderColor: '#31384D',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  likenessHeader: {
+    alignItems: 'center',
+    borderBottomColor: '#282E40',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  likenessHeaderLabel: {
+    color: '#D9FFF8',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  likenessHeaderCount: {
+    color: colors.saffron,
+    fontSize: 9,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  likenessStage: {
+    aspectRatio: LIKENESS_VIEW_WIDTH / LIKENESS_VIEW_HEIGHT,
+    backgroundColor: colors.ink,
+    position: 'relative',
+    width: '100%',
+  },
+  likenessImage: {
+    height: '100%',
+    width: '100%',
+  },
+  likenessLoading: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  likenessLoadingText: {
+    color: colors.saffron,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  sourceChip: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(11, 14, 22, 0.88)',
+    borderColor: '#384158',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: 4,
+    position: 'absolute',
+    right: spacing.sm,
+    top: spacing.sm,
+  },
+  sourceImage: {
+    borderRadius: radius.sm,
+    height: 58,
+    width: 58,
+  },
+  sourceLabel: {
+    color: '#C6CDDE',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    marginTop: 3,
   },
   stats: {
     alignItems: 'stretch',
@@ -590,6 +807,53 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 13,
     fontWeight: '800',
+  },
+  guided3d: {
+    ...shadow.card,
+    alignItems: 'center',
+    backgroundColor: colors.mintSoft,
+    borderColor: colors.ink,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+    minHeight: 74,
+    padding: spacing.md,
+  },
+  guided3dNumber: {
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  guided3dNumberText: {
+    color: colors.saffron,
+    fontFamily: fonts.display,
+    fontSize: 19,
+  },
+  guided3dCopy: {
+    flex: 1,
+  },
+  guided3dTitle: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  guided3dText: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  guided3dArrow: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 20,
   },
   true3d: {
     alignItems: 'center',

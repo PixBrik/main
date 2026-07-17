@@ -51,7 +51,9 @@ interface CaptureScreenProps {
   photoUri: string | null;
   photoBuild: PhotoModels | null;
   segmentation: Segmentation | null;
+  rightsConfirmed: boolean;
   onPhotoChange: (uri: string) => void;
+  onRightsConfirmedChange: (confirmed: boolean) => void;
   onSegmentation: (segmentation: Segmentation) => void;
   onObjectLocked: (models: PhotoModels) => void;
   onUseSample: () => void;
@@ -78,9 +80,9 @@ const STYLE_CHOICES: ReadonlyArray<{
   hint: string;
   style: PanelStyle;
 }> = [
+  { hint: 'closest to your photo', id: 'natural', label: 'FULL COLOUR', style: 'natural' },
   { hint: 'classic brick portrait', id: 'classic', label: 'CLASSIC · B/W', style: 'classic' },
   { hint: 'warm vintage tones', id: 'sepia', label: 'SEPIA', style: 'sepia' },
-  { hint: 'true photo colours', id: 'natural', label: 'FULL COLOUR', style: 'natural' },
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -104,7 +106,9 @@ export function CaptureScreen({
   photoUri,
   photoBuild,
   segmentation,
+  rightsConfirmed,
   onPhotoChange,
+  onRightsConfirmedChange,
   onSegmentation,
   onObjectLocked,
   onUseSample,
@@ -112,9 +116,9 @@ export function CaptureScreen({
   onContinue,
 }: CaptureScreenProps) {
   const [stage, setStage] = useState<Stage>(photoBuild ? 'ready' : 'idle');
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const needsRights = !!photoUri && !rightsConfirmed;
   const buildingRef = useRef(false);
+  const restoredCropUri = useRef<string | null>(null);
 
   // Framing model: the photo pans/zooms under a fixed window.
   const [photoSize, setPhotoSize] = useState<{ w: number; h: number } | null>(null);
@@ -134,6 +138,34 @@ export function CaptureScreen({
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [largeFaces, setLargeFaces] = useState<Record<string, RenderFace[]>>({});
 
+  // Clear one-off crop restoration state when the current photo is removed.
+  useEffect(() => {
+    if (!photoUri) restoredCropUri.current = null;
+  }, [photoUri]);
+
+  // Capture is unmounted while the buyer visits the next screen. Rehydrate
+  // the image geometry when they come back so an existing photo never turns
+  // into a blank frame or an "Add a photo first" dead end.
+  useEffect(() => {
+    if (!photoUri || photoSize) return;
+    let cancelled = false;
+    setStage('loading');
+    void measurePhoto(photoUri)
+      .then((natural) => {
+        if (cancelled) return;
+        setPhotoSize(natural);
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+        setStage(photoBuild ? 'ready' : 'framing');
+      })
+      .catch(() => {
+        if (!cancelled) setStage('failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [photoBuild, photoSize, photoUri]);
+
   const frameH = frameW * FRAME_ASPECT;
   const geometry = useMemo(() => {
     if (!photoSize || !frameW) return null;
@@ -147,6 +179,39 @@ export function CaptureScreen({
     x: clamp(x, frameW - dW, 0),
     y: clamp(y, frameH - dH, 0),
   });
+
+  // A saved segmentation also records the exact crop that produced the
+  // preview. Restore it once after remount so the photo shown to the buyer
+  // still matches the brick build they approved.
+  useEffect(() => {
+    if (
+      !photoUri ||
+      !photoSize ||
+      !frameW ||
+      !segmentation ||
+      restoredCropUri.current === photoUri
+    ) {
+      return;
+    }
+    const cover = Math.max(frameW / photoSize.w, frameH / photoSize.h);
+    const restoredZoom = clamp(
+      frameW / Math.max(1, photoSize.w * cover * segmentation.region.width),
+      MIN_ZOOM,
+      MAX_ZOOM,
+    );
+    const dW = photoSize.w * cover * restoredZoom;
+    const dH = photoSize.h * cover * restoredZoom;
+    setZoom(restoredZoom);
+    setPan(
+      clampPan(
+        -segmentation.region.x * dW,
+        -segmentation.region.y * dH,
+        dW,
+        dH,
+      ),
+    );
+    restoredCropUri.current = photoUri;
+  }, [frameH, frameW, photoSize, photoUri, segmentation]);
 
   /** The framed crop, normalized to the photo (0..1). */
   const cropRegion = () => {
@@ -255,7 +320,7 @@ export function CaptureScreen({
    * on — a mosaic of exactly what the buyer framed, no AI to disappoint);
    * the heuristic cutout only when the buyer switches the toggle on.
    */
-  const buildPanel = async (withRemoveBg: boolean, style: PanelStyle = 'classic') => {
+  const buildPanel = async (withRemoveBg: boolean, style: PanelStyle = 'natural') => {
     if (!photoUri || buildingRef.current) return;
     buildingRef.current = true;
     setStage('building');
@@ -358,10 +423,19 @@ export function CaptureScreen({
       accent="coral"
       eyebrow="2 / Your photo"
       footer={
-        captured ? (
+        photoUri && !webFlow ? (
+          <PrimaryButton disabled label="Use the sample object below" onPress={onContinue} />
+        ) : photoUri && (stage === 'building' || stage === 'loading') ? (
+          <PrimaryButton disabled label="Building your preview…" onPress={onContinue} />
+        ) : photoUri && (stage === 'framing' || stage === 'failed') ? (
+          <PrimaryButton
+            label={stage === 'failed' ? 'Try the preview again' : 'See it in bricks'}
+            onPress={() => buildPanel(removeBg)}
+          />
+        ) : photoBuild || (!photoUri && captured) ? (
           <PrimaryButton
             disabled={needsRights}
-            label={needsRights ? 'Confirm you own the photo' : 'Choose the size →'}
+            label={needsRights ? 'Confirm you own the photo' : 'Compare build sizes →'}
             onPress={onContinue}
           />
         ) : (
@@ -441,13 +515,6 @@ export function CaptureScreen({
           >
             <Text style={styles.replaceLinkText}>↺ Replace</Text>
           </Pressable>
-        </View>
-      ) : null}
-
-      {/* ——— The one real CTA of this screen ——— */}
-      {photoUri && webFlow && stage === 'framing' ? (
-        <View style={styles.ctaBlock}>
-          <PrimaryButton label="See it in bricks" onPress={() => buildPanel(removeBg)} />
         </View>
       ) : null}
 
@@ -654,7 +721,7 @@ export function CaptureScreen({
         <Pressable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: rightsConfirmed }}
-          onPress={() => setRightsConfirmed((current) => !current)}
+          onPress={() => onRightsConfirmedChange(!rightsConfirmed)}
           style={({ pressed }) => [styles.rights, pressed && styles.pressed]}
         >
           <View style={[styles.rightsBox, rightsConfirmed && styles.rightsBoxChecked]}>
@@ -666,7 +733,7 @@ export function CaptureScreen({
         </Pressable>
       ) : null}
 
-      {!photoBuild ? (
+      {!photoBuild && (!photoUri || !webFlow) ? (
         <Pressable
           accessibilityHint="Continues with the built-in fox object instead of a photo"
           accessibilityRole="button"
@@ -674,7 +741,11 @@ export function CaptureScreen({
           style={({ pressed }) => [styles.sampleLink, pressed && styles.pressed]}
         >
           <Text style={styles.sampleText}>
-            {captured && !photoBuild ? 'Sample object selected ✓' : 'No photo handy? Use the sample object →'}
+            {captured && !photoUri
+              ? 'Sample object selected ✓'
+              : photoUri
+                ? 'Continue with the sample object →'
+                : 'No photo handy? Use the sample object →'}
           </Text>
         </Pressable>
       ) : null}
@@ -745,9 +816,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 13,
     fontWeight: '800',
-  },
-  ctaBlock: {
-    marginTop: spacing.lg,
   },
   pressed: {
     opacity: 0.7,

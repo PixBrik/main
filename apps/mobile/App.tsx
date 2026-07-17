@@ -18,7 +18,7 @@ import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { InstructionsScreen } from './src/screens/InstructionsScreen';
 import { ModeScreen } from './src/screens/ModeScreen';
-import { PreferencesScreen } from './src/screens/PreferencesScreen';
+import { PreferencesScreen, variantForPreferences } from './src/screens/PreferencesScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { PurchaseScreen } from './src/screens/PurchaseScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
@@ -38,7 +38,6 @@ import type {
   CaptureMode,
   DemoScreen,
   DetailLevel,
-  PaletteMode,
   TargetSize,
 } from './src/types/navigation';
 
@@ -67,11 +66,14 @@ export default function App() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBuild, setPhotoBuild] = useState<PhotoModels | null>(null);
   const [photoSegmentation, setPhotoSegmentation] = useState<Segmentation | null>(null);
+  const [rightsConfirmedUri, setRightsConfirmedUri] = useState<string | null>(null);
   const [sampleUsed, setSampleUsed] = useState(false);
-  const captured = photoBuild !== null || sampleUsed;
+  // A picked photo is already a valid capture-state, even before its brick
+  // preview has finished building. Keeping it out of this flag left the
+  // fixed footer stuck on "Add a photo first" over the real next action.
+  const captured = photoUri !== null || photoBuild !== null || sampleUsed;
   const [size, setSize] = useState<TargetSize>('shelf');
   const [detail, setDetail] = useState<DetailLevel>('balanced');
-  const [palette, setPalette] = useState<PaletteMode>('true');
   const [selectedVariant, setSelectedVariant] = useState('balanced');
   const [countryCode, setCountryCode] = useState('FR');
   // Hollow is the standard kit: identical from the outside, a fraction of
@@ -92,6 +94,7 @@ export default function App() {
       const { buildFromLibrary } = await import('./src/lib/photoEngine/imageTo3D');
       const models = await buildFromLibrary(entry.meshUrl, entry.name, colorHex);
       setPhotoUri(null);
+      setRightsConfirmedUri(null);
       setSampleUsed(false);
       setPhotoSegmentation(null);
       setPhotoBuild(models);
@@ -145,7 +148,7 @@ export default function App() {
       }
       const { buildPhotoModels } = await import('./src/lib/photoEngine/voxelizePhoto');
       setPhotoBuild(
-        buildPhotoModels(seg, photoBuild.label, nextMode, undefined, {
+        buildPhotoModels(seg, photoBuild.label, nextMode, nextMode === 'relief' ? photoBuild.style : 'natural', {
           category: seg.categoryLabel,
           face: seg.face ?? null,
           preserveFeatures: seg.preserveFeatures ?? false,
@@ -223,6 +226,7 @@ export default function App() {
   const restart = () => {
     setSampleUsed(false);
     setPhotoUri(null);
+    setRightsConfirmedUri(null);
     setPhotoBuild(null);
     setPhotoSegmentation(null);
     setHistory([]);
@@ -237,6 +241,7 @@ export default function App() {
             onOpenBuild={(saved) => {
               const model = loadModel(saved);
               setPhotoUri(null);
+              setRightsConfirmedUri(null);
               setPhotoBuild({
                 hasDepth: false,
                 label: saved.name,
@@ -280,7 +285,10 @@ export default function App() {
             captured={captured}
             mode={captureMode}
             onBack={goBack}
-            onContinue={() => navigate('preferences')}
+            onContinue={() => {
+              setSelectedVariant('balanced');
+              navigate('result');
+            }}
             onObjectLocked={(models) => {
               setPhotoBuild(models);
               saveBuild(models.label, models.models.balanced, colors.blue);
@@ -289,16 +297,22 @@ export default function App() {
               setPhotoUri(uri);
               setPhotoBuild(null);
               setPhotoSegmentation(null);
+              setRightsConfirmedUri(null);
             }}
+            onRightsConfirmedChange={(confirmed) =>
+              setRightsConfirmedUri(confirmed && photoUri ? photoUri : null)
+            }
             onSegmentation={setPhotoSegmentation}
             onUseSample={() => {
               setPhotoUri(null);
               setPhotoBuild(null);
               setPhotoSegmentation(null);
+              setRightsConfirmedUri(null);
               setSampleUsed(true);
             }}
             photoBuild={photoBuild}
             photoUri={photoUri}
+            rightsConfirmed={!!photoUri && rightsConfirmedUri === photoUri}
             segmentation={photoSegmentation}
           />
         );
@@ -307,11 +321,12 @@ export default function App() {
           <PreferencesScreen
             detail={detail}
             onBack={goBack}
-            onContinue={() => navigate('progress')}
+            onContinue={() => {
+              setSelectedVariant(variantForPreferences(size, detail));
+              navigate('result');
+            }}
             onDetailChange={setDetail}
-            onPaletteChange={setPalette}
             onSizeChange={setSize}
-            palette={palette}
             size={size}
           />
         );
@@ -326,6 +341,10 @@ export default function App() {
             canToggleDimension={!!(photoBuild && photoSegmentation && photoUri)}
             dimensionMode={photoBuild?.mode}
             dimensionWorking={dimensionWorking}
+            onGuided3D={() => {
+              setCaptureMode('orbit');
+              navigate('capture');
+            }}
             onToggleDimension={toggleDimension}
             onTrue3D={rebuildTrue3D}
             onApprove3D={approve3D}

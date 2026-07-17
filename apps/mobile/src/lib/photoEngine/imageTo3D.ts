@@ -10,7 +10,7 @@
  */
 
 import { buildModelFromCells, type VoxelModel } from '../voxelFox';
-import type { Segmentation } from './segment';
+import { segmentRegion, type Segmentation } from './segment';
 import type { PhotoModels } from './voxelizePhoto';
 import { voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
 
@@ -139,13 +139,67 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
   });
 }
 
+const FULL_FRAME_MASK_THRESHOLD = 0.98;
+const MIN_SUBJECT_COVERAGE = 0.02;
+
+/**
+ * Capture keeps a full-frame mask for faithful panel previews. That mask is
+ * correct for a mosaic, but wrong for image-to-3D providers: it tells the
+ * provider that the wall, floor, and every other background pixel belong to
+ * the object. Check both the stored signal and the actual mask so older saved
+ * captures with stale coverage are handled too.
+ */
+export function needsSubjectMaskFor3D(segmentation: Segmentation): boolean {
+  if (!segmentation.mask.length) {
+    return false;
+  }
+  const maskCoverage = segmentation.mask.reduce((sum, on) => sum + (on ? 1 : 0), 0) / segmentation.mask.length;
+  return segmentation.coverage >= FULL_FRAME_MASK_THRESHOLD || maskCoverage >= FULL_FRAME_MASK_THRESHOLD;
+}
+
+/**
+ * Recover the subject silhouette only for the optional 3D path. The panel's
+ * stored full-frame segmentation remains untouched, so its appearance does
+ * not change. A failed/degenerate recovery falls back to the original framed
+ * crop instead of manufacturing a misleading cutout.
+ */
+export async function prepareSegmentationFor3D(
+  photoUri: string,
+  segmentation: Segmentation,
+): Promise<Segmentation> {
+  if (!needsSubjectMaskFor3D(segmentation)) {
+    return segmentation;
+  }
+
+  const isolated = await segmentRegion(photoUri, segmentation.region, segmentation.grid);
+  if (isolated.coverage < MIN_SUBJECT_COVERAGE || isolated.coverage >= FULL_FRAME_MASK_THRESHOLD) {
+    return segmentation;
+  }
+
+  return {
+    ...isolated,
+    categoryLabel: segmentation.categoryLabel,
+    face: segmentation.face,
+    preserveFeatures: segmentation.preserveFeatures,
+  };
+}
+
+/** Prepare a neutral-background subject image without mutating panel data. */
+async function cutoutFor3D(photoUri: string, segmentation: Segmentation): Promise<string> {
+  const isolated = await prepareSegmentationFor3D(photoUri, segmentation);
+  return compositeCutout(photoUri, isolated);
+}
+
 /**
  * Crop to the object's region and punch out everything the segmentation
  * mask says is background, replacing it with a plain neutral backdrop.
  * Image-to-3D generation (Tripo) expects an isolated subject on a clean
  * background — like the product photography it's trained on — not a full
  * scene with an arbitrarily-cropped subject and a real wall behind it.
- * Reuses the segmentation the app already computed; no extra AI call.
+ * Reuses the segmentation the app already computed. When Capture deliberately
+ * stored an all-on mask for a full-frame panel, the inexpensive deterministic
+ * segmenter is rerun here so the optional 3D provider receives a subject, not
+ * the entire scene.
  */
 async function compositeCutout(photoUri: string, segmentation: Segmentation): Promise<string> {
   const image = await loadImageElement(photoUri);
@@ -354,7 +408,7 @@ export async function generateMeshFromPhoto(
   }
   const onProgress = options.onProgress;
   onProgress?.(0.05, 'Preparing photo');
-  const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
   const image = await toCompactDataUrl(cutout);
 
   onProgress?.(0.12, 'Uploading to generator');
@@ -403,7 +457,7 @@ export async function buildFromPhoto(
   options.onProgress?.(0.05, 'Preparing photo');
   // Send the generator the isolated object (cropped + background removed)
   // whenever we already have a segmentation for this photo, not the raw scene.
-  const cutout = segmentation ? await compositeCutout(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
   const image = await toCompactDataUrl(cutout);
   const engine = options.engine ?? 'tripo';
   const body =

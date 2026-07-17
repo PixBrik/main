@@ -4,15 +4,13 @@ import { OptionChips, type ChipOption } from '../components/OptionChips';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { colors, radius, spacing, type } from '../theme/tokens';
-import type { DetailLevel, PaletteMode, TargetSize } from '../types/navigation';
+import type { DetailLevel, TargetSize } from '../types/navigation';
 
 interface PreferencesScreenProps {
   size: TargetSize;
   detail: DetailLevel;
-  palette: PaletteMode;
   onSizeChange: (value: TargetSize) => void;
   onDetailChange: (value: DetailLevel) => void;
-  onPaletteChange: (value: PaletteMode) => void;
   onBack: () => void;
   onContinue: () => void;
 }
@@ -29,38 +27,51 @@ const detailOptions: readonly ChipOption<DetailLevel>[] = [
   { id: 'intricate', label: 'High detail' },
 ];
 
-const paletteOptions: readonly ChipOption<PaletteMode>[] = [
-  { id: 'true', label: 'Source colours' },
-  { id: 'calm', label: 'Neutral' },
-  { id: 'bold', label: 'High contrast' },
-];
+export type PreferenceVariantId = 'easy' | 'balanced' | 'detail';
+
+/** Size sets the baseline; detail nudges it one real engine profile. */
+export function variantForPreferences(
+  size: TargetSize,
+  detail: DetailLevel,
+): PreferenceVariantId {
+  const sizeIndex: Record<TargetSize, number> = { desk: 0, shelf: 1, statement: 2 };
+  const detailOffset: Record<DetailLevel, number> = { simple: -1, balanced: 0, intricate: 1 };
+  const index = Math.max(0, Math.min(2, sizeIndex[size] + detailOffset[detail]));
+  return (['easy', 'balanced', 'detail'] as const)[index]!;
+}
+
+const PROFILE_LABEL: Record<PreferenceVariantId, string> = {
+  easy: 'Efficient',
+  balanced: 'Balanced',
+  detail: 'Detailed',
+};
 
 export function PreferencesScreen({
   size,
   detail,
-  palette,
   onSizeChange,
   onDetailChange,
-  onPaletteChange,
   onBack,
   onContinue,
 }: PreferencesScreenProps) {
+  const initialProfile = variantForPreferences(size, detail);
   return (
     <ScreenFrame
       eyebrow="3 / Tune the build"
-      footer={<PrimaryButton label="Generate build" onPress={onContinue} />}
+      footer={<PrimaryButton label="Open my preview" onPress={onContinue} />}
       onBack={onBack}
       progress={0.38}
-      subtitle="How big, how detailed, how colourful. You can still compare versions after it generates."
+      subtitle="Choose the starting size and piece detail. Your preview is already built, and the next screen compares all three real profiles."
       title="Make it yours."
     >
       <OptionChips accent="coral" label="Finished size" onChange={onSizeChange} options={sizeOptions} value={size} />
       <OptionChips accent="indigo" label="Piece detail" onChange={onDetailChange} options={detailOptions} value={detail} />
-      <OptionChips accent="mint" label="Colour energy" onChange={onPaletteChange} options={paletteOptions} value={palette} />
       <View style={styles.recipe}>
-        <Text style={styles.recipeLabel}>BUILD PROFILE</Text>
-        <Text style={styles.recipeTitle}>{size} + {detail} + {palette}</Text>
-        <Text style={styles.recipeBody}>Estimated 290–1,400 parts · 2–6 hours by profile</Text>
+        <Text style={styles.recipeLabel}>OPENS FIRST</Text>
+        <Text style={styles.recipeTitle}>{PROFILE_LABEL[initialProfile]} profile</Text>
+        <Text style={styles.recipeBody}>
+          Your selected style stays unchanged. Compare all profiles with actual part counts and prices next.
+        </Text>
       </View>
     </ScreenFrame>
   );

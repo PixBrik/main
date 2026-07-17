@@ -6,6 +6,22 @@
 
 import { MESHY_BASE, meshyHeaders } from '../_meshy';
 
+/** Meshy-6 settings for likeness-first brick conversion. */
+export function buildMeshyRequestBody(image: string) {
+  return {
+    ai_model: 'meshy-6',
+    // Preserve the supplied person's/object's appearance instead of asking
+    // Meshy to creatively enhance the reference before reconstruction.
+    image_enhancement: false,
+    image_url: image,
+    // Meshy applies target_polycount only when remeshing is enabled.
+    should_remesh: true,
+    should_texture: true,
+    target_polycount: 10000,
+    topology: 'triangle',
+  } as const;
+}
+
 export default async function handler(req: any, res: any): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Use POST' });
@@ -26,13 +42,7 @@ export default async function handler(req: any, res: any): Promise<void> {
     const taskRes = await fetch(`${MESHY_BASE}/image-to-3d`, {
       method: 'POST',
       headers: { ...meshyHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ai_model: 'meshy-6',
-        image_url: image,
-        should_texture: true,
-        target_polycount: 10000,
-        topology: 'triangle',
-      }),
+      body: JSON.stringify(buildMeshyRequestBody(image)),
     });
     const body = (await taskRes.json().catch(() => null)) as { result?: string; message?: string } | null;
     if (!taskRes.ok || !body?.result) {

@@ -4,7 +4,12 @@ import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, V
 import { InkLoader } from '../components/InkLoader';
 import { countries } from '../data/mockData';
 import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
-import { BUNDLE_MARKUP, estimateBuild, type BuildEstimateSide } from '../lib/brickify';
+import {
+  BUNDLE_MARKUP,
+  estimateBuild,
+  isCatalogStockError,
+  type BuildEstimateSide,
+} from '../lib/brickify';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { estimateDelivery } from '../lib/shippingEstimate';
 import { whenVisible } from '../lib/whenVisible';
@@ -70,18 +75,28 @@ export function PurchaseScreen({
 
   const estimate = useMemo(() => {
     const model = resolveActiveModel(photoBuild, selectedVariant);
-    return estimateBuild(model, accentForVariant(selectedVariant));
+    try {
+      return estimateBuild(model, accentForVariant(selectedVariant));
+    } catch (error) {
+      if (isCatalogStockError(error)) return null;
+      throw error;
+    }
   }, [photoBuild, selectedVariant]);
 
-  const side: BuildEstimateSide = buildFill === 'hollow' ? estimate.hollow : estimate.full;
-  const savingPct = Math.round(estimate.hollowSaving * 100);
+  const side: BuildEstimateSide | null = estimate
+    ? buildFill === 'hollow'
+      ? estimate.hollow
+      : estimate.full
+    : null;
+  const savingPct = estimate ? Math.round(estimate.hollowSaving * 100) : 0;
   const delivery = useMemo(() => estimateDelivery(countryCode), [countryCode]);
-  const totalEur = side.bundleEur + delivery.costEur;
+  const totalEur = side ? side.bundleEur + delivery.costEur : 0;
   const buildName = (photoBuild?.label ?? 'Signal Fox').toUpperCase();
 
   // Branded pricing wait: staged ink-fill, then crossfade into the kit.
   const contentIn = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (!estimate) return;
     let cancelled = false;
     const cleanup = whenVisible(
       () => {
@@ -115,7 +130,7 @@ export function PurchaseScreen({
       cancelled = true;
       cleanup();
     };
-  }, [contentIn]);
+  }, [contentIn, estimate]);
 
   // The big total counts digit-by-digit whenever it changes.
   const totalAnim = useRef(new Animated.Value(0)).current;
@@ -125,7 +140,7 @@ export function PurchaseScreen({
     return () => totalAnim.removeListener(id);
   }, [totalAnim]);
   useEffect(() => {
-    if (pricing !== 'done') return;
+    if (!estimate || pricing !== 'done') return;
     // Hidden tabs suspend rAF — jump straight to the value so it can't stick at 0.
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       totalAnim.setValue(toLocal(totalEur));
@@ -138,7 +153,31 @@ export function PurchaseScreen({
       useNativeDriver: false,
     }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pricing, totalEur, currency.rate]);
+  }, [estimate, pricing, totalEur, currency.rate]);
+
+  if (!estimate || !side) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.unavailableScreen}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            onPress={onBack}
+            style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+          >
+            <Text style={styles.backText}>←</Text>
+          </Pressable>
+          <View accessibilityRole="alert" style={styles.unavailableMessage}>
+            <Text accessibilityRole="header" style={styles.screenTitle}>KIT UNAVAILABLE</Text>
+            <Text style={styles.cardCaption}>
+              Current catalog stock cannot cover every piece in this build. No order has been created.
+              Go back and choose another build profile, or try again later.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (pricing === 'pending') {
     const stage = STAGES[Math.min(STAGES.length - 1, Math.floor(pricingProgress * STAGES.length))]!;
@@ -322,6 +361,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     position: 'absolute',
     textAlign: 'center',
+  },
+  unavailableScreen: {
+    alignSelf: 'center',
+    flex: 1,
+    maxWidth: 520,
+    padding: spacing.xl,
+    width: '100%',
+  },
+  unavailableMessage: {
+    marginTop: spacing.xl,
   },
   scroll: {
     alignSelf: 'center',
