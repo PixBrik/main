@@ -24,19 +24,24 @@ export interface LibraryEntry {
   seed?: boolean;
 }
 
-/** Demo mesh used for generatable seed cars (Khronos ToyCar, CC0). */
-const DEMO_CAR = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb';
+/**
+ * Clean, car-only demo mesh. The former ToyCar sample also contains a large
+ * fabric display plinth, so converting the complete approved GLB correctly
+ * produced a car sitting on a brick mountain. CarConcept contains the vehicle
+ * itself and is CC BY 4.0 (Darmstadt Graphics Group / Khronos sample assets).
+ */
+const DEMO_CAR = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb';
 
 export const LIBRARY_SEED: LibraryEntry[] = [
   // Classic cars
-  { id: 'beetle-compact', name: 'Classic Beetle Compact', category: 'car', era: 'classic', tags: ['round', 'iconic'], meshUrl: DEMO_CAR, defaultColor: '#3E7C4F', seed: true },
-  { id: 'muscle-coupe', name: '60s Muscle Coupe', category: 'car', era: 'classic', tags: ['powerful'], meshUrl: DEMO_CAR, defaultColor: '#B4202A', seed: true },
-  { id: 'vintage-roadster', name: 'Vintage Roadster', category: 'car', era: 'classic', tags: ['open-top'], meshUrl: DEMO_CAR, defaultColor: '#20558A', seed: true },
+  { id: 'beetle-compact', name: 'Classic Beetle Compact', category: 'car', era: 'classic', tags: ['round', 'iconic'], meshUrl: null, defaultColor: '#3E7C4F', seed: true },
+  { id: 'muscle-coupe', name: '60s Muscle Coupe', category: 'car', era: 'classic', tags: ['powerful'], meshUrl: null, defaultColor: '#B4202A', seed: true },
+  { id: 'vintage-roadster', name: 'Vintage Roadster', category: 'car', era: 'classic', tags: ['open-top'], meshUrl: null, defaultColor: '#20558A', seed: true },
   { id: 'retro-microbus', name: 'Retro Microbus', category: 'car', era: 'classic', tags: ['van'], meshUrl: null, defaultColor: '#E08A2B', seed: true },
   { id: 'classic-pickup', name: 'Classic Pickup', category: 'car', era: 'classic', tags: ['utility'], meshUrl: null, defaultColor: '#6C6E68', seed: true },
   { id: 'grand-tourer', name: 'Vintage Grand Tourer', category: 'car', era: 'classic', tags: ['elegant'], meshUrl: null, defaultColor: '#1B1B1B', seed: true },
   // Modern cars
-  { id: 'city-ev', name: 'Electric City Car', category: 'car', era: 'modern', tags: ['compact', 'ev'], meshUrl: DEMO_CAR, defaultColor: '#8DC63F', seed: true },
+  { id: 'city-ev', name: 'Modern Concept Coupe', category: 'car', era: 'modern', tags: ['concept', 'coupe'], meshUrl: DEMO_CAR, defaultColor: '#8DC63F', seed: true },
   { id: 'modern-hatch', name: 'Modern Hatchback', category: 'car', era: 'modern', tags: ['everyday'], meshUrl: null, defaultColor: '#2C6FB0', seed: true },
   { id: 'modern-suv', name: 'Modern SUV', category: 'car', era: 'modern', tags: ['family'], meshUrl: null, defaultColor: '#2A2A2A', seed: true },
   { id: 'sports-coupe', name: 'Sports Coupe', category: 'car', era: 'modern', tags: ['fast'], meshUrl: null, defaultColor: '#E4B000', seed: true },

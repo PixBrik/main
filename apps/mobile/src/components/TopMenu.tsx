@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppNavigation } from '../lib/navigationContext';
-import { colors, fonts, radius, saffronAlpha, shadow, spacing, type } from '../theme/tokens';
+import { colors, fonts, radius, shadow, spacing } from '../theme/tokens';
 import type { DemoScreen } from '../types/navigation';
 
 const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
@@ -15,16 +15,14 @@ const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
 
 /**
  * Global top-right chrome: account icon + hamburger. The menu is an ink
- * dropdown; the account entry is honest about being device-local for now.
+ * dropdown; the profile icon opens the persistent orders/account screen.
  */
 export function TopMenu() {
   const navigate = useAppNavigation();
   const [open, setOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
 
   const closeAll = () => {
     setOpen(false);
-    setAccountOpen(false);
   };
 
   return (
@@ -34,8 +32,8 @@ export function TopMenu() {
           accessibilityLabel="My account"
           accessibilityRole="button"
           onPress={() => {
-            setAccountOpen((current) => !current);
             setOpen(false);
+            navigate('account');
           }}
           style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
         >
@@ -48,7 +46,6 @@ export function TopMenu() {
           accessibilityRole="button"
           onPress={() => {
             setOpen((current) => !current);
-            setAccountOpen(false);
           }}
           style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
         >
@@ -76,25 +73,6 @@ export function TopMenu() {
         </View>
       ) : null}
 
-      {accountOpen ? (
-        <View style={styles.dropdown}>
-          <Text style={styles.accountTitle}>MY ACCOUNT</Text>
-          <Text style={styles.accountBodyText}>
-            Sign-in is coming soon. For now your builds, feedback and kit details live safely on
-            this device — nothing is uploaded.
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              closeAll();
-              navigate('home');
-            }}
-            style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-          >
-            <Text style={styles.menuItemText}>MY BUILDS →</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -166,21 +144,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 13,
     letterSpacing: 0.4,
-  },
-  accountTitle: {
-    color: colors.saffron,
-    fontFamily: fonts.display,
-    fontSize: 13,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  accountBodyText: {
-    ...type.body,
-    color: saffronAlpha(0.75),
-    fontSize: 12,
-    lineHeight: 17,
-    paddingBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
   },
 });

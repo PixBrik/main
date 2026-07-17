@@ -1,11 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { RawMeshView, isInteractiveRawMeshViewSupported } from '../components/RawMeshView';
 import { ScreenFrame } from '../components/ScreenFrame';
-import { save360Capture } from '../lib/capture360Store';
+import {
+  load360Capture,
+  load360ProviderRuns,
+  save360Capture,
+  save360ProviderRuns,
+} from '../lib/capture360Store';
 import { pickPhoto } from '../lib/pickPhoto';
 import {
   buildFromMeshUrlAllProfiles,
@@ -19,8 +24,14 @@ import { colors, fonts, inkAlpha, radius, spacing, type } from '../theme/tokens'
 
 interface Capture360ScreenProps {
   onBack: () => void;
-  /** Called with the finished build and the front view (for the source thumb). */
-  onGenerated: (models: PhotoModels, frontUri: string) => void;
+  initialProviderRuns?: number;
+  onProviderRunsChange?: (runs: number) => void;
+  /** Called with the finished build, source thumb, and the exact approved provider mesh. */
+  onGenerated: (
+    models: PhotoModels,
+    frontUri: string,
+    approved3D: { meshUrl: string; stills: string[]; retakesRemaining: number },
+  ) => void;
 }
 
 type ViewId = keyof MultiviewShots;
@@ -33,6 +44,7 @@ const VIEWS: ReadonlyArray<{ id: ViewId; label: string; hint: string; glyph: str
   { glyph: '◑', hint: 'Turn the subject to its right', id: 'right', label: 'RIGHT' },
 ];
 const MESH_APPROVAL_VIEWS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
+const MAX_PROVIDER_RUNS = 3; // Initial generation + at most two user-requested retakes.
 
 function customerGenerationNote(note: string): string {
   if (/preparing/i.test(note)) return 'Preparing all four photos';
@@ -47,9 +59,16 @@ function customerGenerationNote(note: string): string {
  * Real geometry from real photos on every side — the single-photo path has
  * to hallucinate whatever the camera didn't see; this one doesn't.
  */
-export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps) {
+export function Capture360Screen({
+  initialProviderRuns = 0,
+  onBack,
+  onGenerated,
+  onProviderRunsChange,
+}: Capture360ScreenProps) {
   const live = isLive3DConfigured();
-  const [shots, setShots] = useState<Partial<MultiviewShots>>({});
+  const [shots, setShots] = useState<Partial<MultiviewShots>>(
+    () => load360Capture() ?? {},
+  );
   const [activeViewId, setActiveViewId] = useState<ViewId>('front');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [genState, setGenState] = useState<GenerationState>('idle');
@@ -58,10 +77,20 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
   const [pendingMeshUrl, setPendingMeshUrl] = useState<string | null>(null);
   const [meshStills, setMeshStills] = useState<string[]>([]);
   const [meshPreviewReady, setMeshPreviewReady] = useState(false);
-  const shotsRef = useRef<Partial<MultiviewShots>>({});
+  const [providerRuns, setProviderRuns] = useState(
+    Math.max(0, Math.min(MAX_PROVIDER_RUNS, Math.max(initialProviderRuns, load360ProviderRuns()))),
+  );
+  const providerRunsRef = useRef(providerRuns);
+  const shotsRef = useRef<Partial<MultiviewShots>>(shots);
   const photoPickerLock = useRef(false);
   const submitLock = useRef(false);
   const conversionLock = useRef(false);
+  const pendingMeshUrlRef = useRef<string | null>(null);
+  const previewRequestRef = useRef(0);
+
+  useEffect(() => () => {
+    previewRequestRef.current += 1;
+  }, []);
 
   const shotCount = VIEWS.filter((view) => shots[view.id]).length;
   const allViewsReady = VIEWS.every((view) => !!shots[view.id]);
@@ -69,7 +98,14 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
   const activeView = VIEWS[activeViewIndex]!;
   const activeShot = shots[activeView.id];
   const busy = genState === 'generating' || genState === 'converting';
-  const canGenerate = live && allViewsReady && rightsConfirmed && !busy && !pendingMeshUrl;
+  const retakesRemaining = Math.max(0, MAX_PROVIDER_RUNS - providerRuns);
+  const canGenerate =
+    live &&
+    allViewsReady &&
+    rightsConfirmed &&
+    !busy &&
+    !pendingMeshUrl &&
+    providerRuns < MAX_PROVIDER_RUNS;
 
   const takeShot = async (id: ViewId) => {
     if (busy || pendingMeshUrl || photoPickerLock.current) return;
@@ -92,6 +128,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
   };
 
   const renderMeshPreview = async (meshUrl: string) => {
+    const requestId = ++previewRequestRef.current;
     setProgressNote('Rendering the raw 3D preview');
     if (isInteractiveRawMeshViewSupported) {
       setError(null);
@@ -100,14 +137,16 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
     try {
       const { snapshotGlb } = await import('../lib/photoEngine/meshSnapshot');
       const stills = await snapshotGlb(meshUrl);
-      if (!stills.length) {
-        throw new Error('The raw 3D preview returned no images.');
+      if (requestId !== previewRequestRef.current || pendingMeshUrlRef.current !== meshUrl) return;
+      if (stills.length < 4) {
+        throw new Error('The raw 3D preview did not return all four approval angles.');
       }
       setMeshStills(stills);
       setMeshPreviewReady(true);
       setError(null);
       if (!conversionLock.current) setGenState('preview');
     } catch (previewError) {
+      if (requestId !== previewRequestRef.current || pendingMeshUrlRef.current !== meshUrl) return;
       setMeshStills([]);
       if (!isInteractiveRawMeshViewSupported) {
         setError(
@@ -130,7 +169,15 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
       const meshUrl = await generateBestMeshFromMultiview(shots as MultiviewShots, {
         onProgress: (fraction, note) =>
           setProgressNote(`${Math.round(fraction * 100)}% · ${customerGenerationNote(note)}`),
+        onProviderTaskCreated: () => {
+          const next = Math.min(MAX_PROVIDER_RUNS, providerRunsRef.current + 1);
+          providerRunsRef.current = next;
+          setProviderRuns(next);
+          save360ProviderRuns(next);
+          onProviderRunsChange?.(next);
+        },
       });
+      pendingMeshUrlRef.current = meshUrl;
       setPendingMeshUrl(meshUrl);
       setMeshPreviewReady(false);
       void renderMeshPreview(meshUrl);
@@ -154,7 +201,11 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
         'your object',
         (fraction, note) => setProgressNote(`${Math.round(fraction * 100)}% · ${note}`),
       );
-      onGenerated(models, shots.front);
+      onGenerated(models, shots.front, {
+        meshUrl: pendingMeshUrl,
+        retakesRemaining,
+        stills: meshStills,
+      });
     } catch (conversionError) {
       setError(conversionError instanceof Error ? conversionError.message : 'brick conversion failed');
       setGenState('preview');
@@ -165,6 +216,8 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
 
   const discardMesh = () => {
     if (busy) return;
+    previewRequestRef.current += 1;
+    pendingMeshUrlRef.current = null;
     setPendingMeshUrl(null);
     setMeshStills([]);
     setMeshPreviewReady(false);
@@ -205,7 +258,11 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
                   ? `Add ${VIEWS.length - shotCount} remaining view${VIEWS.length - shotCount === 1 ? '' : 's'}`
                   : !rightsConfirmed
                     ? 'Confirm you own the photos'
-                    : 'Use 1 paid run — generate raw 3D';
+                    : providerRuns === 0
+                      ? 'Generate raw 3D · 2 retakes included'
+                      : providerRuns < MAX_PROVIDER_RUNS
+                        ? `Regenerate 3D · ${retakesRemaining} retake${retakesRemaining === 1 ? '' : 's'} left`
+                        : '2 retakes used · start a new capture';
 
   return (
     <ScreenFrame
@@ -374,16 +431,22 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
               Approval converts this exact model into efficient, balanced and detailed brick builds.
             </Text>
           ) : null}
-          {!busy ? (
+          {!busy && retakesRemaining > 0 ? (
             <Pressable
               accessibilityRole="button"
               onPress={discardMesh}
               style={({ pressed }) => [styles.discard, pressed && styles.pressed]}
             >
               <Text style={styles.discardText}>
-                Discard this model — generating another one spends another paid run
+                Retake photos and regenerate · {retakesRemaining} of 2 retakes left
               </Text>
             </Pressable>
+          ) : !busy ? (
+            <View style={styles.retryLimit}>
+              <Text style={styles.retryLimitText}>
+                Two retakes used. Approve this model, or use Back to start a new capture.
+              </Text>
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -691,6 +754,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.extrabold,
     fontSize: 10,
     letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  retryLimit: {
+    backgroundColor: '#25261F',
+    borderRadius: radius.sm,
+    marginTop: spacing.md,
+    padding: spacing.sm,
+  },
+  retryLimitText: {
+    color: '#C6CDDE',
+    fontFamily: fonts.semibold,
+    fontSize: 10,
+    lineHeight: 15,
     textAlign: 'center',
   },
   notice: {

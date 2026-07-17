@@ -17,6 +17,9 @@ export interface SavedBuildMetadata {
   product: SavedBuildProduct;
   provenance: SavedBuildProvenance;
   style: PanelStyle;
+  /** Linked reference to the approved source GLB when this is a true 3D build. */
+  source3DMeshUrl?: string;
+  source3DRetakesRemaining?: number;
 }
 
 export interface SavedBuild {
@@ -25,6 +28,7 @@ export interface SavedBuild {
   savedAt: string;
   brickCount: number;
   size: number;
+  layerHeight?: number;
   palette: string[];
   /** Missing on legacy entries; unknown builds must never be claimed as provider 3D. */
   hasDepth?: boolean;
@@ -32,7 +36,9 @@ export interface SavedBuild {
   product?: SavedBuildProduct;
   provenance?: SavedBuildProvenance;
   style?: PanelStyle;
-  /** [i, j, k, paletteIndex] per cell — compact enough for localStorage. */
+  source3DMeshUrl?: string;
+  source3DRetakesRemaining?: number;
+  /** [i, j, k, paletteIndex, slopeFlag, facing] per cell — compact enough for localStorage. */
   cells: number[][];
 }
 
@@ -80,7 +86,7 @@ export function saveBuild(
       palette.push(hex);
       paletteIndex.set(hex, index);
     }
-    return [cell.i, cell.j, cell.k, index];
+    return [cell.i, cell.j, cell.k, index, cell.shape === 'slope' ? 1 : 0, cell.facing ?? 0];
   });
 
   const build: SavedBuild = {
@@ -89,6 +95,7 @@ export function saveBuild(
     id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     name,
     palette,
+    ...(model.layerHeight ? { layerHeight: model.layerHeight } : {}),
     ...metadata,
     savedAt: new Date().toISOString(),
     size: model.size,
@@ -115,17 +122,24 @@ export function loadModel(build: SavedBuild): VoxelModel {
   const centerI = (minI + maxI) / 2;
   const centerK = (minK + maxK) / 2;
 
-  const cells: VoxelCell[] = build.cells.map(([i, j, k, paletteIdx]) => ({
+  const hasStoredGeometry = build.cells.some((cell) => cell.length >= 5);
+  const layerHeight = build.layerHeight ?? build.size;
+  const cells: VoxelCell[] = build.cells.map(([i, j, k, paletteIdx, slopeFlag, facing]) => ({
     colorHex: build.palette[paletteIdx!] ?? '#E96632',
     cx: (i! - centerI) * build.size,
-    cy: (j! - minJ + 0.5) * build.size,
+    cy: (j! - minJ + 0.5) * layerHeight,
     cz: (k! - centerK) * build.size,
     i: i!,
     j: j!,
     k: k!,
+    ...(slopeFlag === 1 ? { shape: 'slope' as const } : {}),
+    ...(facing ? { facing } : {}),
     zone: 'body',
   }));
-  return buildModelFromCells(cells, build.size);
+  return buildModelFromCells(cells, build.size, {
+    layerHeight: build.layerHeight,
+    preserveShapes: hasStoredGeometry,
+  });
 }
 
 export function deleteBuild(id: string) {

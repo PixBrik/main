@@ -111,7 +111,7 @@ test('all homepage samples are detailed, subject-only silhouettes', () => {
   const expected = {
     portrait: { borderOccupancy: 66, occupiedCells: 3088, paletteSize: 20 },
     pet: { borderOccupancy: 46, occupiedCells: 2672, paletteSize: 18 },
-    car: { borderOccupancy: 0, occupiedCells: 1358, paletteSize: 11 },
+    car: { borderOccupancy: 0, occupiedCells: 1388, paletteSize: 11 },
   };
 
   for (const [id, data] of Object.entries(generated)) {
@@ -149,7 +149,8 @@ test('semantic foreground guards preserve clothing and car parts without keeping
   const carBody = { minX: 7, maxX: 64, minY: 36, maxY: 46 };
   const carMainWheel = { minX: 38, maxX: 52, minY: 39, maxY: 52 };
   const carRearWheel = { minX: 58, maxX: 66, minY: 35, maxY: 48 };
-  const carFloorShadow = { minX: 0, maxX: 36, minY: 49, maxY: 71 };
+  const carLowerFrontBody = { minX: 8, maxX: 36, minY: 49, maxY: 49 };
+  const carFloorShadow = { minX: 0, maxX: 36, minY: 50, maxY: 71 };
   const belowCar = { minX: 0, maxX: 71, minY: 53, maxY: 71 };
 
   assert.ok(regionOccupancy(portrait, shirt) >= 0.95, 'portrait shirt must not become transparent');
@@ -163,6 +164,11 @@ test('semantic foreground guards preserve clothing and car parts without keeping
   assert.ok(regionOccupancy(car, carBody) >= 0.97, 'car body must remain structurally continuous');
   assert.ok(regionOccupancy(car, carMainWheel) >= 0.9, 'main wheel must remain intact');
   assert.ok(regionOccupancy(car, carRearWheel) >= 0.8, 'rear wheel must remain intact');
+  assert.equal(
+    regionOccupancy(car, carLowerFrontBody),
+    1,
+    'the Porsche lower front contour must not be cut off with its floor shadow',
+  );
   assert.equal(regionOccupancy(car, carFloorShadow), 0, 'studio floor shadow must be transparent');
   assert.equal(regionOccupancy(car, belowCar), 0, 'nothing may float below the car silhouette');
 
@@ -272,6 +278,28 @@ test('stud texture is clipped to foreground instead of covering the full square'
   const comparisonCard = component.match(/comparisonCard:\s*\{([\s\S]*?)\n  \},/);
   assert.ok(comparisonCard, 'comparisonCard style should exist');
   assert.doesNotMatch(comparisonCard[1], /backgroundColor|borderColor|borderWidth/);
+});
+
+test('every active homepage brick sample supports a truthful controlled orbit', () => {
+  const component = fs.readFileSync(
+    path.join(mobileRoot, 'src/components/BuildPath.tsx'),
+    'utf8',
+  );
+
+  assert.match(component, /function RotatableMosaic\(/);
+  assert.match(component, /<RotatableMosaic[\s\S]*id=\{active\.id\}/);
+  assert.match(component, /PanResponder\.create/);
+  assert.match(component, /requestAnimationFrame\(tick\)/);
+  assert.match(component, /if \(!motionPreferenceReady\) return/);
+  assert.match(component, /setAutoRotating\(!reduceMotion\)/);
+  assert.match(component, /Math\.abs\(Math\.cos\(\(normalizedYaw \* Math\.PI\) \/ 180\)\)/);
+  assert.match(component, /scaleX: projectedWidth/);
+  assert.match(component, /backing=\{!showingFront\}/);
+  assert.match(component, /Rotate preview left/);
+  assert.match(component, /Rotate preview right/);
+  assert.match(component, /Pause automatic rotation/);
+  assert.match(component, /BRICKS · 360°/);
+  assert.match(component, /orbitShell:[\s\S]*overflow: 'hidden'/);
 });
 
 test('flat and true 3D are first-class homepage choices on desktop and mobile', () => {

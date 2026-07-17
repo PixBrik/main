@@ -8,7 +8,7 @@
  * toy branding or instruction trade dress.
  */
 
-import { brickify, type BillOfMaterials } from './brickify';
+import { brickify, type BillOfMaterials, type BomLine, type BrickPlacement } from './brickify';
 import type { VoxelCell, VoxelModel } from './voxelFox';
 
 interface GuideOptions {
@@ -16,6 +16,8 @@ interface GuideOptions {
   accent: string;
   buildName: string;
   heroImage?: string | null;
+  /** Frozen order packing; avoids re-packing against a changed catalog. */
+  bomOverride?: BillOfMaterials;
 }
 
 const PAGE_W = 210;
@@ -56,6 +58,8 @@ function footer(doc: import('jspdf').jsPDF, page: number, pages: number) {
 /** Top-down diagram of the build up to (and including) the given layers. */
 function layerDiagram(
   cells: VoxelCell[],
+  placements: BrickPlacement[],
+  lines: BomLine[],
   upTo: number,
   fresh: Set<number>,
   sizePx: number,
@@ -78,35 +82,68 @@ function layerDiagram(
   ctx.fillStyle = '#F3F1EA';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Older layers first (dimmed), the highest fresh layer last (solid).
-  const sorted = [...cells].filter((cell) => cell.j <= upTo).sort((a, b) => a.j - b.j);
-  for (const cell of sorted) {
-    const x = (cell.i - minI) * cellPx + 1;
-    const y = (cell.k - minK) * cellPx + 1;
-    const isFresh = fresh.has(cell.j);
+  const colors = new Map(lines.map((line) => [`${line.part}|${line.colorId}`, line.colorRgb]));
+  // Draw the exact catalog pieces, older layers first. Piece boundaries,
+  // footprints and slope direction now match the frozen order plan.
+  const sorted = [...placements]
+    .filter((placement) => placement.j <= upTo)
+    .sort((a, b) => a.j - b.j || a.k - b.k || a.i - b.i);
+  for (const placement of sorted) {
+    const x = (placement.i - minI) * cellPx + 1;
+    const y = (placement.k - minK) * cellPx + 1;
+    const width = placement.spanI * cellPx;
+    const height = placement.spanK * cellPx;
+    const isFresh = fresh.has(placement.j);
     ctx.globalAlpha = isFresh ? 1 : 0.28;
-    ctx.fillStyle = cell.colorHex ?? '#E96632';
-    ctx.fillRect(x, y, cellPx, cellPx);
+    ctx.fillStyle = colors.get(`${placement.part}|${placement.colorId}`) ?? '#E96632';
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = 'rgba(17,19,21,0.78)';
+    ctx.lineWidth = Math.max(1, cellPx * 0.08);
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
     if (isFresh) {
-      ctx.strokeStyle = 'rgba(17,19,21,0.65)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, cellPx - 1, cellPx - 1);
-      // stud dot
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.beginPath();
-      ctx.arc(x + cellPx / 2, y + cellPx / 2, cellPx * 0.22, 0, Math.PI * 2);
-      ctx.fill();
+      if (placement.shape === 'slope') {
+        const direction = placement.facing ?? 1;
+        const dx = direction === 3 ? 1 : direction === 4 ? -1 : 0;
+        const dy = direction === 1 ? 1 : direction === 2 ? -1 : 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = Math.max(1.5, cellPx * 0.16);
+        ctx.beginPath();
+        ctx.moveTo(x + width / 2 - dx * width * 0.3, y + height / 2 - dy * height * 0.3);
+        ctx.lineTo(x + width / 2 + dx * width * 0.3, y + height / 2 + dy * height * 0.3);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        for (let di = 0; di < placement.spanI; di++) {
+          for (let dk = 0; dk < placement.spanK; dk++) {
+            ctx.beginPath();
+            ctx.arc(
+              x + (di + 0.5) * cellPx,
+              y + (dk + 0.5) * cellPx,
+              cellPx * 0.22,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+          }
+        }
+      }
     }
   }
   ctx.globalAlpha = 1;
   return canvas.toDataURL('image/png');
 }
 
-export async function generateInstructionsPdf({ model, accent, buildName, heroImage = null }: GuideOptions) {
+export async function generateInstructionsPdf({
+  model,
+  accent,
+  buildName,
+  heroImage = null,
+  bomOverride,
+}: GuideOptions) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ compress: true, format: 'a4', unit: 'mm' });
 
-  const bom = brickify(model, accent);
+  const bom = bomOverride ?? brickify(model, accent);
   const layers = [...new Set(model.cells.map((cell) => cell.j))].sort((a, b) => a - b);
   const stepCount = Math.min(9, layers.length);
   const perStep = Math.ceil(layers.length / stepCount);
@@ -196,7 +233,14 @@ export async function generateInstructionsPdf({ model, accent, buildName, heroIm
     );
 
     const fresh = new Set(stepLayers);
-    const diagram = layerDiagram(model.cells, stepLayers[stepLayers.length - 1]!, fresh, 560);
+    const diagram = layerDiagram(
+      model.cells,
+      bom.placements,
+      bom.lines,
+      stepLayers[stepLayers.length - 1]!,
+      fresh,
+      560,
+    );
     const box = PAGE_W - MARGIN * 2;
     doc.setFillColor('#FFFFFF');
     doc.setDrawColor('#D7D9D2');
@@ -208,11 +252,17 @@ export async function generateInstructionsPdf({ model, accent, buildName, heroIm
     }
 
     // Parts added in this step.
-    const stepModel: VoxelModel = {
-      ...model,
-      cells: model.cells.filter((cell) => fresh.has(cell.j)),
-    };
-    const stepBom = brickify(stepModel, accent);
+    const stepPlacements = bom.placements.filter((placement) => fresh.has(placement.j));
+    const lineByKey = new Map(bom.lines.map((line) => [`${line.part}|${line.colorId}`, line]));
+    const stepCounts = new Map<string, number>();
+    for (const placement of stepPlacements) {
+      const key = `${placement.part}|${placement.colorId}`;
+      stepCounts.set(key, (stepCounts.get(key) ?? 0) + 1);
+    }
+    const stepLines = [...stepCounts]
+      .map(([key, quantity]) => ({ line: lineByKey.get(key), quantity }))
+      .filter((entry): entry is { line: BomLine; quantity: number } => !!entry.line)
+      .sort((a, b) => b.quantity - a.quantity);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor('#111315');
@@ -220,13 +270,13 @@ export async function generateInstructionsPdf({ model, accent, buildName, heroIm
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     let sy = 199;
-    for (const line of stepBom.lines.slice(0, 10)) {
+    for (const { line, quantity } of stepLines.slice(0, 10)) {
       doc.setFillColor(line.colorRgb);
       doc.rect(MARGIN, sy - 3, 4.6, 3.6, 'F');
       doc.setDrawColor('#111315');
       doc.rect(MARGIN, sy - 3, 4.6, 3.6, 'S');
       doc.setTextColor('#111315');
-      doc.text(`${line.quantity} × ${line.partName} — ${line.colorName}`, MARGIN + 8, sy);
+      doc.text(`${quantity} × ${line.partName} — ${line.colorName}`, MARGIN + 8, sy);
       sy += 5.4;
     }
     doc.setTextColor('#5B625E');

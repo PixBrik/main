@@ -4,6 +4,7 @@ import {
   Animated,
   Image,
   type ImageSourcePropType,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -55,6 +56,7 @@ const SHOWCASES: readonly Showcase[] = [
 ] as const;
 
 interface MosaicProps {
+  backing?: boolean;
   compact?: boolean;
   id: ShowcaseId;
 }
@@ -64,7 +66,7 @@ interface MosaicProps {
  * Empty cells never receive a fill or stud pattern, so the result reads as a
  * clean brick silhouette instead of a white rectangular backing plate.
  */
-function BrickMosaic({ compact = false, id }: MosaicProps) {
+function BrickMosaic({ backing = false, compact = false, id }: MosaicProps) {
   const data = HOME_MOSAICS[id];
   const { paths, silhouette, viewBox } = useMemo(() => {
     const grouped = data.palette.map(() => '');
@@ -95,7 +97,7 @@ function BrickMosaic({ compact = false, id }: MosaicProps) {
       viewBox: `${minX} ${minY} ${width} ${height}`,
     };
   }, [compact, data]);
-  const patternId = `home-studs-${id}-${compact ? 'small' : 'large'}`;
+  const patternId = `home-studs-${id}-${compact ? 'small' : 'large'}-${backing ? 'back' : 'front'}`;
 
   return (
     <Svg height="100%" preserveAspectRatio="xMidYMid meet" viewBox={viewBox} width="100%">
@@ -122,11 +124,159 @@ function BrickMosaic({ compact = false, id }: MosaicProps) {
           <Circle cx="0.54" cy="0.57" fill={colors.ink} opacity={compact ? 0.06 : 0.11} r="0.25" />
         </Pattern>
       </Defs>
-      {paths.map((path, index) => (
+      {backing ? (
+        <Path d={silhouette} fill="#29271F" />
+      ) : paths.map((path, index) => (
         <Path d={path} fill={data.palette[index]} key={`${id}-${data.palette[index]}`} />
       ))}
       <Path d={silhouette} fill={`url(#${patternId})`} />
     </Svg>
+  );
+}
+
+const FULL_TURN = 360;
+const ORBIT_STEP = 22.5;
+const AUTO_ROTATE_DEGREES_PER_MS = 0.01;
+
+function normalizeDegrees(value: number) {
+  return ((value % FULL_TURN) + FULL_TURN) % FULL_TURN;
+}
+
+interface RotatableMosaicProps {
+  id: ShowcaseId;
+  label: string;
+  motionPreferenceReady: boolean;
+  reduceMotion: boolean;
+}
+
+/**
+ * Presents the generated mosaic as the thin, physical flat panel it becomes.
+ * The front keeps the photo-derived catalog colours; the reverse is a neutral
+ * backing plate. This makes a full orbit truthful instead of mirroring the
+ * portrait, pet, or car onto the back of the build.
+ */
+function RotatableMosaic({
+  id,
+  label,
+  motionPreferenceReady,
+  reduceMotion,
+}: RotatableMosaicProps) {
+  const [yaw, setYaw] = useState(0);
+  const [autoRotating, setAutoRotating] = useState(false);
+  const yawRef = useRef(yaw);
+  const gestureStartYaw = useRef(yaw);
+  yawRef.current = yaw;
+
+  useEffect(() => {
+    if (!motionPreferenceReady) return;
+    setAutoRotating(!reduceMotion);
+  }, [motionPreferenceReady, reduceMotion]);
+
+  useEffect(() => {
+    if (!autoRotating) return undefined;
+    let frame = 0;
+    let previousTime: number | null = null;
+    const tick = (time: number) => {
+      if (previousTime !== null) {
+        const elapsed = Math.min(40, time - previousTime);
+        setYaw((current) => normalizeDegrees(current + elapsed * AUTO_ROTATE_DEGREES_PER_MS));
+      }
+      previousTime = time;
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [autoRotating]);
+
+  const rotateBy = (amount: number) => {
+    setAutoRotating(false);
+    setYaw((current) => normalizeDegrees(current + amount));
+  };
+
+  const panResponder = useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderGrant: () => {
+        gestureStartYaw.current = yawRef.current;
+        setAutoRotating(false);
+      },
+      onPanResponderMove: (_event, gesture) => {
+        setYaw(normalizeDegrees(gestureStartYaw.current + gesture.dx * 0.55));
+      },
+    }),
+    [],
+  );
+
+  const normalizedYaw = normalizeDegrees(yaw);
+  const showingFront = normalizedYaw < 90 || normalizedYaw >= 270;
+  const roundedYaw = Math.round(normalizedYaw) % FULL_TURN;
+  const projectedWidth = Math.max(
+    0.035,
+    Math.abs(Math.cos((normalizedYaw * Math.PI) / 180)),
+  );
+
+  return (
+    <View style={styles.orbitShell}>
+      <View
+        accessibilityActions={[
+          { name: 'decrement', label: 'Rotate left' },
+          { name: 'increment', label: 'Rotate right' },
+          { name: 'activate', label: autoRotating ? 'Pause rotation' : 'Start rotation' },
+        ]}
+        accessibilityHint="Drag horizontally or use the rotation controls."
+        accessibilityLabel={`${label} brick panel, interactive 360 degree preview`}
+        accessibilityRole="adjustable"
+        accessibilityValue={{ text: `${roundedYaw} degrees` }}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'increment') rotateBy(ORBIT_STEP);
+          if (event.nativeEvent.actionName === 'decrement') rotateBy(-ORBIT_STEP);
+          if (event.nativeEvent.actionName === 'activate') setAutoRotating((current) => !current);
+        }}
+        style={styles.orbitStage}
+        {...panResponder.panHandlers}
+      >
+        <View
+          pointerEvents="none"
+          style={[
+            styles.rotatingPanel,
+            { transform: [{ scaleX: projectedWidth }] },
+          ]}
+        >
+          <BrickMosaic backing={!showingFront} id={id} />
+        </View>
+      </View>
+
+      <View accessibilityRole="toolbar" style={styles.orbitControls}>
+        <Pressable
+          accessibilityLabel="Rotate preview left"
+          accessibilityRole="button"
+          hitSlop={5}
+          onPress={() => rotateBy(-ORBIT_STEP)}
+          style={({ pressed }) => [styles.orbitButton, pressed && styles.orbitButtonPressed]}
+        >
+          <Text style={styles.orbitArrow}>←</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={autoRotating ? 'Pause automatic rotation' : 'Start automatic rotation'}
+          accessibilityRole="button"
+          onPress={() => setAutoRotating((current) => !current)}
+          style={({ pressed }) => [styles.orbitToggle, pressed && styles.orbitButtonPressed]}
+        >
+          <Text style={styles.orbitToggleText}>{autoRotating ? 'PAUSE' : 'AUTO'}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Rotate preview right"
+          accessibilityRole="button"
+          hitSlop={5}
+          onPress={() => rotateBy(ORBIT_STEP)}
+          style={({ pressed }) => [styles.orbitButton, pressed && styles.orbitButtonPressed]}
+        >
+          <Text style={styles.orbitArrow}>→</Text>
+        </Pressable>
+        <Text style={styles.orbitAngle}>{roundedYaw.toString().padStart(3, '0')}°</Text>
+      </View>
+    </View>
   );
 }
 
@@ -178,6 +328,7 @@ function SourceThumbnail({ alt, id }: Pick<Showcase, 'alt' | 'id'>) {
 export function BuildPath({ onStart, onStart3D }: BuildPathProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [motionPreferenceReady, setMotionPreferenceReady] = useState(false);
   const reveal = useRef(new Animated.Value(1)).current;
   const active = SHOWCASES[activeIndex]!;
 
@@ -185,9 +336,14 @@ export function BuildPath({ onStart, onStart3D }: BuildPathProps) {
     let mounted = true;
     void AccessibilityInfo.isReduceMotionEnabled?.()
       .then((enabled) => {
-        if (mounted) setReduceMotion(enabled);
+        if (mounted) {
+          setReduceMotion(enabled);
+          setMotionPreferenceReady(true);
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (mounted) setMotionPreferenceReady(true);
+      });
     const subscription = AccessibilityInfo.addEventListener?.('reduceMotionChanged', setReduceMotion);
     return () => {
       mounted = false;
@@ -215,7 +371,6 @@ export function BuildPath({ onStart, onStart3D }: BuildPathProps) {
     <View style={styles.hero}>
       <View
         accessibilityLabel={`${active.label.toLowerCase()} example. Source photo beside a subject-only ${HOME_MOSAIC_GRID} by ${HOME_MOSAIC_GRID} detail grid using catalog colours, with the studio background removed.`}
-        accessibilityRole="image"
         style={styles.comparisonCard}
       >
         <View style={styles.comparisonHeader}>
@@ -223,7 +378,7 @@ export function BuildPath({ onStart, onStart3D }: BuildPathProps) {
             <Text numberOfLines={1} style={styles.headerLabel}>PHOTO</Text>
           </View>
           <View style={styles.headerHalf}>
-            <Text numberOfLines={1} style={styles.headerLabel}>BRICK PREVIEW</Text>
+            <Text numberOfLines={1} style={styles.headerLabel}>BRICKS · 360°</Text>
           </View>
         </View>
 
@@ -242,13 +397,19 @@ export function BuildPath({ onStart, onStart3D }: BuildPathProps) {
             <SourcePhoto alt={active.alt} id={active.id} key={active.id} source={active.source} />
           </View>
           <View style={[styles.stageHalf, styles.brickStage]}>
-            <BrickMosaic id={active.id} />
+            <RotatableMosaic
+              id={active.id}
+              key={active.id}
+              label={active.label.toLowerCase()}
+              motionPreferenceReady={motionPreferenceReady}
+              reduceMotion={reduceMotion}
+            />
           </View>
         </Animated.View>
 
         <View style={styles.comparisonFooter}>
           <Text numberOfLines={1} style={styles.footerPrimary}>
-            SUBJECT ISOLATED · FRONT-FACING PANEL
+            SUBJECT ISOLATED · ROTATABLE FLAT PANEL
           </Text>
           <Text numberOfLines={1} style={styles.footerSecondary}>
             {HOME_MOSAIC_GRID} × {HOME_MOSAIC_GRID} DETAIL GRID ·{' '}
@@ -377,6 +538,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
+  },
+  orbitShell: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    position: 'relative',
+    width: '100%',
+  },
+  orbitStage: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    paddingBottom: 38,
+    width: '100%',
+  },
+  rotatingPanel: {
+    height: '100%',
+    width: '100%',
+  },
+  orbitControls: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(18, 16, 10, 0.92)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 999,
+    borderWidth: 1,
+    bottom: 2,
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    position: 'absolute',
+  },
+  orbitButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    height: 27,
+    justifyContent: 'center',
+    width: 30,
+  },
+  orbitArrow: {
+    color: colors.white,
+    fontFamily: fonts.extrabold,
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  orbitToggle: {
+    alignItems: 'center',
+    backgroundColor: colors.saffron,
+    borderRadius: 999,
+    height: 27,
+    justifyContent: 'center',
+    minWidth: 52,
+    paddingHorizontal: 9,
+  },
+  orbitToggleText: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    letterSpacing: 0.45,
+  },
+  orbitAngle: {
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    fontVariant: ['tabular-nums'],
+    minWidth: 31,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+  },
+  orbitButtonPressed: {
+    opacity: 0.62,
+    transform: [{ scale: 0.96 }],
   },
   photoFrame: {
     ...shadow.card,

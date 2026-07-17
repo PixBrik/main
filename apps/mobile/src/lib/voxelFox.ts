@@ -9,6 +9,9 @@
 
 export type BuildProfile = 'efficient' | 'balanced' | 'detailed';
 
+/** Standard brick height (9.6 mm) divided by horizontal stud pitch (8 mm). */
+export const BRICK_HEIGHT_RATIO = 1.2;
+
 export type VoxelZone = 'body' | 'cream' | 'dark' | 'mint' | 'accent';
 
 export interface Voxel {
@@ -84,6 +87,10 @@ function detectSlopes(index: Map<string, VoxelCell>) {
 export interface BuildModelOptions {
   /** Convert staircase steps into 45° slopes (default true). */
   slopes?: boolean;
+  /** Keep shape/facing metadata already approved on the supplied cells. */
+  preserveShapes?: boolean;
+  /** Physical vertical pitch; defaults to `size` for square photo grids. */
+  layerHeight?: number;
 }
 
 /**
@@ -97,12 +104,14 @@ export function buildModelFromCells(
 ): VoxelModel {
   const index = new Map<string, VoxelCell>();
   for (const cell of cells) {
-    cell.shape = undefined;
-    cell.facing = undefined;
+    if (!options.preserveShapes) {
+      cell.shape = undefined;
+      cell.facing = undefined;
+    }
     index.set(`${cell.i}|${cell.j}|${cell.k}`, cell);
   }
 
-  if (options.slopes !== false) {
+  if (!options.preserveShapes && options.slopes !== false) {
     detectSlopes(index);
   }
 
@@ -125,6 +134,7 @@ export function buildModelFromCells(
     brickCount: index.size,
     cells: [...index.values()],
     exposedFaceCount,
+    ...(options.layerHeight ? { layerHeight: options.layerHeight } : {}),
     shell,
     size,
   };
@@ -132,6 +142,8 @@ export function buildModelFromCells(
 
 export interface VoxelModel {
   size: number;
+  /** Vertical layer pitch when it differs from horizontal stud pitch. */
+  layerHeight?: number;
   brickCount: number;
   exposedFaceCount: number;
   /** Only voxels with at least one exposed face — interior bricks never render. */

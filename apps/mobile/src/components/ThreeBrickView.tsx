@@ -1,3 +1,4 @@
+import type { BillOfMaterials } from '../lib/brickify';
 import type { VoxelModel } from '../lib/voxelFox';
 
 /**
@@ -9,7 +10,9 @@ interface ThreeBrickViewProps {
   model: VoxelModel;
   accent: string;
   label?: string;
+  hollow?: boolean;
   packedParts?: number;
+  packedPlan?: BillOfMaterials;
 }
 
 export function ThreeBrickView(_props: ThreeBrickViewProps) {

@@ -9,10 +9,13 @@
  * the mesh→brick pipeline is fully demonstrable end-to-end.
  */
 
-import { buildModelFromCells, type VoxelModel } from '../voxelFox';
+import type { VoxelModel } from '../voxelFox';
 import { segmentRegion, type Segmentation } from './segment';
-import type { PhotoModels } from './voxelizePhoto';
+import { quantizeToCatalog, type PhotoModels } from './voxelizePhoto';
 import { voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
+
+export { recolorPhotoModels } from './meshFidelity';
+export type { MeshBrickColorStyle } from './meshFidelity';
 
 /**
  * Live image-to-3D runs through our Meshy and Tripo serverless proxies, so
@@ -96,9 +99,9 @@ export const DEMO_MESHES = [
   },
   {
     id: 'car',
-    label: 'Toy Car',
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb',
-    credit: 'Khronos glTF sample (CC0)',
+    label: 'Concept Car',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb',
+    credit: 'Darmstadt Graphics Group / Khronos glTF sample (CC BY 4.0)',
   },
 ] as const;
 
@@ -148,27 +151,51 @@ function tint(target: string, factor: number): string {
 
 /** Recolour a model to a single hue, keeping each cell's brightness (shading). */
 function recolour(model: VoxelModel, colorHex: string): VoxelModel {
-  const cells = model.cells.map((cell) => ({
+  const colors = new Map<string, string>();
+  const cells = model.cells.map((cell) => {
+    const tinted = tint(colorHex, 0.45 + 0.85 * hexLuminance(cell.colorHex ?? '#888888'));
+    const next = quantizeToCatalog(
+      Number.parseInt(tinted.slice(1, 3), 16),
+      Number.parseInt(tinted.slice(3, 5), 16),
+      Number.parseInt(tinted.slice(5, 7), 16),
+    );
+    colors.set(`${cell.i}|${cell.j}|${cell.k}`, next);
+    return { ...cell, colorHex: next };
+  });
+  const shell = model.shell.map((cell) => ({
     ...cell,
-    colorHex: tint(colorHex, 0.45 + 0.85 * hexLuminance(cell.colorHex ?? '#888888')),
+    colorHex: colors.get(`${cell.i}|${cell.j}|${cell.k}`) ?? colorHex,
+    exposed: [...cell.exposed],
   }));
-  return buildModelFromCells(cells, model.size, { slopes: true });
+  // A finish change must never run geometry heuristics again. The old
+  // recolour path re-detected slopes and visibly eroded approved cars.
+  return { ...model, cells, shell };
 }
 
 /**
- * Library build: voxelize a catalogued mesh at one profile (fast) and, when a
- * colour is chosen, recolour it while preserving shading. Used by the object
- * library so users pick a model + colour instead of uploading a photo.
+ * Library build: create the same three genuine fidelity profiles as an
+ * approved provider model and, when a colour is chosen, recolour each without
+ * changing occupancy. Users can therefore compare real size/detail options.
  */
-export async function buildFromLibrary(url: string, label: string, colorHex?: string): Promise<PhotoModels> {
-  const base = await voxelizeGlbUrlOne(url, 'efficient');
-  const model = colorHex ? recolour(base, colorHex) : base;
-  // Library builds reuse one voxelization across all profiles (already dense).
+export async function buildFromLibrary(
+  url: string,
+  label: string,
+  colorHex?: string,
+  onProgress?: (fraction: number) => void,
+): Promise<PhotoModels> {
+  const base = await voxelizeGlbUrl(url, onProgress);
+  const models = colorHex
+    ? {
+        balanced: recolour(base.balanced, colorHex),
+        detailed: recolour(base.detailed, colorHex),
+        efficient: recolour(base.efficient, colorHex),
+      }
+    : base;
   return {
     hasDepth: true,
     label,
     mode: 'volume',
-    models: { balanced: model, detailed: model, efficient: model },
+    models,
     style: 'natural',
   };
 }
@@ -396,6 +423,8 @@ export interface BuildFromPhotoOptions {
   /** Specific Tripo generation to use (lab comparisons). Server default otherwise. */
   modelVersion?: TripoVersionId;
   onProgress?: ProgressFn;
+  /** Called only after a provider accepts a brand-new paid task. Resumes do not call it. */
+  onProviderTaskCreated?: () => void;
   /**
    * Receives the generated mesh's URL as soon as it is ready, before brick
    * conversion — the lab uses it to show the raw 3D output next to the
@@ -636,6 +665,7 @@ async function submitRememberedTask(
   fingerprint: string,
   onProgress?: ProgressFn,
   mode: MeshGenerationMode = 'single',
+  onProviderTaskCreated?: () => void,
 ): Promise<string> {
   const resumed = readPendingTask(fingerprint);
   if (resumed) {
@@ -643,6 +673,7 @@ async function submitRememberedTask(
     return awaitRememberedTask(resumed, onProgress);
   }
   const taskId = await submitTask(engine, body);
+  onProviderTaskCreated?.();
   const pending = { createdAt: Date.now(), engine, fingerprint, mode, taskId };
   rememberPendingTask(pending);
   return awaitRememberedTask(pending, onProgress);
@@ -662,7 +693,14 @@ async function generateAndVoxelize(
   const onProgress = options.onProgress;
   onProgress?.(0.12, 'Uploading to generator');
   const fingerprint = taskFingerprint(`direct-${engine}`, submitBody);
-  const meshUrl = await submitRememberedTask(engine, submitBody, fingerprint, onProgress);
+  const meshUrl = await submitRememberedTask(
+    engine,
+    submitBody,
+    fingerprint,
+    onProgress,
+    'single',
+    options.onProviderTaskCreated,
+  );
   onProgress?.(0.9, 'Converting to bricks');
   options.onMeshUrl?.(meshUrl);
   const model = await voxelizeGlbUrlOne(meshUrl, 'balanced', (fraction) =>
@@ -697,7 +735,7 @@ export async function generateMeshFromPhoto(
   }
   const onProgress = options.onProgress;
   onProgress?.(0.05, 'Preparing photo');
-  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation) : photoSrc;
   const image = await compactSingleWithinBudget(
     cutout,
     segmentation?.maskSource === 'background-removal' && !!segmentation.cutoutUri,
@@ -709,7 +747,14 @@ export async function generateMeshFromPhoto(
     modelVersion: options.modelVersion ?? null,
   });
   try {
-    return await submitRememberedTask('meshy', { image }, fingerprint, onProgress);
+    return await submitRememberedTask(
+      'meshy',
+      { image },
+      fingerprint,
+      onProgress,
+      'single',
+      options.onProviderTaskCreated,
+    );
   } catch (error) {
     if (!(error instanceof GenerationSubmitError) || !error.definitivePreTaskRejection) {
       throw error;
@@ -720,6 +765,8 @@ export async function generateMeshFromPhoto(
       { image, modelVersion: options.modelVersion },
       fingerprint,
       onProgress,
+      'single',
+      options.onProviderTaskCreated,
     );
   }
 }
@@ -759,7 +806,7 @@ export async function buildFromPhoto(
   options.onProgress?.(0.05, 'Preparing photo');
   // Send the generator the isolated object (cropped + background removed)
   // whenever we already have a segmentation for this photo, not the raw scene.
-  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation).catch(() => photoSrc) : photoSrc;
+  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation) : photoSrc;
   const image = await toCompactDataUrl(
     cutout,
     1024,
@@ -814,6 +861,7 @@ export async function generateMeshFromMultiview(
     fingerprint,
     options.onProgress,
     'multiview',
+    options.onProviderTaskCreated,
   );
 }
 

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
+import { brickify, type BillOfMaterials, type BrickPlacement } from '../lib/brickify';
 import type { VoxelModel } from '../lib/voxelFox';
 import { voxelBaseColor } from '../lib/voxelRender';
 
@@ -17,8 +18,12 @@ interface ThreeBrickViewProps {
   model: VoxelModel;
   accent: string;
   label?: string;
-  /** Catalog-packed pieces; the WebGL stage itself renders voxel cells. */
+  /** Pack only the visible shell, matching the standard kit quote. */
+  hollow?: boolean;
+  /** Expected packed count supplied by the profile cards, used only if packing fails. */
   packedParts?: number;
+  /** Frozen order packing, when this preview belongs to an existing order. */
+  packedPlan?: BillOfMaterials;
 }
 
 const ROTATION_STEP = Math.PI / 8;
@@ -26,7 +31,7 @@ const INITIAL_YAW = 0.62;
 
 interface StageHandles {
   dispose: () => void;
-  setModel: (model: VoxelModel, accent: string) => void;
+  setModel: (model: VoxelModel, accent: string, packed: BillOfMaterials | null) => void;
   setTargetYaw: (yaw: number) => void;
   getTargetYaw: () => number;
 }
@@ -96,21 +101,23 @@ function createStage(container: HTMLElement): StageHandles {
     roughness: 0.36,
   });
 
-  /** Unit 45° wedge descending toward +z, centred at origin, side length 1. */
-  function wedgeGeometry(size: number): THREE.BufferGeometry {
-    const h = (size * 0.98) / 2;
+  /** 45°-style wedge descending toward +z, using the real brick layer pitch. */
+  function wedgeGeometry(width: number, height: number, depth: number): THREE.BufferGeometry {
+    const hx = (width * 0.98) / 2;
+    const hy = (height * 0.98) / 2;
+    const hz = (depth * 0.98) / 2;
     // prettier-ignore
     const positions = new Float32Array([
       // bottom (y = -h)
-      -h, -h, -h,  h, -h,  h,  h, -h, -h,   -h, -h, -h,  -h, -h,  h,  h, -h,  h,
+      -hx, -hy, -hz,  hx, -hy,  hz,  hx, -hy, -hz,   -hx, -hy, -hz,  -hx, -hy,  hz,  hx, -hy,  hz,
       // back (z = -h)
-      -h, -h, -h,  h, -h, -h,  h,  h, -h,   -h, -h, -h,  h,  h, -h,  -h,  h, -h,
+      -hx, -hy, -hz,  hx, -hy, -hz,  hx,  hy, -hz,   -hx, -hy, -hz,  hx,  hy, -hz,  -hx,  hy, -hz,
       // ramp (top-back edge → bottom-front edge)
-      -h,  h, -h,  h,  h, -h,  h, -h,  h,   -h,  h, -h,  h, -h,  h,  -h, -h,  h,
+      -hx,  hy, -hz,  hx,  hy, -hz,  hx, -hy,  hz,   -hx,  hy, -hz,  hx, -hy,  hz,  -hx, -hy,  hz,
       // right flank (x = +h)
-      h, -h, -h,  h, -h,  h,  h,  h, -h,
+      hx, -hy, -hz,  hx, -hy,  hz,  hx,  hy, -hz,
       // left flank (x = -h)
-      -h, -h, -h,  -h,  h, -h,  -h, -h,  h,
+      -hx, -hy, -hz,  -hx,  hy, -hz,  -hx, -hy,  hz,
     ]);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -137,7 +144,7 @@ function createStage(container: HTMLElement): StageHandles {
     camera.lookAt(0, modelHeight * 0.42, 0);
   }
 
-  function setModel(model: VoxelModel, accent: string) {
+  function setModel(model: VoxelModel, accent: string, packed: BillOfMaterials | null) {
     while (modelGroup.children.length) {
       const child = modelGroup.children[0] as THREE.Mesh;
       modelGroup.remove(child);
@@ -145,76 +152,160 @@ function createStage(container: HTMLElement): StageHandles {
     }
 
     const size = model.size;
-    const boxGeometry = new THREE.BoxGeometry(size * 0.98, size * 0.98, size * 0.98, 1, 1, 1);
+    const layerHeight = model.layerHeight ?? size;
     const studGeometry = new THREE.CylinderGeometry(size * 0.3, size * 0.3, size * 0.17, 14);
-    const slopeGeometry = wedgeGeometry(size);
-
-    const cubes = model.shell.filter((voxel) => voxel.shape !== 'slope');
-    const wedges = model.shell.filter((voxel) => voxel.shape === 'slope');
-
-    const bricks = new THREE.InstancedMesh(boxGeometry, brickMaterial, Math.max(cubes.length, 1));
-    bricks.castShadow = true;
-    bricks.receiveShadow = true;
-    const slopes = new THREE.InstancedMesh(slopeGeometry, brickMaterial, Math.max(wedges.length, 1));
-    slopes.castShadow = true;
-    slopes.receiveShadow = true;
-
-    const studCount = cubes.filter((voxel) => voxel.exposed[0]).length;
-    const studs = new THREE.InstancedMesh(studGeometry, brickMaterial, Math.max(studCount, 1));
-    studs.castShadow = true;
-
     const matrix = new THREE.Matrix4();
-    const rotation = new THREE.Matrix4();
     const color = new THREE.Color();
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
-
-    let studIndex = 0;
-    cubes.forEach((voxel, index) => {
-      matrix.makeTranslation(voxel.cx, voxel.cy, voxel.cz);
-      bricks.setMatrixAt(index, matrix);
-      color.set(voxelBaseColor(voxel, accent));
-      bricks.setColorAt(index, color);
-      if (voxel.exposed[0]) {
-        matrix.makeTranslation(voxel.cx, voxel.cy + size * 0.57, voxel.cz);
-        studs.setMatrixAt(studIndex, matrix);
-        studs.setColorAt(studIndex, color);
-        studIndex++;
-      }
-    });
-    wedges.forEach((voxel, index) => {
-      matrix.makeTranslation(voxel.cx, voxel.cy, voxel.cz);
-      rotation.makeRotationY(WEDGE_ROTATION[voxel.facing ?? 1] ?? 0);
-      matrix.multiply(rotation);
-      slopes.setMatrixAt(index, matrix);
-      color.set(voxelBaseColor(voxel, accent));
-      slopes.setColorAt(index, color);
-    });
-    model.shell.forEach((voxel) => {
+    const boundsCells = model.shell.length ? model.shell : model.cells;
+    boundsCells.forEach((voxel) => {
       minX = Math.min(minX, voxel.cx); maxX = Math.max(maxX, voxel.cx);
       minY = Math.min(minY, voxel.cy); maxY = Math.max(maxY, voxel.cy);
       minZ = Math.min(minZ, voxel.cz); maxZ = Math.max(maxZ, voxel.cz);
     });
-    bricks.count = cubes.length;
-    slopes.count = wedges.length;
-    studs.count = studIndex;
-    bricks.instanceMatrix.needsUpdate = true;
-    slopes.instanceMatrix.needsUpdate = true;
-    if (bricks.instanceColor) bricks.instanceColor.needsUpdate = true;
-    if (slopes.instanceColor) slopes.instanceColor.needsUpdate = true;
+
+    if (packed && model.cells.length) {
+      const seed = model.cells[0]!;
+      const worldX = (i: number) => seed.cx + (i - seed.i) * size;
+      const worldY = (j: number) => seed.cy + (j - seed.j) * layerHeight;
+      const worldZ = (k: number) => seed.cz + (k - seed.k) * size;
+      const colorByPart = new Map(
+        packed.lines.map((line) => [`${line.part}|${line.colorId}`, line.colorRgb]),
+      );
+      const groups = new Map<string, BrickPlacement[]>();
+      for (const placement of packed.placements) {
+        const key = `${placement.shape}|${placement.spanI}|${placement.spanK}|${placement.facing ?? 0}`;
+        const group = groups.get(key) ?? [];
+        group.push(placement);
+        groups.set(key, group);
+      }
+
+      for (const placements of groups.values()) {
+        const sample = placements[0]!;
+        const facesAlongX = sample.facing === 3 || sample.facing === 4;
+        const geometry = sample.shape === 'slope'
+          ? wedgeGeometry(
+              (facesAlongX ? sample.spanK : sample.spanI) * size,
+              layerHeight,
+              (facesAlongX ? sample.spanI : sample.spanK) * size,
+            )
+          : new THREE.BoxGeometry(
+              sample.spanI * size - size * 0.02,
+              layerHeight * 0.98,
+              sample.spanK * size - size * 0.02,
+            );
+        const pieces = new THREE.InstancedMesh(geometry, brickMaterial, placements.length);
+        pieces.castShadow = true;
+        pieces.receiveShadow = true;
+        placements.forEach((placement, index) => {
+          const cx = worldX(placement.i) + ((placement.spanI - 1) * size) / 2;
+          const cy = worldY(placement.j);
+          const cz = worldZ(placement.k) + ((placement.spanK - 1) * size) / 2;
+          if (placement.shape === 'slope') {
+            matrix.makeRotationY(WEDGE_ROTATION[placement.facing ?? 1] ?? 0);
+            matrix.setPosition(cx, cy, cz);
+          } else {
+            matrix.makeTranslation(cx, cy, cz);
+          }
+          pieces.setMatrixAt(index, matrix);
+          color.set(colorByPart.get(`${placement.part}|${placement.colorId}`) ?? accent);
+          pieces.setColorAt(index, color);
+        });
+        pieces.instanceMatrix.needsUpdate = true;
+        if (pieces.instanceColor) pieces.instanceColor.needsUpdate = true;
+        modelGroup.add(pieces);
+      }
+
+      const brickPlacements = packed.placements.filter((placement) => placement.shape === 'brick');
+      const studCount = brickPlacements.reduce(
+        (sum, placement) => sum + placement.spanI * placement.spanK,
+        0,
+      );
+      const studs = new THREE.InstancedMesh(studGeometry, brickMaterial, Math.max(studCount, 1));
+      studs.castShadow = true;
+      let studIndex = 0;
+      for (const placement of brickPlacements) {
+        color.set(colorByPart.get(`${placement.part}|${placement.colorId}`) ?? accent);
+        for (let di = 0; di < placement.spanI; di++) {
+          for (let dk = 0; dk < placement.spanK; dk++) {
+            matrix.makeTranslation(
+              worldX(placement.i + di),
+              worldY(placement.j) + layerHeight * 0.5 + size * 0.085,
+              worldZ(placement.k + dk),
+            );
+            studs.setMatrixAt(studIndex, matrix);
+            studs.setColorAt(studIndex, color);
+            studIndex++;
+          }
+        }
+      }
+      studs.count = studIndex;
+      studs.instanceMatrix.needsUpdate = true;
+      if (studs.instanceColor) studs.instanceColor.needsUpdate = true;
+      modelGroup.add(studs);
+    } else {
+      // Catalog packing can be unavailable when a stock rule rejects the
+      // model. Keep a clear shape fallback instead of leaving a blank stage.
+      const cubes = model.shell.filter((voxel) => voxel.shape !== 'slope');
+      const wedges = model.shell.filter((voxel) => voxel.shape === 'slope');
+      const bricks = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(size * 0.98, layerHeight * 0.98, size * 0.98),
+        brickMaterial,
+        Math.max(cubes.length, 1),
+      );
+      const slopes = new THREE.InstancedMesh(
+        wedgeGeometry(size, layerHeight, size),
+        brickMaterial,
+        Math.max(wedges.length, 1),
+      );
+      const visibleStuds = cubes.filter((voxel) => voxel.exposed[0]);
+      const studs = new THREE.InstancedMesh(
+        studGeometry,
+        brickMaterial,
+        Math.max(visibleStuds.length, 1),
+      );
+      cubes.forEach((voxel, index) => {
+        matrix.makeTranslation(voxel.cx, voxel.cy, voxel.cz);
+        bricks.setMatrixAt(index, matrix);
+        color.set(voxelBaseColor(voxel, accent));
+        bricks.setColorAt(index, color);
+      });
+      wedges.forEach((voxel, index) => {
+        matrix.makeRotationY(WEDGE_ROTATION[voxel.facing ?? 1] ?? 0);
+        matrix.setPosition(voxel.cx, voxel.cy, voxel.cz);
+        slopes.setMatrixAt(index, matrix);
+        color.set(voxelBaseColor(voxel, accent));
+        slopes.setColorAt(index, color);
+      });
+      visibleStuds.forEach((voxel, index) => {
+        matrix.makeTranslation(
+          voxel.cx,
+          voxel.cy + layerHeight * 0.5 + size * 0.085,
+          voxel.cz,
+        );
+        studs.setMatrixAt(index, matrix);
+        color.set(voxelBaseColor(voxel, accent));
+        studs.setColorAt(index, color);
+      });
+      for (const mesh of [bricks, slopes, studs]) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        modelGroup.add(mesh);
+      }
+      bricks.count = cubes.length;
+      slopes.count = wedges.length;
+      studs.count = visibleStuds.length;
+    }
 
     // Centre the model on the stage with its feet on the floor.
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
-    modelGroup.position.set(0, 0, 0);
-    bricks.position.set(-centerX, -minY + size / 2, -centerZ);
-    slopes.position.copy(bricks.position);
-    studs.position.copy(bricks.position);
-    modelGroup.add(bricks);
-    modelGroup.add(slopes);
-    modelGroup.add(studs);
+    modelGroup.position.set(-centerX, -minY + layerHeight / 2, -centerZ);
 
     modelRadius = Math.max(maxX - minX, maxZ - minZ) / 2 + 1;
-    modelHeight = maxY - minY + 1;
+    modelHeight = maxY - minY + layerHeight;
     frameCamera();
   }
 
@@ -284,12 +375,21 @@ function createStage(container: HTMLElement): StageHandles {
 export function ThreeBrickView({
   model,
   accent,
+  hollow = false,
   label = 'Realistic 3D brick preview',
   packedParts,
+  packedPlan,
 }: ThreeBrickViewProps) {
   const containerRef = useRef<View>(null);
   const stageRef = useRef<StageHandles | null>(null);
   const [ready, setReady] = useState(false);
+  const packed = useMemo(() => {
+    try {
+      return packedPlan ?? brickify(model, accent, hollow ? { hollow: true } : {});
+    } catch {
+      return null;
+    }
+  }, [accent, hollow, model, packedPlan]);
 
   useEffect(() => {
     const node = containerRef.current as unknown as HTMLElement | null;
@@ -305,9 +405,9 @@ export function ThreeBrickView({
 
   useEffect(() => {
     if (ready && stageRef.current) {
-      stageRef.current.setModel(model, accent);
+      stageRef.current.setModel(model, accent, packed);
     }
-  }, [accent, model, ready]);
+  }, [accent, model, packed, ready]);
 
   const rotateBy = (amount: number) => {
     stageRef.current?.setTargetYaw(stageRef.current.getTargetYaw() + amount);
@@ -318,11 +418,13 @@ export function ThreeBrickView({
       <View style={styles.header}>
         <View style={styles.liveMark}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>SHAPE PREVIEW</Text>
+          <Text style={styles.liveText}>{packed ? 'CATALOG KIT PREVIEW' : 'SHAPE PREVIEW'}</Text>
         </View>
         <Text numberOfLines={1} style={styles.count}>
           {model.shell.length.toLocaleString('en-US')} CELLS
-          {packedParts !== undefined ? ` · ${packedParts.toLocaleString('en-US')} PARTS` : ''}
+          {(packed?.totalParts ?? packedParts) !== undefined
+            ? ` · ${(packed?.totalParts ?? packedParts)!.toLocaleString('en-US')} PARTS`
+            : ''}
         </Text>
       </View>
       <View

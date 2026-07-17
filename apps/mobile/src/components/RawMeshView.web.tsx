@@ -225,13 +225,6 @@ export function RawMeshView({
   }, [onError, onReady]);
 
   useEffect(() => {
-    if (!fallbackImageUri) return;
-    if (notifiedModelRef.current === modelUrl) return;
-    notifiedModelRef.current = modelUrl;
-    onReadyRef.current?.();
-  }, [fallbackImageUri, modelUrl]);
-
-  useEffect(() => {
     const node = containerRef.current as unknown as HTMLElement | null;
     if (!node) return;
     setViewerState('loading');

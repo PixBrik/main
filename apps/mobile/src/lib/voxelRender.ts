@@ -90,8 +90,11 @@ function bodyTone(voxel: Voxel) {
 /** Resolved base colour of a voxel — shared by the SVG and WebGL renderers. */
 export function voxelBaseColor(voxel: Voxel, accent: string): string {
   if (voxel.colorHex) {
-    const hash = Math.abs(voxel.i * 73856093 + voxel.j * 19349663 + voxel.k * 83492791);
-    return adjustHexColor(voxel.colorHex, ((hash % 5) - 2) * 0.022);
+    // Photo/mesh colours are already mapped to an exact buyable catalogue
+    // colour. Per-cell pseudo-random tinting made coherent skin, paint and
+    // clothing read as camouflage; face lighting below provides the physical
+    // brick shading without changing the approved base palette.
+    return voxel.colorHex;
   }
   if (voxel.zone === 'accent') return accent;
   if (voxel.zone === 'body') return bodyTone(voxel);
@@ -115,12 +118,13 @@ function projectPoint(point: Point3D, projection: Projection) {
   };
 }
 
-function voxelCorners(voxel: Voxel, size: number): Point3D[] {
+function voxelCorners(voxel: Voxel, size: number, layerHeight = size): Point3D[] {
   const half = size / 2;
+  const halfHeight = layerHeight / 2;
   const minX = voxel.cx - half;
   const maxX = voxel.cx + half;
-  const minY = voxel.cy - half;
-  const maxY = voxel.cy + half;
+  const minY = voxel.cy - halfHeight;
+  const maxY = voxel.cy + halfHeight;
   const minZ = voxel.cz - half;
   const maxZ = voxel.cz + half;
 
@@ -167,7 +171,7 @@ export function buildRenderFaces(
     }
 
     const baseColor = voxelBaseColor(voxel, accent);
-    const corners = voxelCorners(voxel, model.size).map((point) => rotatePoint(point, yaw));
+    const corners = voxelCorners(voxel, model.size, model.layerHeight).map((point) => rotatePoint(point, yaw));
     const slope = voxel.shape === 'slope' && voxel.facing ? SLOPE_GEOM[voxel.facing] : null;
 
     const pushFace = (cornerIdx: readonly number[], light: number, id: string) => {

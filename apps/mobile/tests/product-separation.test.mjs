@@ -14,7 +14,7 @@ test('an unapproved sculpture cannot enter the purchasing or build flow', async 
     source('src/screens/ResultScreen.tsx'),
   ]);
   assert.match(app, /const activeBuild = buildProduct === 'panel' \? panelBuild : sculptureBuild/);
-  assert.match(app, /if \(needsApprovedBuild && !activeBuild\)/);
+  assert.match(app, /if \(needsApprovedBuild && !activeBuild && !sampleUsed\)/);
   assert.match(app, /photoBuild=\{activeBuild\}/);
   assert.match(result, /downstreamDisabled=\{awaitingSculpture\}/);
   assert.match(dock, /disabled = downstreamDisabled && item\.screen !== 'result'/);
@@ -77,6 +77,9 @@ test('people route to four views while objects retain honest one-photo inference
   assert.match(result, /pending3DMeshUrl/);
   assert.match(result, /modelUrl=\{pending3DMeshUrl\}/);
   assert.match(result, /pendingMeshReady/);
+  assert.match(capture360, /previewRequestRef/);
+  assert.match(capture360, /pendingMeshUrlRef\.current !== meshUrl/);
+  assert.match(capture360, /onProviderTaskCreated/);
   assert.match(mode, /Four real views are required for people/);
   assert.match(capture360, /The back photo is essential for people/);
   assert.match(capture360, /RawMeshView/);

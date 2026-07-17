@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +12,7 @@ import {
 import { ArchivoBlack_400Regular } from '@expo-google-fonts/archivo-black';
 
 import { PaperCanvas } from './src/components/PaperCanvas';
+import { AccountScreen } from './src/screens/AccountScreen';
 import { BomScreen } from './src/screens/BomScreen';
 import { Capture360Screen } from './src/screens/Capture360Screen';
 import { CaptureScreen } from './src/screens/CaptureScreen';
@@ -29,8 +30,16 @@ import { LibraryScreen } from './src/screens/LibraryScreen';
 import { StoresScreen } from './src/screens/StoresScreen';
 import type { LibraryEntry } from './src/data/carLibrary';
 import { loadModel, saveBuild } from './src/lib/buildGallery';
+import { accentForVariant, profileForVariant, resolveActiveModel } from './src/lib/activeBuild';
+import { hollowBuildModel } from './src/lib/brickify';
+import { clear360Capture, clear360ProviderRuns } from './src/lib/capture360Store';
 import { NavigationContext } from './src/lib/navigationContext';
-import { requiresGuidedMultiview } from './src/lib/photoEngine/imageTo3D';
+import { loadOrderModel, type OrderRecord } from './src/lib/orderStore';
+import {
+  recolorPhotoModels,
+  requiresGuidedMultiview,
+  type MeshBrickColorStyle,
+} from './src/lib/photoEngine/imageTo3D';
 import type { Segmentation } from './src/lib/photoEngine/segment';
 import type { PhotoModels } from './src/lib/photoEngine/voxelizePhoto';
 import { colors } from './src/theme/tokens';
@@ -68,6 +77,15 @@ function samePhotoInput(a: Segmentation | null, b: Segmentation): boolean {
   );
 }
 
+const MAX_TRUE_3D_PROVIDER_RUNS = 3;
+
+interface Approved3DRecord {
+  capture: 'single' | 'multiview' | 'library' | 'saved';
+  meshUrl: string;
+  retakesRemaining: number;
+  stills: string[];
+}
+
 export default function App() {
   const live3DAvailable =
     Platform.OS === 'web' && (process.env.EXPO_PUBLIC_TRIPO_ENABLED ?? '') === '1';
@@ -85,6 +103,13 @@ export default function App() {
   const [photoBuild, setPhotoBuild] = useState<PhotoModels | null>(null);
   const [panelBuild, setPanelBuild] = useState<PhotoModels | null>(null);
   const [sculptureBuild, setSculptureBuild] = useState<PhotoModels | null>(null);
+  // Keep the untouched natural conversion as the source of truth. Palette
+  // previews clone colours only, so toggling can never re-voxelize or deform it.
+  const [naturalSculptureBuild, setNaturalSculptureBuild] = useState<PhotoModels | null>(null);
+  const [sculpturePalette, setSculpturePalette] = useState<MeshBrickColorStyle>('natural');
+  const [approved3D, setApproved3D] = useState<Approved3DRecord | null>(null);
+  const [true3DProviderRuns, setTrue3DProviderRuns] = useState(0);
+  const [captureProviderRunsStart, setCaptureProviderRunsStart] = useState(0);
   const [buildProduct, setBuildProduct] = useState<BuildProduct>('panel');
   const [photoSegmentation, setPhotoSegmentation] = useState<Segmentation | null>(null);
   const humanSubjectRequiresGuided3D = requiresGuidedMultiview(photoSegmentation);
@@ -98,6 +123,7 @@ export default function App() {
   const [detail, setDetail] = useState<DetailLevel>('balanced');
   const [selectedVariant, setSelectedVariant] = useState('balanced');
   const [countryCode, setCountryCode] = useState('FR');
+  const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   // Hollow is the standard kit: identical from the outside, a fraction of
   // the parts and price. Solid is the collector upsell, not the default.
   const [buildFill, setBuildFill] = useState<BuildFill>('hollow');
@@ -118,19 +144,43 @@ export default function App() {
   /** Changes whenever the exact crop/matte input changes, even on the same URI. */
   const photoInputRevisionRef = useRef(0);
   const [libraryGenerating, setLibraryGenerating] = useState(false);
+  const [libraryGenerationProgress, setLibraryGenerationProgress] = useState(0);
+
+  const selectSculpturePalette = (style: MeshBrickColorStyle) => {
+    if (!naturalSculptureBuild) return;
+    const recolored = recolorPhotoModels(naturalSculptureBuild, style);
+    setSculpturePalette(style);
+    setSculptureBuild(recolored);
+    if (buildProduct === 'sculpture') setPhotoBuild(recolored);
+  };
 
   const generateFromLibrary = async (entry: LibraryEntry, colorHex: string) => {
     if (!entry.meshUrl) return;
     setLibraryGenerating(true);
+    setLibraryGenerationProgress(0);
     try {
       const { buildFromLibrary } = await import('./src/lib/photoEngine/imageTo3D');
-      const models = await buildFromLibrary(entry.meshUrl, entry.name, colorHex);
+      const models = await buildFromLibrary(
+        entry.meshUrl,
+        entry.name,
+        colorHex,
+        setLibraryGenerationProgress,
+      );
       setPhotoUri(null);
       setRightsConfirmedUri(null);
       setSampleUsed(false);
       setPhotoSegmentation(null);
       setPanelBuild(null);
+      setNaturalSculptureBuild(models);
       setSculptureBuild(models);
+      setSculpturePalette('natural');
+      setApproved3D({
+        capture: 'library',
+        meshUrl: entry.meshUrl,
+        retakesRemaining: 0,
+        stills: [],
+      });
+      setTrue3DProviderRuns(0);
       setBuildProduct('sculpture');
       setPhotoBuild(models);
       saveBuild(entry.name, models.models.balanced, colorHex, {
@@ -138,6 +188,8 @@ export default function App() {
         mode: models.mode,
         product: 'sculpture',
         provenance: 'library',
+        source3DMeshUrl: entry.meshUrl,
+        source3DRetakesRemaining: 0,
         style: models.style,
       });
       navigate('result');
@@ -146,35 +198,9 @@ export default function App() {
       console.error('[library] build failed:', error);
     } finally {
       setLibraryGenerating(false);
+      setLibraryGenerationProgress(0);
     }
   };
-
-  // TEMP bake hook: voxelize a mesh via the (known-good) imageTo3D chunk and
-  // serialize compact baked data for the homepage heroes.
-  useEffect(() => {
-    (globalThis as unknown as { __bake?: (url: string, res?: string) => Promise<unknown> }).__bake = async (
-      url: string,
-      res = 'efficient',
-    ) => {
-      const { buildFromMeshUrl } = await import('./src/lib/photoEngine/imageTo3D');
-      const pm = await buildFromMeshUrl(url, 'baked');
-      const model = pm.models[res as 'efficient' | 'balanced' | 'detailed'];
-      const palette: string[] = [];
-      const index = new Map<string, number>();
-      const cells: number[][] = [];
-      for (const cell of model.cells) {
-        const hex = cell.colorHex ?? '#cccccc';
-        let pi = index.get(hex);
-        if (pi === undefined) {
-          pi = palette.length;
-          palette.push(hex);
-          index.set(hex, pi);
-        }
-        cells.push([cell.i, cell.j, cell.k, pi]);
-      }
-      return { size: model.size, palette, cells };
-    };
-  }, []);
 
   /**
    * Approve-first True 3D: a paid provider creates a real textured mesh,
@@ -186,8 +212,14 @@ export default function App() {
     if (humanSubjectRequiresGuided3D) {
       setBuildProduct('sculpture');
       setTrue3DError('People need front, left, back and right photos for True 3D.');
+      setCaptureProviderRunsStart(0);
       setCaptureMode('orbit');
       navigate('capture');
+      return;
+    }
+    if (true3DProviderRuns >= MAX_TRUE_3D_PROVIDER_RUNS) {
+      setTrue3DError('Two 3D retakes have already been used for this photo. Start a new capture to generate again.');
+      setTrue3DState('failed');
       return;
     }
     true3DRequestRef.current = true;
@@ -208,6 +240,11 @@ export default function App() {
       const meshUrl = await mod.generateMeshFromPhoto(sourceUri, photoSegmentation, {
         onProgress: (fraction, note) =>
           setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
+        onProviderTaskCreated: () => {
+          setTrue3DProviderRuns((current) =>
+            Math.min(MAX_TRUE_3D_PROVIDER_RUNS, current + 1),
+          );
+        },
       });
       if (
         currentPhotoUriRef.current !== sourceUri ||
@@ -224,7 +261,7 @@ export default function App() {
       void import('./src/lib/photoEngine/meshSnapshot')
         .then(({ snapshotGlb }) => snapshotGlb(meshUrl))
         .then((stills) => {
-          if (!stills.length) return;
+          if (stills.length < 4) return;
           setPending3D((current) =>
             current?.meshUrl === meshUrl ? { ...current, stills } : current,
           );
@@ -258,7 +295,9 @@ export default function App() {
       }
       const { snapshotGlb } = await import('./src/lib/photoEngine/meshSnapshot');
       const stills = await snapshotGlb(meshUrl);
-      if (!stills.length) throw new Error('The 3D preview could not be rendered in this browser.');
+      if (stills.length < 4) {
+        throw new Error('The 3D preview did not return all four approval angles.');
+      }
       setPending3D((current) =>
         current?.meshUrl === meshUrl ? { ...current, stills } : current,
       );
@@ -274,7 +313,7 @@ export default function App() {
   /** The buyer approved the 3D model — brick it at all three profiles. */
   const approve3D = async () => {
     if (!pending3D || true3DRequestRef.current) return;
-    const { meshUrl, sourceRevision, sourceUri } = pending3D;
+    const { meshUrl, sourceRevision, sourceUri, stills } = pending3D;
     if (
       currentPhotoUriRef.current !== sourceUri ||
       photoInputRevisionRef.current !== sourceRevision
@@ -291,7 +330,7 @@ export default function App() {
     setTrue3DError('');
     try {
       const mod = await import('./src/lib/photoEngine/imageTo3D');
-      const models = await mod.buildFromMeshUrlAllProfiles(meshUrl, 'your object', (fraction, note) =>
+      const naturalModels = await mod.buildFromMeshUrlAllProfiles(meshUrl, 'your object', (fraction, note) =>
         setTrue3DNote(`${Math.round(fraction * 100)}% · ${note}`),
       );
       if (
@@ -300,7 +339,15 @@ export default function App() {
       ) {
         throw new Error('The photo crop or background changed while brick conversion was running.');
       }
+      const models = recolorPhotoModels(naturalModels, sculpturePalette);
+      setNaturalSculptureBuild(naturalModels);
       setSculptureBuild(models);
+      setApproved3D({
+        capture: 'single',
+        meshUrl,
+        retakesRemaining: Math.max(0, MAX_TRUE_3D_PROVIDER_RUNS - true3DProviderRuns),
+        stills,
+      });
       setBuildProduct('sculpture');
       setPhotoBuild(models);
       saveBuild(models.label, models.models.balanced, colors.blue, {
@@ -308,6 +355,8 @@ export default function App() {
         mode: models.mode,
         product: 'sculpture',
         provenance: 'provider-3d',
+        source3DMeshUrl: meshUrl,
+        source3DRetakesRemaining: Math.max(0, MAX_TRUE_3D_PROVIDER_RUNS - true3DProviderRuns),
         style: models.style,
       });
       setTrue3DState('done');
@@ -331,6 +380,10 @@ export default function App() {
     if (!samePhotoInput(photoSegmentation, next)) {
       photoInputRevisionRef.current += 1;
       setSculptureBuild(null);
+      setNaturalSculptureBuild(null);
+      setSculpturePalette('natural');
+      setApproved3D(null);
+      setTrue3DProviderRuns(0);
       setPending3D(null);
       setTrue3DState('idle');
       setTrue3DNote('');
@@ -352,9 +405,20 @@ export default function App() {
       'instructions',
     ]).has(destination);
     const activeBuild = buildProduct === 'panel' ? panelBuild : sculptureBuild;
-    if (needsApprovedBuild && !activeBuild) {
-      setTrue3DError('Generate and approve the 3D sculpture before opening its parts or build steps.');
-      return;
+    // The explicit sample-object path intentionally uses the catalogued demo
+    // model instead of creating a PhotoModels wrapper. Downstream screens all
+    // resolve that same model via resolveActiveModel, so let the buyer finish
+    // the complete sample checkout rather than making its CTA silently fail.
+    if (needsApprovedBuild && !activeBuild && !sampleUsed) {
+      const opensSavedOrderGuide = destination === 'instructions' && !!selectedOrder;
+      if (!opensSavedOrderGuide) {
+        setTrue3DError('Generate and approve the 3D sculpture before opening its parts or build steps.');
+        return;
+      }
+    }
+
+    if (destination !== 'account' && destination !== 'instructions') {
+      setSelectedOrder(null);
     }
 
     setHistory((current) => [...current, screen]);
@@ -372,18 +436,26 @@ export default function App() {
   };
 
   const restart = () => {
+    clear360Capture();
+    clear360ProviderRuns();
     setSampleUsed(false);
     setPhotoUri(null);
     setRightsConfirmedUri(null);
     setPhotoBuild(null);
     setPanelBuild(null);
     setSculptureBuild(null);
+    setNaturalSculptureBuild(null);
+    setSculpturePalette('natural');
+    setApproved3D(null);
+    setTrue3DProviderRuns(0);
+    setCaptureProviderRunsStart(0);
     setBuildProduct('panel');
     setPhotoSegmentation(null);
     setPending3D(null);
     setTrue3DState('idle');
     setTrue3DNote('');
     setTrue3DError('');
+    setSelectedOrder(null);
     setHistory([]);
     setScreen('home');
   };
@@ -391,6 +463,22 @@ export default function App() {
   const renderScreen = () => {
     const activeBuild = buildProduct === 'panel' ? panelBuild : sculptureBuild;
     switch (screen) {
+      case 'account':
+        return (
+          <AccountScreen
+            onBack={goBack}
+            onOpenBuilds={() => navigate('home')}
+            onOpenInstructions={(order) => {
+              setSelectedOrder(order);
+              // The selected order is React state and does not update until
+              // the next render. Navigate directly here so the generic guard
+              // cannot read the previous null value and block its own guide.
+              setHistory((current) => [...current, screen]);
+              setScreen('instructions');
+            }}
+            selectedOrderId={selectedOrder?.id ?? null}
+          />
+        );
       case 'home':
         return (
           <HomeScreen
@@ -410,6 +498,21 @@ export default function App() {
               };
               setPanelBuild(restoredAsSculpture ? null : restoredBuild);
               setSculptureBuild(restoredAsSculpture ? restoredBuild : null);
+              setNaturalSculptureBuild(
+                restoredAsSculpture && saved.style !== 'classic' ? restoredBuild : null,
+              );
+              setSculpturePalette(saved.style === 'classic' ? 'bw' : 'natural');
+              setApproved3D(
+                restoredAsSculpture && saved.source3DMeshUrl
+                  ? {
+                      capture: 'saved',
+                      meshUrl: saved.source3DMeshUrl,
+                      retakesRemaining: saved.source3DRetakesRemaining ?? 0,
+                      stills: [],
+                    }
+                  : null,
+              );
+              setTrue3DProviderRuns(0);
               setBuildProduct(restoredAsSculpture ? 'sculpture' : 'panel');
               setPhotoBuild(restoredBuild);
               setTrue3DState(restoredAsSculpture ? 'done' : 'idle');
@@ -417,10 +520,14 @@ export default function App() {
             }}
             onOpenLibrary={() => navigate('library')}
             onStart={() => {
+              setCaptureProviderRunsStart(0);
               setCaptureMode('photo');
               navigate('capture');
             }}
             onStart3D={() => {
+              clear360Capture();
+              clear360ProviderRuns();
+              setCaptureProviderRunsStart(0);
               setCaptureMode('orbit');
               navigate('capture');
             }}
@@ -432,7 +539,10 @@ export default function App() {
             full3DAvailable={live3DAvailable}
             onBack={goBack}
             onChange={setCaptureMode}
-            onContinue={() => navigate('capture')}
+            onContinue={() => {
+              if (captureMode === 'orbit') setCaptureProviderRunsStart(0);
+              navigate('capture');
+            }}
             value={captureMode}
           />
         );
@@ -440,13 +550,22 @@ export default function App() {
         if (captureMode === 'orbit') {
           return (
             <Capture360Screen
+              initialProviderRuns={captureProviderRunsStart}
               onBack={goBack}
-              onGenerated={(models, frontUri) => {
+              onProviderRunsChange={setCaptureProviderRunsStart}
+              onGenerated={(models, frontUri, generated3D) => {
                 setPhotoUri(frontUri);
                 setPhotoSegmentation(null);
                 setSampleUsed(false);
                 setPanelBuild(null);
+                setNaturalSculptureBuild(models);
                 setSculptureBuild(models);
+                setSculpturePalette('natural');
+                setApproved3D({ capture: 'multiview', ...generated3D });
+                setCaptureProviderRunsStart(
+                  MAX_TRUE_3D_PROVIDER_RUNS - generated3D.retakesRemaining,
+                );
+                setTrue3DProviderRuns(0);
                 setBuildProduct('sculpture');
                 setPhotoBuild(models);
                 setPending3D(null);
@@ -456,6 +575,8 @@ export default function App() {
                   mode: models.mode,
                   product: 'sculpture',
                   provenance: 'provider-3d',
+                  source3DMeshUrl: generated3D.meshUrl,
+                  source3DRetakesRemaining: generated3D.retakesRemaining,
                   style: models.style,
                 });
                 navigate('result');
@@ -490,6 +611,10 @@ export default function App() {
               setPhotoBuild(null);
               setPanelBuild(null);
               setSculptureBuild(null);
+              setNaturalSculptureBuild(null);
+              setSculpturePalette('natural');
+              setApproved3D(null);
+              setTrue3DProviderRuns(0);
               setBuildProduct('panel');
               setPhotoSegmentation(null);
               setRightsConfirmedUri(null);
@@ -507,6 +632,10 @@ export default function App() {
               setPhotoBuild(null);
               setPanelBuild(null);
               setSculptureBuild(null);
+              setNaturalSculptureBuild(null);
+              setSculpturePalette('natural');
+              setApproved3D(null);
+              setTrue3DProviderRuns(0);
               setBuildProduct('panel');
               setPhotoSegmentation(null);
               setRightsConfirmedUri(null);
@@ -549,9 +678,28 @@ export default function App() {
             sculptureBuild={sculptureBuild}
             onSelectProduct={selectBuildProduct}
             onGuided3D={() => {
+              clear360Capture();
+              clear360ProviderRuns();
+              setCaptureProviderRunsStart(0);
               setCaptureMode('orbit');
               navigate('capture');
             }}
+            approved3DMeshUrl={approved3D?.meshUrl ?? null}
+            approved3DStills={approved3D?.stills ?? null}
+            sculpturePalette={sculpturePalette}
+            onSelectSculpturePalette={naturalSculptureBuild ? selectSculpturePalette : undefined}
+            onRetake3D={
+              approved3D?.capture === 'library' || approved3D?.capture === 'saved'
+                ? undefined
+                : () => {
+                    if (approved3D?.capture === 'multiview') {
+                      setCaptureMode('orbit');
+                      navigate('capture');
+                      return;
+                    }
+                    void rebuildTrue3D();
+                  }
+            }
             onTrue3D={rebuildTrue3D}
             onApprove3D={approve3D}
             onRetry3DPreview={retry3DPreview}
@@ -568,6 +716,18 @@ export default function App() {
             true3DState={true3DState}
             true3DNote={true3DNote}
             true3DError={true3DError}
+            true3DRetakesRemaining={
+              pending3D || approved3D?.capture === 'single'
+                ? true3DProviderRuns === 0
+                  ? 2
+                  : Math.max(0, MAX_TRUE_3D_PROVIDER_RUNS - true3DProviderRuns)
+                : approved3D?.capture === 'multiview'
+                  ? Math.max(0, MAX_TRUE_3D_PROVIDER_RUNS - captureProviderRunsStart)
+                : approved3D?.retakesRemaining ??
+                  (true3DProviderRuns === 0
+                    ? 2
+                    : Math.max(0, MAX_TRUE_3D_PROVIDER_RUNS - true3DProviderRuns))
+            }
             true3DAvailable={live3DAvailable}
           />
         );
@@ -599,6 +759,7 @@ export default function App() {
       case 'library':
         return (
           <LibraryScreen
+            generationProgress={libraryGenerationProgress}
             generating={libraryGenerating}
             onBack={goBack}
             onGenerate={generateFromLibrary}
@@ -626,23 +787,62 @@ export default function App() {
           <CheckoutScreen
             buildFill={buildFill}
             buildName={
-              activeBuild ? activeBuild.label.charAt(0).toUpperCase() + activeBuild.label.slice(1) : 'PixBrik build'
+              activeBuild
+                ? activeBuild.label.charAt(0).toUpperCase() + activeBuild.label.slice(1)
+                : sampleUsed
+                  ? 'Signal Fox'
+                  : 'PixBrik build'
             }
+            buildProduct={buildProduct}
             countryCode={countryCode}
             onBack={goBack}
             onDone={restart}
+            onOrderPlaced={(order) => {
+              setSelectedOrder(order);
+              navigate('account');
+            }}
+            paletteMode={
+              buildProduct === 'sculpture' && sculpturePalette === 'bw'
+                ? 'black-white'
+                : 'natural'
+            }
             photoBuild={activeBuild}
             selectedVariant={selectedVariant}
+            source3DMeshUrl={approved3D?.meshUrl ?? null}
+            source3DRetakesRemaining={approved3D?.retakesRemaining ?? 0}
           />
         );
       case 'instructions':
-        return (
-          <InstructionsScreen
-            onBack={goBack}
-            onNavigate={navigate}
-            onRestart={restart}
-          />
-        );
+        if (selectedOrder) {
+          return (
+            <InstructionsScreen
+              accent={selectedOrder.accent}
+              buildName={selectedOrder.buildName}
+              bomOverride={selectedOrder.bom}
+              model={loadOrderModel(selectedOrder.model)}
+              onBack={goBack}
+              onNavigate={navigate}
+              onRestart={restart}
+              orderId={selectedOrder.id}
+              profile={selectedOrder.profile}
+            />
+          );
+        }
+        if (activeBuild) {
+          const activeModel = resolveActiveModel(activeBuild, selectedVariant);
+          return (
+            <InstructionsScreen
+              accent={accentForVariant(selectedVariant)}
+              buildName={activeBuild.label.charAt(0).toUpperCase() + activeBuild.label.slice(1)}
+              model={buildFill === 'hollow' ? hollowBuildModel(activeModel) : activeModel}
+              onBack={goBack}
+              onNavigate={navigate}
+              onRestart={restart}
+              profile={profileForVariant(selectedVariant)}
+            />
+          );
+        }
+        return null;
     }
   };
 

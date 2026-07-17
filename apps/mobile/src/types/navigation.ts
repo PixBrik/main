@@ -1,5 +1,6 @@
 export type DemoScreen =
   | 'home'
+  | 'account'
   | 'mode'
   | 'capture'
   | 'preferences'

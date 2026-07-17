@@ -13,11 +13,18 @@ interface LibraryScreenProps {
   onNavigate: (screen: DemoScreen) => void;
   onGenerate: (entry: LibraryEntry, colorHex: string) => Promise<void>;
   generating: boolean;
+  generationProgress?: number;
 }
 
 type EraFilter = 'all' | 'classic' | 'modern';
 
-export function LibraryScreen({ onBack, onNavigate, onGenerate, generating }: LibraryScreenProps) {
+export function LibraryScreen({
+  onBack,
+  onNavigate,
+  onGenerate,
+  generating,
+  generationProgress = 0,
+}: LibraryScreenProps) {
   const [entries] = useState<LibraryEntry[]>(() => listLibrary());
   const [era, setEra] = useState<EraFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -66,7 +73,11 @@ export function LibraryScreen({ onBack, onNavigate, onGenerate, generating }: Li
         selected && selected.meshUrl ? (
           <PrimaryButton
             disabled={generating}
-            label={generating ? 'Generating your build…' : `Build the ${selected.name}`}
+            label={
+              generating
+                ? `Generating three build sizes… ${Math.round(generationProgress * 100)}%`
+                : `Build the ${selected.name}`
+            }
             onPress={() => onGenerate(selected, buildColor)}
           />
         ) : (

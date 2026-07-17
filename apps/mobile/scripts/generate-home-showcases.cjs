@@ -63,10 +63,11 @@ const SOURCES = [
       maximumChroma: 28,
       minimumPaleLuma: 130,
       // Below the front bumper/hood, the source contains only its cast shadow.
-      // This reviewed zone is intentionally sample-specific; it is never used
-      // for arbitrary customer uploads.
+      // Start the reviewed shadow-only zone below the bumper's real lower
+      // contour. The previous 0.68 cut crossed the bodywork itself and made
+      // the Porsche look as if its nose had been sawn off.
       dropRegions: [
-        { minX: 0, maxX: 0.52, minY: 0.68, maxY: 1 },
+        { minX: 0, maxX: 0.52, minY: 0.7, maxY: 1 },
       ],
       // The two wheel regions are semantic foreground, even where polished
       // rims approach the neutral studio sweep in colour.

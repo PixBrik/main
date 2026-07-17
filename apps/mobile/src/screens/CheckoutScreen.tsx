@@ -4,12 +4,19 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { countries } from '../data/mockData';
-import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
-import { estimateBuild, isCatalogStockError } from '../lib/brickify';
+import { accentForVariant, profileForVariant, resolveActiveModel } from '../lib/activeBuild';
+import { estimateBuild, hollowBuildModel, isCatalogStockError } from '../lib/brickify';
+import { saveBuild } from '../lib/buildGallery';
+import {
+  createOrder,
+  inferOrderPaletteMode,
+  type OrderPaletteMode,
+  type OrderRecord,
+} from '../lib/orderStore';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { estimateDelivery } from '../lib/shippingEstimate';
 import { colors, radius, spacing, type } from '../theme/tokens';
-import type { BuildFill } from '../types/navigation';
+import type { BuildFill, BuildProduct } from '../types/navigation';
 
 interface CheckoutScreenProps {
   onBack: () => void;
@@ -19,6 +26,11 @@ interface CheckoutScreenProps {
   buildFill: BuildFill;
   countryCode: string;
   buildName: string;
+  buildProduct: BuildProduct;
+  paletteMode?: OrderPaletteMode;
+  onOrderPlaced: (order: OrderRecord) => void;
+  source3DMeshUrl?: string | null;
+  source3DRetakesRemaining?: number;
 }
 
 const currencyMeta: Readonly<Record<string, { rate: number; symbol: string }>> = {
@@ -35,25 +47,32 @@ export function CheckoutScreen({
   buildFill,
   countryCode,
   buildName,
+  buildProduct,
+  paletteMode,
+  onOrderPlaced,
+  source3DMeshUrl = null,
+  source3DRetakesRemaining = 0,
 }: CheckoutScreenProps) {
   const [guest, setGuest] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [placed, setPlaced] = useState(false);
+  const [placed, setPlaced] = useState<OrderRecord | null>(null);
+  const [storageError, setStorageError] = useState('');
 
   const country = countries.find((candidate) => candidate.code === countryCode) ?? countries[0];
   const currency = currencyMeta[country?.currency ?? 'EUR'] ?? { rate: 1, symbol: '€' };
   const money = (eur: number) => `${currency.symbol}${(eur * currency.rate).toFixed(2)}`;
 
+  const model = useMemo(() => resolveActiveModel(photoBuild, selectedVariant), [photoBuild, selectedVariant]);
+  const accent = accentForVariant(selectedVariant);
   const estimate = useMemo(() => {
-    const model = resolveActiveModel(photoBuild, selectedVariant);
     try {
-      return estimateBuild(model, accentForVariant(selectedVariant));
+      return estimateBuild(model, accent);
     } catch (error) {
       if (isCatalogStockError(error)) return null;
       throw error;
     }
-  }, [photoBuild, selectedVariant]);
+  }, [accent, model]);
   const delivery = useMemo(() => estimateDelivery(countryCode), [countryCode]);
 
   if (!estimate) {
@@ -79,6 +98,50 @@ export function CheckoutScreen({
   const identified = guest || (name.trim().length > 1 && /.+@.+\..+/.test(email));
   const canPlace = identified;
 
+  const placeOrder = () => {
+    setStorageError('');
+    const orderedModel = buildFill === 'hollow' ? hollowBuildModel(model) : model;
+    const saved = saveBuild(buildName, orderedModel, accent, {
+      hasDepth: photoBuild?.hasDepth ?? buildProduct === 'sculpture',
+      mode: photoBuild?.mode ?? (buildProduct === 'sculpture' ? 'volume' : 'relief'),
+      product: buildProduct,
+      provenance: buildProduct === 'sculpture' ? 'provider-3d' : 'flat-photo',
+      ...(source3DMeshUrl
+        ? { source3DMeshUrl, source3DRetakesRemaining }
+        : {}),
+      style: photoBuild?.style ?? 'natural',
+    });
+    const order = createOrder({
+      accent,
+      buildId: saved?.id ?? null,
+      buildName,
+      countryCode,
+      currency: country?.currency ?? 'EUR',
+      currencySymbol: currency.symbol,
+      customerEmail: guest ? null : email,
+      customerName: guest ? null : name,
+      deliveryRange: delivery.rangeLabel,
+      fill: buildFill,
+      guest,
+      kitPrice: Number((side.bundleEur * currency.rate).toFixed(2)),
+      model: orderedModel,
+      paletteMode: paletteMode ?? inferOrderPaletteMode(orderedModel),
+      product: buildProduct,
+      profile: profileForVariant(selectedVariant),
+      selectedVariant,
+      shippingPrice: Number((delivery.costEur * currency.rate).toFixed(2)),
+      source3DMeshUrl,
+      source3DRetakesRemaining,
+      style: photoBuild?.style ?? 'natural',
+      totalPrice: Number((total * currency.rate).toFixed(2)),
+    });
+    if (!order) {
+      setStorageError('We could not save this order on this device. Check browser storage and try again.');
+      return;
+    }
+    setPlaced(order);
+  };
+
   if (placed) {
     return (
       <ScreenFrame accent="mint" eyebrow="Order / Confirmed" onBack={onBack} title="Kit reserved.">
@@ -86,12 +149,21 @@ export function CheckoutScreen({
           <Text style={styles.doneMark}>✓</Text>
           <Text style={styles.doneTitle}>Thanks{name ? `, ${name.split(' ')[0]}` : ''}!</Text>
           <Text style={styles.doneBody}>
-            Your {buildFill} {buildName} kit ({side.parts} parts) is reserved. In production you would
-            get an order confirmation and tracking by email. This is a prototype — no payment was taken
-            and no order was actually placed.
+            Your {buildFill} {buildName} kit ({placed.parts} parts) is reserved under order {placed.id}.
+            Its exact model, colours, price and generated instructions are now saved in My Account on
+            this device. This is still a demo reservation — no payment was taken.
           </Text>
         </View>
-        <PrimaryButton label="Back to start" onPress={onDone} />
+        <View style={styles.doneActions}>
+          <PrimaryButton label="View order & instructions" onPress={() => onOrderPlaced(placed)} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDone}
+            style={({ pressed }) => [styles.startOver, pressed && styles.pressed]}
+          >
+            <Text style={styles.startOverText}>BACK TO START</Text>
+          </Pressable>
+        </View>
       </ScreenFrame>
     );
   }
@@ -105,7 +177,7 @@ export function CheckoutScreen({
           accessibilityHint="Prototype checkout — no payment is processed"
           disabled={!canPlace}
           label={canPlace ? 'Place order (demo)' : 'Add your details to continue'}
-          onPress={() => setPlaced(true)}
+          onPress={placeOrder}
         />
       }
       onBack={onBack}
@@ -184,6 +256,7 @@ export function CheckoutScreen({
           You can check out without an account. Delivery details would be collected next in production.
         </Text>
       )}
+      {storageError ? <Text accessibilityRole="alert" style={styles.storageError}>{storageError}</Text> : null}
     </ScreenFrame>
   );
 }
@@ -326,5 +399,27 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: spacing.sm,
     textAlign: 'center',
+  },
+  doneActions: {
+    gap: spacing.md,
+  },
+  startOver: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  startOverText: {
+    ...type.label,
+    color: colors.ink,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  storageError: {
+    ...type.body,
+    color: colors.alarm,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: spacing.md,
   },
 });

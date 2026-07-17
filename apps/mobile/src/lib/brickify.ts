@@ -13,7 +13,7 @@
 
 import catalog from '../data/brickCatalog.json';
 import { colorDistance } from './photoEngine/voxelizePhoto';
-import { FACE_DIRECTIONS, type VoxelCell, type VoxelModel } from './voxelFox';
+import { buildModelFromCells, FACE_DIRECTIONS, type VoxelCell, type VoxelModel } from './voxelFox';
 import { voxelBaseColor } from './voxelRender';
 
 export interface BomLine {
@@ -47,6 +47,10 @@ export interface BrickPlacement {
   /** Footprint after orientation. */
   spanI: number;
   spanK: number;
+  /** Catalog shape metadata used by the exact kit preview and instructions. */
+  shape: 'brick' | 'slope';
+  /** Slope descent direction, indexed like FACE_DIRECTIONS. */
+  facing?: number;
 }
 
 export interface BillOfMaterials {
@@ -198,6 +202,21 @@ function shellCells(model: VoxelModel): VoxelCell[] {
   });
 }
 
+/**
+ * Materialise the exact model sold as a hollow kit. Keeping this as a model,
+ * rather than only an estimate option, lets orders and their instructions
+ * retain the same cells the customer actually purchased.
+ */
+export function hollowBuildModel(model: VoxelModel): VoxelModel {
+  // Removing the hidden core must not reclassify the already-approved outer
+  // slopes. Otherwise the parts quote and the saved order can disagree.
+  return buildModelFromCells(
+    shellCells(model).map((cell) => ({ ...cell })),
+    model.size,
+    { layerHeight: model.layerHeight, preserveShapes: true },
+  );
+}
+
 export function brickify(model: VoxelModel, accent: string, options: BrickifyOptions = {}): BillOfMaterials {
   const colorOf = (cell: VoxelCell) =>
     catalogColorFor(cell.colorHex ?? voxelBaseColor({ ...cell, exposed: [] }, accent)).id;
@@ -290,16 +309,26 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           tally.set(tallyKey, (tally.get(tallyKey) ?? 0) + 1);
           reserveStock(slopePart.part, resolved.color.id);
           if (resolved.substituted) substitutedKeys.add(tallyKey);
-          const first = piece[0]!;
-          const last = piece[piece.length - 1]!;
+          const facing = Number(lineKey.split('|')[1]);
+          const direction = FACE_DIRECTIONS[facing]!;
+          const footprint = piece.flatMap((entry) => [
+            { i: entry.i, k: entry.k },
+            { i: entry.i - direction.x, k: entry.k - direction.z },
+          ]);
+          const minI = Math.min(...footprint.map((cell) => cell.i));
+          const maxI = Math.max(...footprint.map((cell) => cell.i));
+          const minK = Math.min(...footprint.map((cell) => cell.k));
+          const maxK = Math.max(...footprint.map((cell) => cell.k));
           placements.push({
             colorId: resolved.color.id,
-            i: Math.min(first.i, last.i),
+            facing,
+            i: minI,
             j: Number(lineKey.split('|')[0]),
-            k: Math.min(first.k, last.k),
+            k: minK,
             part: slopePart.part,
-            spanI: Math.abs(last.i - first.i) + 1,
-            spanK: Math.abs(last.k - first.k) + 1,
+            shape: 'slope',
+            spanI: maxI - minI + 1,
+            spanK: maxK - minK + 1,
           });
           offset += take;
         }
@@ -364,6 +393,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
               j: layerJ,
               k: k0,
               part: brick.part,
+              shape: 'brick',
               spanI: l!,
               spanK: w!,
             });

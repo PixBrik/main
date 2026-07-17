@@ -15,8 +15,14 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree, MeshBVH } from 'three-mesh-bvh';
 
-import { buildModelFromCells, type VoxelCell, type VoxelModel } from '../voxelFox';
-import { colorDistance, quantizeToCatalog } from './voxelizePhoto';
+import {
+  BRICK_HEIGHT_RATIO,
+  buildModelFromCells,
+  type VoxelCell,
+  type VoxelModel,
+} from '../voxelFox';
+import { colorizeMeshCells, type MeshBrickColorStyle } from './meshFidelity';
+import { colorDistance } from './voxelizePhoto';
 
 // Accelerate THREE.Mesh raycasts with the BVH extension.
 (THREE.BufferGeometry.prototype as unknown as { computeBoundsTree: typeof computeBoundsTree }).computeBoundsTree =
@@ -26,20 +32,36 @@ import { colorDistance, quantizeToCatalog } from './voxelizePhoto';
 (THREE.Mesh.prototype as unknown as { raycast: typeof acceleratedRaycast }).raycast = acceleratedRaycast;
 
 /** Target voxel resolution on the model's longest axis, per profile. */
-const RES = { efficient: 28, balanced: 44, detailed: 64 } as const;
+const RES = { efficient: 40, balanced: 64, detailed: 88 } as const;
 export type MeshProfile = keyof typeof RES;
+
+export interface MeshVoxelizeOptions {
+  /** Natural catalogue colours by default; `bw` is a five-tone neutral ramp. */
+  colorStyle?: MeshBrickColorStyle;
+}
+
+interface PreparedMaterial {
+  materialColor: THREE.Color;
+  textureData: {
+    data: Uint8ClampedArray;
+    height: number;
+    texture: THREE.Texture;
+    width: number;
+  } | null;
+}
 
 interface PreparedMesh {
   mesh: THREE.Mesh;
   bvh: MeshBVH;
-  textureData: { data: Uint8ClampedArray; width: number; height: number } | null;
+  bounds: THREE.Box3;
   hasVertexColor: boolean;
-  materialColor: THREE.Color;
+  materials: PreparedMaterial[];
 }
 
-function readTexture(material: THREE.Material): PreparedMesh['textureData'] {
+function readTexture(material: THREE.Material): PreparedMaterial['textureData'] {
   const map = (material as THREE.MeshStandardMaterial).map;
-  const image = map?.image as (HTMLImageElement | ImageBitmap | HTMLCanvasElement) | undefined;
+  if (!map) return null;
+  const image = map.image as (HTMLImageElement | ImageBitmap | HTMLCanvasElement) | undefined;
   if (!image || !('width' in image) || !image.width) return null;
   const canvas = document.createElement('canvas');
   canvas.width = image.width as number;
@@ -47,7 +69,13 @@ function readTexture(material: THREE.Material): PreparedMesh['textureData'] {
   const context = canvas.getContext('2d');
   if (!context) return null;
   context.drawImage(image as CanvasImageSource, 0, 0);
-  return { data: context.getImageData(0, 0, canvas.width, canvas.height).data, height: canvas.height, width: canvas.width };
+  map.updateMatrix();
+  return {
+    data: context.getImageData(0, 0, canvas.width, canvas.height).data,
+    height: canvas.height,
+    texture: map,
+    width: canvas.width,
+  };
 }
 
 function prepare(root: THREE.Object3D): PreparedMesh[] {
@@ -58,20 +86,27 @@ function prepare(root: THREE.Object3D): PreparedMesh[] {
     if (!mesh.isMesh || !mesh.geometry) return;
     const geometry = mesh.geometry.clone();
     geometry.applyMatrix4(mesh.matrixWorld); // bake transform → world space
-    const material = (Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material) as THREE.Material;
+    geometry.computeBoundingBox();
+    const sourceMaterials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.Material[];
     // Raycast through a double-sided copy: parity counts EVERY wall crossing,
     // and a FrontSide source material would silently cull the exits.
-    const raycastMaterial = material.clone();
-    raycastMaterial.side = THREE.DoubleSide;
-    const worldMesh = new THREE.Mesh(geometry, raycastMaterial);
+    const raycastMaterials = sourceMaterials.map((material) => {
+      const copy = material.clone();
+      copy.side = THREE.DoubleSide;
+      return copy;
+    });
+    const worldMesh = new THREE.Mesh(geometry, raycastMaterials.length === 1 ? raycastMaterials[0]! : raycastMaterials);
     const bvh = new MeshBVH(geometry);
     (geometry as unknown as { boundsTree: MeshBVH }).boundsTree = bvh;
     prepared.push({
       bvh,
+      bounds: geometry.boundingBox!.clone(),
       hasVertexColor: !!geometry.getAttribute('color'),
-      materialColor: (material as THREE.MeshStandardMaterial).color?.clone() ?? new THREE.Color('#cccccc'),
+      materials: sourceMaterials.map((material) => ({
+        materialColor: (material as THREE.MeshStandardMaterial).color?.clone() ?? new THREE.Color('#cccccc'),
+        textureData: readTexture(material),
+      })),
       mesh: worldMesh,
-      textureData: readTexture(material),
     });
   });
   return prepared;
@@ -82,6 +117,16 @@ const triA = new THREE.Vector3();
 const triB = new THREE.Vector3();
 const triC = new THREE.Vector3();
 const baryCoord = new THREE.Vector3();
+const sampledUv = new THREE.Vector2();
+const sampledColor = new THREE.Color();
+
+function materialForFace(prep: PreparedMesh, faceIndex: number): PreparedMaterial {
+  const elementOffset = faceIndex * 3;
+  const group = prep.mesh.geometry.groups.find(
+    (candidate) => elementOffset >= candidate.start && elementOffset < candidate.start + candidate.count,
+  );
+  return prep.materials[group?.materialIndex ?? 0] ?? prep.materials[0]!;
+}
 
 /**
  * Surface colour at a world point: vertex colour → texture → material colour.
@@ -93,6 +138,7 @@ function surfaceColor(prep: PreparedMesh, point: THREE.Vector3): string {
   const hit = prep.bvh.closestPointToPoint(point, tempTarget);
   const geometry = prep.mesh.geometry;
   const faceIndex = (hit as { faceIndex?: number } | null)?.faceIndex ?? 0;
+  const material = materialForFace(prep, faceIndex);
   const index = geometry.getIndex();
   const a = index ? index.getX(faceIndex * 3) : faceIndex * 3;
   const b = index ? index.getX(faceIndex * 3 + 1) : faceIndex * 3 + 1;
@@ -120,25 +166,50 @@ function surfaceColor(prep: PreparedMesh, point: THREE.Vector3): string {
     }
   }
 
+  // THREE keeps material factors and vertex colours in linear working space.
+  // Compose every base-colour contribution exactly as the GLB renderer does,
+  // then convert once to sRGB for catalogue matching.
+  sampledColor.copy(material.materialColor);
   if (prep.hasVertexColor) {
     const colors = geometry.getAttribute('color');
     const r = colors.getX(a) * wa + colors.getX(b) * wb + colors.getX(c) * wc;
     const g = colors.getY(a) * wa + colors.getY(b) * wb + colors.getY(c) * wc;
     const bl = colors.getZ(a) * wa + colors.getZ(b) * wb + colors.getZ(c) * wc;
-    return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
+    sampledColor.r *= r;
+    sampledColor.g *= g;
+    sampledColor.b *= bl;
   }
-  if (prep.textureData) {
+  if (material.textureData) {
     const uv = geometry.getAttribute('uv');
     if (uv) {
       const u = uv.getX(a) * wa + uv.getX(b) * wb + uv.getX(c) * wc;
       const v = uv.getY(a) * wa + uv.getY(b) * wb + uv.getY(c) * wc;
-      const tx = Math.min(prep.textureData.width - 1, Math.max(0, Math.floor(u * prep.textureData.width)));
-      const ty = Math.min(prep.textureData.height - 1, Math.max(0, Math.floor((1 - v) * prep.textureData.height)));
-      const offset = (ty * prep.textureData.width + tx) * 4;
-      return `#${toHex(prep.textureData.data[offset]! / 255)}${toHex(prep.textureData.data[offset + 1]! / 255)}${toHex(prep.textureData.data[offset + 2]! / 255)}`;
+      sampledUv.set(u, v);
+      // Respect KHR_texture_transform, repeat/clamp and GLTFLoader's flipY.
+      // The former unconditional (1-v) read AI texture atlases upside-down.
+      material.textureData.texture.transformUv(sampledUv);
+      const tx = Math.min(
+        material.textureData.width - 1,
+        Math.max(0, Math.floor(sampledUv.x * material.textureData.width)),
+      );
+      const ty = Math.min(
+        material.textureData.height - 1,
+        Math.max(0, Math.floor(sampledUv.y * material.textureData.height)),
+      );
+      const offset = (ty * material.textureData.width + tx) * 4;
+      const textureColor = new THREE.Color(
+        material.textureData.data[offset]! / 255,
+        material.textureData.data[offset + 1]! / 255,
+        material.textureData.data[offset + 2]! / 255,
+      );
+      if (material.textureData.texture.colorSpace === THREE.SRGBColorSpace) {
+        textureColor.convertSRGBToLinear();
+      }
+      sampledColor.multiply(textureColor);
     }
   }
-  return `#${toHex(prep.materialColor.r)}${toHex(prep.materialColor.g)}${toHex(prep.materialColor.b)}`;
+  sampledColor.convertLinearToSRGB();
+  return `#${toHex(sampledColor.r)}${toHex(sampledColor.g)}${toHex(sampledColor.b)}`;
 }
 
 function toHex(value01: number): string {
@@ -161,6 +232,9 @@ function nearestPrep(prepared: PreparedMesh[], point: THREE.Vector3): PreparedMe
   let best = prepared[0]!;
   let bestDist = Infinity;
   for (const prep of prepared) {
+    // Skip a BVH walk when this mesh part's bounds are already farther away
+    // than the best surface found so far.
+    if (prep.bounds.distanceToPoint(point) >= bestDist) continue;
     const hit = prep.bvh.closestPointToPoint(point, nearestProbe as never);
     const distance = (hit as { distance?: number } | null)?.distance ?? Infinity;
     if (distance < bestDist) {
@@ -179,10 +253,19 @@ function nearestPrep(prepared: PreparedMesh[], point: THREE.Vector3): PreparedMe
  * a colour that genuinely exists in the texture (an average would invent
  * in-between colours no catalog brick matches).
  */
-function shellColor(prepared: PreparedMesh[], centre: THREE.Vector3, voxel: number): string {
+function shellColor(
+  prepared: PreparedMesh[],
+  centre: THREE.Vector3,
+  voxel: number,
+  voxelHeight = voxel,
+): string {
   const hexes: string[] = [];
   for (const [ox, oy, oz] of SAMPLE_OFFSETS) {
-    samplePoint.set(centre.x + ox * voxel, centre.y + oy * voxel, centre.z + oz * voxel);
+    samplePoint.set(
+      centre.x + ox * voxel,
+      centre.y + oy * voxelHeight,
+      centre.z + oz * voxel,
+    );
     const prep = prepared.length === 1 ? prepared[0]! : nearestPrep(prepared, samplePoint);
     hexes.push(surfaceColor(prep, samplePoint));
   }
@@ -207,18 +290,6 @@ const NEIGHBOURS: ReadonlyArray<readonly [number, number, number]> = [
   [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
 ];
 
-/** Drop stray voxels with ≤1 face-neighbours — sampling noise, not model. */
-function despeckle(cells: VoxelCell[]): VoxelCell[] {
-  const occupied = new Set(cells.map((cell) => `${cell.i},${cell.j},${cell.k}`));
-  return cells.filter((cell) => {
-    let neighbours = 0;
-    for (const [dx, dy, dz] of NEIGHBOURS) {
-      if (occupied.has(`${cell.i + dx},${cell.j + dy},${cell.k + dz}`)) neighbours++;
-    }
-    return neighbours > 1;
-  });
-}
-
 type Rgb = [number, number, number];
 
 function hexToRgb(hex: string): Rgb {
@@ -228,163 +299,6 @@ function hexToRgb(hex: string): Rgb {
     Number.parseInt(clean.slice(2, 4), 16),
     Number.parseInt(clean.slice(4, 6), 16),
   ];
-}
-
-/**
- * Palette discipline for mesh builds — the reason photo builds look tidy and
- * raw mesh builds looked "messy": each voxel used to quantize its own texel
- * independently, producing hundreds of near-duplicate catalog colours with
- * no coherent zones. Deterministic k-means over the sampled colours, then a
- * conservative 3D majority smoothing pass, then one catalog colour per
- * cluster. Three accuracy upgrades over the first version:
- *
- * - Adaptive k: the number of distinct catalog colours the raw samples
- *   already touch is a good proxy for the model's true colour richness — a
- *   fixed k=10 starved multi-material busts and wasted clusters on uniform
- *   objects.
- * - Farthest-point (maximin) seeding: small high-contrast features (eyes on
- *   a duck, lips on a bust) are guaranteed their own seed. The old
- *   luma-sorted seeding merged them into their surroundings before k-means
- *   ever ran.
- * - Feature protection in smoothing: a cell whose cluster is globally rare
- *   AND far from the winning neighbour colour is a deliberate detail, not
- *   noise — the ≥4-of-6 vote must not erase it.
- */
-function posterizeVoxelColors(cells: VoxelCell[], paletteSize?: number): void {
-  if (!cells.length) return;
-  const samples: Rgb[] = cells.map((cell) => hexToRgb(cell.colorHex ?? '#cccccc'));
-
-  // Subsample for seeding and k-estimation so cost stays bounded on big grids.
-  const stride = Math.max(1, Math.floor(samples.length / 6000));
-  const sub: Rgb[] = [];
-  for (let index = 0; index < samples.length; index += stride) sub.push(samples[index]!);
-
-  let k: number;
-  if (paletteSize) {
-    k = Math.min(paletteSize, samples.length);
-  } else {
-    const distinct = new Set<string>();
-    for (const s of sub) distinct.add(quantizeToCatalog(s[0], s[1], s[2]));
-    k = Math.min(Math.max(8, Math.min(16, distinct.size + 2)), samples.length);
-  }
-
-  // Maximin seeding: first seed nearest the mean, each next seed = the
-  // sample farthest from every seed so far. Deterministic.
-  let meanR = 0, meanG = 0, meanB = 0;
-  for (const s of sub) {
-    meanR += s[0];
-    meanG += s[1];
-    meanB += s[2];
-  }
-  meanR /= sub.length;
-  meanG /= sub.length;
-  meanB /= sub.length;
-  let firstSeed = 0;
-  let firstDistance = Infinity;
-  sub.forEach((s, index) => {
-    const distance = colorDistance(s[0], s[1], s[2], meanR, meanG, meanB);
-    if (distance < firstDistance) {
-      firstDistance = distance;
-      firstSeed = index;
-    }
-  });
-  const seeds = [firstSeed];
-  const minDistance = new Float64Array(sub.length).fill(Infinity);
-  while (seeds.length < k) {
-    const last = sub[seeds[seeds.length - 1]!]!;
-    let farthest = 0;
-    let farthestDistance = -1;
-    for (let index = 0; index < sub.length; index++) {
-      const s = sub[index]!;
-      const distance = colorDistance(s[0], s[1], s[2], last[0], last[1], last[2]);
-      if (distance < minDistance[index]!) minDistance[index] = distance;
-      if (minDistance[index]! > farthestDistance) {
-        farthestDistance = minDistance[index]!;
-        farthest = index;
-      }
-    }
-    if (farthestDistance <= 0) break; // fewer distinct colours than k
-    seeds.push(farthest);
-  }
-  let centroids: Rgb[] = seeds.map((index) => [...sub[index]!] as Rgb);
-  const kEff = centroids.length;
-
-  const assign = new Int32Array(samples.length);
-  for (let iteration = 0; iteration < 8; iteration++) {
-    for (let index = 0; index < samples.length; index++) {
-      let best = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (let c = 0; c < kEff; c++) {
-        const s = samples[index]!;
-        const distance = colorDistance(s[0], s[1], s[2], centroids[c]![0], centroids[c]![1], centroids[c]![2]);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          best = c;
-        }
-      }
-      assign[index] = best;
-    }
-    const sums: number[][] = Array.from({ length: kEff }, () => [0, 0, 0, 0]);
-    for (let index = 0; index < samples.length; index++) {
-      const sum = sums[assign[index]!]!;
-      const s = samples[index]!;
-      sum[0]! += s[0];
-      sum[1]! += s[1];
-      sum[2]! += s[2];
-      sum[3]! += 1;
-    }
-    centroids = centroids.map((old, c) => {
-      const sum = sums[c]!;
-      return sum[3]! > 0 ? ([sum[0]! / sum[3]!, sum[1]! / sum[3]!, sum[2]! / sum[3]!] as Rgb) : old;
-    });
-  }
-
-  // Cluster sizes for feature protection.
-  const clusterSizes = new Int32Array(kEff);
-  for (let index = 0; index < samples.length; index++) clusterSizes[assign[index]!]! += 1;
-  const rareLimit = Math.max(8, samples.length * 0.015);
-
-  // Conservative 3D majority smoothing: a cell only changes cluster when a
-  // strict majority of its 6-neighbourhood (≥4) agrees on another cluster —
-  // and never when the cell belongs to a rare, strongly-contrasting cluster
-  // (an eye is two voxels of near-black on a sea of yellow: the vote always
-  // goes against it, and it is always right to keep it).
-  const indexByCoord = new Map<string, number>();
-  cells.forEach((cell, index) => indexByCoord.set(`${cell.i},${cell.j},${cell.k}`, index));
-  const smoothed = new Int32Array(assign);
-  for (let index = 0; index < cells.length; index++) {
-    const cell = cells[index]!;
-    const votes = new Map<number, number>();
-    for (const [dx, dy, dz] of NEIGHBOURS) {
-      const neighbour = indexByCoord.get(`${cell.i + dx},${cell.j + dy},${cell.k + dz}`);
-      if (neighbour !== undefined) {
-        const cluster = assign[neighbour]!;
-        votes.set(cluster, (votes.get(cluster) ?? 0) + 1);
-      }
-    }
-    for (const [cluster, count] of votes) {
-      if (cluster !== assign[index] && count >= 4) {
-        const own = assign[index]!;
-        const ownCentroid = centroids[own]!;
-        const winnerCentroid = centroids[cluster]!;
-        const isProtectedFeature =
-          clusterSizes[own]! < rareLimit &&
-          colorDistance(
-            ownCentroid[0], ownCentroid[1], ownCentroid[2],
-            winnerCentroid[0], winnerCentroid[1], winnerCentroid[2],
-          ) > 100;
-        if (!isProtectedFeature) {
-          smoothed[index] = cluster;
-        }
-        break;
-      }
-    }
-  }
-
-  const clusterHex = centroids.map((centroid) => quantizeToCatalog(centroid[0], centroid[1], centroid[2]));
-  for (let index = 0; index < cells.length; index++) {
-    cells[index]!.colorHex = clusterHex[smoothed[index]!]!;
-  }
 }
 
 /** Progress callback for the (potentially long) voxelization pass. */
@@ -402,8 +316,14 @@ const OUTSIDE = 2;
  * while channel messages keep firing at full speed.
  */
 const tickChannel = typeof MessageChannel !== 'undefined' ? new MessageChannel() : null;
+// Node's MessagePort keeps the offline converter tests alive unless unref'd;
+// browsers do not expose this method.
+(tickChannel?.port1 as MessagePort & { unref?: () => void } | undefined)?.unref?.();
+(tickChannel?.port2 as MessagePort & { unref?: () => void } | undefined)?.unref?.();
 function nextTick(): Promise<void> {
-  if (!tickChannel) {
+  // MessagePort.onmessage re-refs the port in Node. Offline converter tests
+  // use a timer tick instead so the process exits cleanly after verification.
+  if (!tickChannel || typeof window === 'undefined') {
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
   return new Promise((resolve) => {
@@ -419,53 +339,64 @@ function nextTick(): Promise<void> {
  * between them, so high resolutions stay responsive instead of freezing the
  * tab (which is why photo builds used to be capped at res 28).
  *
- * Inside-test: surface shell + outside flood fill, NOT ray parity. AI meshes
- * (Tripo/Meshy) are routinely non-watertight — open seams, holes, doubled
- * walls — and every parity variant collapses on them (a real Tripo bust once
- * converted to 158 floating bricks). Distance-to-surface can't be fooled:
- * mark every voxel whose centre is within ~¾ voxel of any surface as SHELL,
- * flood-fill OUTSIDE from the grid border through non-shell voxels, and
- * everything left is interior. Sub-voxel seams close inside the shell, so
- * the flood can't leak through them; a genuinely large opening merely leaves
- * that model hollow, which the downstream steps handle fine.
+ * Inside-test: exact triangle/voxel shell + outside flood fill, NOT ray
+ * parity. AI meshes are routinely non-watertight, where parity collapses.
+ * BVH triangle-box overlap preserves the approved silhouette (including thin
+ * diagonals); a six-connected border flood then fills only genuinely enclosed
+ * space. Large openings remain honest hollow shells instead of changing the
+ * visible shape.
  */
 async function voxelizeMeshes(
   prepared: PreparedMesh[],
   profile: MeshProfile,
   onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
 ): Promise<VoxelModel> {
   const box = new THREE.Box3();
-  for (const prep of prepared) box.union(new THREE.Box3().setFromObject(prep.mesh));
+  for (const prep of prepared) box.union(prep.bounds);
   const size = new THREE.Vector3();
   box.getSize(size);
   const maxAxis = Math.max(size.x, size.y, size.z) || 1;
   const voxel = maxAxis / RES[profile];
+  const voxelHeight = voxel * BRICK_HEIGHT_RATIO;
   const worldSize = 6.3 / RES[profile]; // match built-in models' scale
+  const worldLayerHeight = worldSize * BRICK_HEIGHT_RATIO;
 
   const nx = Math.max(1, Math.ceil(size.x / voxel));
-  const ny = Math.max(1, Math.ceil(size.y / voxel));
+  const ny = Math.max(1, Math.ceil(size.y / voxelHeight));
   const nz = Math.max(1, Math.ceil(size.z / voxel));
+  const boxCenter = box.getCenter(new THREE.Vector3());
+  const gridMin = new THREE.Vector3(
+    boxCenter.x - (nx * voxel) / 2,
+    boxCenter.y - (ny * voxelHeight) / 2,
+    boxCenter.z - (nz * voxel) / 2,
+  );
   const total = nx * ny * nz;
   const grid = new Uint8Array(total); // UNKNOWN | SHELL | OUTSIDE
   const at = (ix: number, iy: number, iz: number) => (ix * ny + iy) * nz + iz;
 
   const centre = new THREE.Vector3();
-  const shellProbe = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
-  const shellRadius = voxel * 0.75;
+  const voxelBox = new THREE.Box3();
+  const voxelBoxSize = new THREE.Vector3(voxel, voxelHeight, voxel).multiplyScalar(1.000001);
+  const identity = new THREE.Matrix4();
 
-  // Pass 1 — shell: centres within shellRadius of any surface. The bounded
-  // query early-exits for far voxels, so this stays cheap across the grid.
+  // Pass 1 — exact triangle/voxel overlap. This supercover retains thin and
+  // diagonal features without the silhouette inflation of a centre-radius
+  // test; the BVH keeps the box queries bounded.
   for (let ix = 0; ix < nx; ix++) {
     for (let iy = 0; iy < ny; iy++) {
       for (let iz = 0; iz < nz; iz++) {
         centre.set(
-          box.min.x + (ix + 0.5) * voxel,
-          box.min.y + (iy + 0.5) * voxel,
-          box.min.z + (iz + 0.5) * voxel,
+          gridMin.x + (ix + 0.5) * voxel,
+          gridMin.y + (iy + 0.5) * voxelHeight,
+          gridMin.z + (iz + 0.5) * voxel,
         );
+        voxelBox.setFromCenterAndSize(centre, voxelBoxSize);
         for (const prep of prepared) {
-          const hit = prep.bvh.closestPointToPoint(centre, shellProbe as never, 0, shellRadius);
-          if (hit && shellProbe.distance <= shellRadius) {
+          // Complex GLBs split a subject into many small mesh parts. Reject
+          // parts outside this voxel before the more expensive BVH query.
+          if (!prep.bounds.intersectsBox(voxelBox)) continue;
+          if (prep.bvh.intersectsBox(voxelBox, identity)) {
             grid[at(ix, iy, iz)] = SHELL;
             break;
           }
@@ -519,34 +450,34 @@ async function voxelizeMeshes(
   }
 
   // Pass 3 — keep shell + interior (everything the flood never reached).
-  // Shell voxels are the visible ones and get supersampled colour; interior
-  // voxels are hidden (faces culled) so a single nearest-surface sample is
-  // plenty.
+  // Triangle-touched voxels get supersampled colour. After occupancy is known,
+  // only the actually exposed subset trains the visible palette; buried
+  // triangle walls and filled interiors receive the dominant surface colour.
   const cells: VoxelCell[] = [];
+  const surfaceCells: VoxelCell[] = [];
+  const interiorCells: VoxelCell[] = [];
   for (let ix = 0; ix < nx; ix++) {
     for (let iy = 0; iy < ny; iy++) {
       for (let iz = 0; iz < nz; iz++) {
         const state = grid[at(ix, iy, iz)];
         if (state === OUTSIDE) continue;
         centre.set(
-          box.min.x + (ix + 0.5) * voxel,
-          box.min.y + (iy + 0.5) * voxel,
-          box.min.z + (iz + 0.5) * voxel,
+          gridMin.x + (ix + 0.5) * voxel,
+          gridMin.y + (iy + 0.5) * voxelHeight,
+          gridMin.z + (iz + 0.5) * voxel,
         );
-        const colorHex =
-          state === SHELL
-            ? shellColor(prepared, centre, voxel)
-            : surfaceColor(nearestPrep(prepared, centre), centre);
-        cells.push({
-          colorHex,
+        const cell: VoxelCell = {
+          colorHex: state === SHELL ? shellColor(prepared, centre, voxel, voxelHeight) : '#A0A19F',
           cx: (ix - nx / 2 + 0.5) * worldSize,
-          cy: (iy + 0.5) * worldSize,
+          cy: (iy + 0.5) * worldLayerHeight,
           cz: (iz - nz / 2 + 0.5) * worldSize,
           i: ix,
           j: iy,
           k: iz,
           zone: 'body',
-        });
+        };
+        cells.push(cell);
+        (state === SHELL ? surfaceCells : interiorCells).push(cell);
       }
     }
     onProgress?.(0.6 + ((ix + 1) / nx) * 0.4);
@@ -556,15 +487,33 @@ async function voxelizeMeshes(
   for (const prep of prepared) {
     (prep.mesh.geometry as unknown as { disposeBoundsTree?: () => void }).disposeBoundsTree?.();
   }
-  const clean = despeckle(cells);
-  posterizeVoxelColors(clean);
-  return buildModelFromCells(clean, worldSize, { slopes: true });
+  const occupied = new Set(cells.map((cell) => `${cell.i},${cell.j},${cell.k}`));
+  const visibleSurfaceCells: VoxelCell[] = [];
+  const buriedSurfaceCells: VoxelCell[] = [];
+  for (const cell of surfaceCells) {
+    const isVisible = NEIGHBOURS.some(
+      ([di, dj, dk]) => !occupied.has(`${cell.i + di},${cell.j + dj},${cell.k + dk}`),
+    );
+    (isVisible ? visibleSurfaceCells : buriedSurfaceCells).push(cell);
+  }
+  colorizeMeshCells(
+    visibleSurfaceCells,
+    [...interiorCells, ...buriedSurfaceCells],
+    options.colorStyle ?? 'natural',
+  );
+  // Preserve the approved occupancy exactly. Automatic slope detection turns
+  // a filled surface voxel into a half wedge, visibly eroding faces and cars.
+  return buildModelFromCells(cells, worldSize, {
+    layerHeight: worldLayerHeight,
+    slopes: false,
+  });
 }
 
 /** Voxelize an already-loaded GLB ArrayBuffer at all three profiles. */
 export async function voxelizeGlb(
   buffer: ArrayBuffer,
   onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
 ): Promise<Record<MeshProfile, VoxelModel>> {
   const loader = new GLTFLoader();
   const gltf = await loader.parseAsync(buffer, '');
@@ -572,11 +521,11 @@ export async function voxelizeGlb(
   if (!prepared.length) {
     throw new Error('no meshes in model');
   }
-  // Progress bands weighted roughly by grid volume (28³ ≪ 44³ ≪ 64³).
+  // Progress bands weighted roughly by grid volume (40³ ≪ 64³ ≪ 88³).
   return {
-    efficient: await voxelizeMeshes(prepared, 'efficient', (f) => onProgress?.(f * 0.08)),
-    balanced: await voxelizeMeshes(prepared, 'balanced', (f) => onProgress?.(0.08 + f * 0.24)),
-    detailed: await voxelizeMeshes(prepared, 'detailed', (f) => onProgress?.(0.32 + f * 0.68)),
+    efficient: await voxelizeMeshes(prepared, 'efficient', (f) => onProgress?.(f * 0.08), options),
+    balanced: await voxelizeMeshes(prepared, 'balanced', (f) => onProgress?.(0.08 + f * 0.24), options),
+    detailed: await voxelizeMeshes(prepared, 'detailed', (f) => onProgress?.(0.32 + f * 0.68), options),
   };
 }
 
@@ -585,6 +534,7 @@ export async function voxelizeGlbOne(
   buffer: ArrayBuffer,
   profile: MeshProfile,
   onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
 ): Promise<VoxelModel> {
   const loader = new GLTFLoader();
   const gltf = await loader.parseAsync(buffer, '');
@@ -592,26 +542,28 @@ export async function voxelizeGlbOne(
   if (!prepared.length) {
     throw new Error('no meshes in model');
   }
-  return voxelizeMeshes(prepared, profile, onProgress);
+  return voxelizeMeshes(prepared, profile, onProgress, options);
 }
 
 export async function voxelizeGlbUrlOne(
   url: string,
   profile: MeshProfile,
   onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
 ): Promise<VoxelModel> {
   const buffer = await (await fetch(url)).arrayBuffer();
-  return voxelizeGlbOne(buffer, profile, onProgress);
+  return voxelizeGlbOne(buffer, profile, onProgress, options);
 }
 
 /** Fetch a GLB URL and voxelize it. */
 export async function voxelizeGlbUrl(
   url: string,
   onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
 ): Promise<Record<MeshProfile, VoxelModel>> {
   const response = await fetch(url);
   const buffer = await response.arrayBuffer();
-  return voxelizeGlb(buffer, onProgress);
+  return voxelizeGlb(buffer, onProgress, options);
 }
 
 export const isMeshVoxelizeSupported = true;

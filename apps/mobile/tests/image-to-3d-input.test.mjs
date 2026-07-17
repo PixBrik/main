@@ -524,6 +524,7 @@ test('ordinary objects retain one-photo inference with four views optional', asy
 test('retry resumes a submitted task after transient polling failure without another charge', async () => {
   let statusChecks = 0;
   let submitCalls = 0;
+  let paidTaskCallbacks = 0;
   const fetch = async (url) => {
     if (url === '/api/meshy/submit') {
       submitCalls++;
@@ -544,12 +545,17 @@ test('retry resumes a submitted task after transient polling failure without ano
   );
 
   await assert.rejects(
-    generateMeshFromPhoto('data:image/jpeg;base64,resumable', null),
+    generateMeshFromPhoto('data:image/jpeg;base64,resumable', null, {
+      onProviderTaskCreated: () => paidTaskCallbacks++,
+    }),
     /Retry resumes this existing task/,
   );
-  const meshUrl = await generateMeshFromPhoto('data:image/jpeg;base64,resumable', null);
+  const meshUrl = await generateMeshFromPhoto('data:image/jpeg;base64,resumable', null, {
+    onProviderTaskCreated: () => paidTaskCallbacks++,
+  });
   assert.equal(meshUrl, '/api/meshy/model?taskId=resume-me');
   assert.equal(submitCalls, 1);
+  assert.equal(paidTaskCallbacks, 1, 'resuming one paid task must not consume a retake');
 });
 
 test('multiview mesh generation requires and submits all four views before conversion', async () => {

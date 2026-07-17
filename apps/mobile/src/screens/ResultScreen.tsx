@@ -39,6 +39,13 @@ interface ResultScreenProps {
   onApprove3D?: () => Promise<void>;
   onDiscard3D?: () => void;
   onRetry3DPreview?: () => Promise<void>;
+  /** Exact provider mesh retained after approval so buyers can compare it with the brick build. */
+  approved3DMeshUrl?: string | null;
+  approved3DStills?: string[] | null;
+  sculpturePalette?: 'natural' | 'bw';
+  onSelectSculpturePalette?: (palette: 'natural' | 'bw') => void;
+  onRetake3D?: () => void;
+  true3DRetakesRemaining?: number;
   true3DState?: 'idle' | 'working' | 'done' | 'failed';
   true3DNote?: string;
   true3DError?: string;
@@ -66,7 +73,8 @@ function describeModel(model: VoxelModel, packedParts?: number) {
   }
   const width = Math.round((maxI - minI + 1) * 0.8);
   const depth = Math.round((maxK - minK + 1) * 0.8);
-  const height = Math.round((maxJ - minJ + 1) * 0.96);
+  const verticalPitchCm = 0.8 * ((model.layerHeight ?? model.size) / model.size);
+  const height = Math.round((maxJ - minJ + 1) * verticalPitchCm);
   const pieces = packedParts ?? model.brickCount;
   return {
     dimensions: `${width} × ${depth} × ${height} cm`,
@@ -91,6 +99,11 @@ const modelProfileById = {
 const TICKET_VIEW = 76;
 const LIKENESS_VIEW_WIDTH = 720;
 const LIKENESS_VIEW_HEIGHT = 620;
+const SCULPTURE_PALETTE_OPTIONS = [
+  { id: 'natural' as const, label: 'NATURAL', swatches: ['#17130A', '#A76035', '#D8A46B', '#E8D7BD'] },
+  { id: 'bw' as const, label: 'BLACK & WHITE', swatches: ['#111111', '#555555', '#A0A0A0', '#F2F2F2'] },
+] as const;
+const APPROVAL_VIEW_LABELS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
 
 interface ProfileCard {
   png: string | null;
@@ -98,7 +111,7 @@ interface ProfileCard {
   priceEur: number | null;
 }
 
-type PreviewMode = 'likeness' | 'angle';
+type PreviewMode = 'likeness' | 'angle' | 'source3d';
 export function ResultScreen({
   selectedVariant,
   onSelectVariant,
@@ -117,6 +130,12 @@ export function ResultScreen({
   onApprove3D,
   onDiscard3D,
   onRetry3DPreview,
+  approved3DMeshUrl = null,
+  approved3DStills = null,
+  sculpturePalette = 'natural',
+  onSelectSculpturePalette,
+  onRetake3D,
+  true3DRetakesRemaining = 2,
   true3DState = 'idle',
   true3DNote,
   true3DError = '',
@@ -133,6 +152,12 @@ export function ResultScreen({
     setPendingMeshReady(false);
     setPendingMeshError('');
   }, [pending3DMeshUrl]);
+
+  useEffect(() => {
+    if (previewMode === 'source3d' && (!approved3DMeshUrl || activeProduct !== 'sculpture')) {
+      setPreviewMode(activeProduct === 'panel' ? 'likeness' : 'angle');
+    }
+  }, [activeProduct, approved3DMeshUrl, previewMode]);
   const [profileCards, setProfileCards] = useState<Record<string, ProfileCard>>({});
 
   // Each profile ticket previews ITS OWN outcome with real numbers, so the
@@ -273,7 +298,7 @@ export function ResultScreen({
             accessibilityState={{ selected: activeProduct === 'sculpture' }}
             onPress={() => {
               onSelectProduct('sculpture');
-              setPreviewMode('angle');
+              setPreviewMode(approved3DMeshUrl ? 'source3d' : 'angle');
             }}
             style={[styles.productTab, activeProduct === 'sculpture' && styles.productTabSelected3D]}
           >
@@ -364,10 +389,17 @@ export function ResultScreen({
           ) : (
             <>
               <PrimaryButton
-                disabled={!true3DAvailable || !onTrue3D || true3DState === 'working'}
+                disabled={
+                  !true3DAvailable ||
+                  !onTrue3D ||
+                  true3DState === 'working' ||
+                  true3DRetakesRemaining <= 0
+                }
                 label={
                   true3DState === 'working'
                     ? 'Generating real 3D…'
+                    : true3DRetakesRemaining <= 0
+                      ? '2 retakes used · start a new capture'
                     : true3DState === 'failed'
                       ? 'Review and retry 3D generation'
                       : '1 photo · AI guesses unseen sides'
@@ -376,7 +408,7 @@ export function ResultScreen({
               />
               <Text style={styles.generationDisclosure}>
                 {true3DAvailable
-                  ? 'For non-human objects only. This uploads the framed photo or approved smart cutout and uses one paid generation run; hidden sides are AI inference, not captured evidence.'
+                  ? `For non-human objects only. This uploads the framed photo or approved smart cutout and uses one paid generation run; ${true3DRetakesRemaining} of 2 retakes remain.`
                   : 'True 3D is not enabled on this deployment yet. Configure the server provider before offering this paid option.'}
               </Text>
             </>
@@ -408,7 +440,58 @@ export function ResultScreen({
         </View>
       ) : (
         <>
+      {activeProduct === 'sculpture' && sculptureBuild && onSelectSculpturePalette ? (
+        <View style={styles.paletteCard}>
+          <View style={styles.paletteHeading}>
+            <View style={styles.paletteCopy}>
+              <Text style={styles.paletteEyebrow}>BRICK COLOUR · LIVE PREVIEW</Text>
+              <Text style={styles.paletteTitle}>Keep the shape. Choose the finish.</Text>
+            </View>
+            <Text style={styles.paletteSafe}>NO NEW AI RUN</Text>
+          </View>
+          <View accessibilityRole="radiogroup" style={styles.paletteOptions}>
+            {SCULPTURE_PALETTE_OPTIONS.map((option) => {
+              const selectedPalette = sculpturePalette === option.id;
+              return (
+                <Pressable
+                  aria-checked={selectedPalette}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selectedPalette }}
+                  key={option.id}
+                  onPress={() => onSelectSculpturePalette(option.id)}
+                  style={[styles.paletteOption, selectedPalette && styles.paletteOptionSelected]}
+                >
+                  <View style={styles.paletteSwatches}>
+                    {option.swatches.map((swatch) => (
+                      <View key={swatch} style={[styles.paletteSwatch, { backgroundColor: swatch }]} />
+                    ))}
+                  </View>
+                  <Text style={[styles.paletteOptionText, selectedPalette && styles.paletteOptionTextSelected]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.paletteHint}>
+            This recolours the exact same occupied brick geometry. Every preview, price and order updates to the selected finish.
+          </Text>
+        </View>
+      ) : null}
       <View accessibilityLabel="Preview mode" accessibilityRole="tablist" style={styles.previewTabs}>
+        {activeProduct === 'sculpture' && approved3DMeshUrl ? (
+          <Pressable
+            aria-selected={previewMode === 'source3d'}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: previewMode === 'source3d' }}
+            onPress={() => setPreviewMode('source3d')}
+            style={[styles.previewTab, previewMode === 'source3d' && styles.previewTabSelected]}
+          >
+            <Text style={[styles.previewTabText, previewMode === 'source3d' && styles.previewTabTextSelected]}>
+              APPROVED AI 3D
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           aria-selected={previewMode === 'likeness'}
           accessibilityRole="tab"
@@ -432,9 +515,11 @@ export function ResultScreen({
           </Text>
         </Pressable>
       </View>
-      <View style={[styles.previewGuide, previewMode === 'angle' && styles.previewGuideAngle]}>
-        <Text style={[styles.previewGuideTag, previewMode === 'angle' && styles.previewGuideTagAngle]}>
-          {previewMode === 'likeness'
+      <View style={[styles.previewGuide, previewMode !== 'likeness' && styles.previewGuideAngle]}>
+        <Text style={[styles.previewGuideTag, previewMode !== 'likeness' && styles.previewGuideTagAngle]}>
+          {previewMode === 'source3d'
+            ? 'UNCHANGED PROVIDER MODEL'
+            : previewMode === 'likeness'
             ? activeProduct === 'panel'
               ? 'BEST VIEW FOR LIKENESS'
               : 'FRONT OF APPROVED SCULPTURE'
@@ -443,7 +528,9 @@ export function ResultScreen({
               : 'REAL ALL-SIDED GEOMETRY'}
         </Text>
         <Text style={styles.previewGuideText}>
-          {previewMode === 'likeness'
+          {previewMode === 'source3d'
+            ? 'Rotate the exact textured model you approved, then compare it with the catalog-brick 360° view. PixBrik keeps this source model with the build.'
+            : previewMode === 'likeness'
             ? activeProduct === 'panel'
               ? 'A straight-on build map: use this view to judge the face, colours and framing.'
               : 'A front projection of the sculpture generated from the 3D model you approved.'
@@ -452,7 +539,41 @@ export function ResultScreen({
               : 'Rotate the catalog-brick sculpture to inspect the geometry inherited from your approved 3D model.'}
         </Text>
       </View>
-      {previewMode === 'likeness' ? (
+      {previewMode === 'source3d' && approved3DMeshUrl ? (
+        <View style={styles.approvedMeshCard}>
+          <RawMeshView
+            fallbackImageUri={approved3DStills?.[0]}
+            label="Exact approved provider 3D model"
+            modelUrl={approved3DMeshUrl}
+          />
+          <View style={styles.approvedMeshFooter}>
+            <View style={styles.approvedMeshCopy}>
+              <Text style={styles.approvedMeshTitle}>SOURCE 3D LINKED TO THIS BUILD</Text>
+              <Text style={styles.approvedMeshText}>
+                Retaking creates a new paid provider model. Your current approved model and brick build remain unchanged until you approve the replacement.
+              </Text>
+            </View>
+            {onRetake3D ? (
+              true3DRetakesRemaining > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={true3DState === 'working'}
+                  onPress={onRetake3D}
+                  style={({ pressed }) => [styles.retake3DButton, pressed && styles.pdfPressed]}
+                >
+                  <Text style={styles.retake3DButtonText}>
+                    {true3DState === 'working'
+                      ? 'GENERATING…'
+                      : `PAID RETAKE 3D · ${true3DRetakesRemaining} LEFT`}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.retakeLimit}>2 RETAKES USED</Text>
+              )
+            ) : null}
+          </View>
+        </View>
+      ) : previewMode === 'likeness' ? (
         <View
           accessibilityLabel={`${buildName} ${activeProduct === 'panel' ? 'head-on brick panel' : 'front sculpture projection'}`}
           accessibilityRole="image"
@@ -498,6 +619,7 @@ export function ResultScreen({
       ) : isRealisticViewSupported ? (
         <ThreeBrickView
           accent={accent}
+          hollow
           label={`${buildName} ${activeProduct === 'panel' ? 'angled panel thickness view' : 'rotatable 3D sculpture'}`}
           model={previewModel}
           packedParts={selectedCard?.pieces}
@@ -598,7 +720,8 @@ export function ResultScreen({
               <View style={styles.costNotice}>
                 <Text style={styles.costNoticeTitle}>ONE PAID PROVIDER RUN</Text>
                 <Text style={styles.costNoticeText}>
-                  A retry creates another paid run. Closing this dialog costs nothing.
+                  A retry creates another paid run. {true3DRetakesRemaining} of 2 retakes remain;
+                  closing this dialog costs nothing.
                 </Text>
               </View>
               <PrimaryButton
@@ -662,16 +785,31 @@ export function ResultScreen({
                   }}
                 />
               </View>
-              {!pending3DStills?.length && !pendingMeshReady ? (
+              {pending3DStills && pending3DStills.length >= 4 ? (
+                <View accessibilityLabel="Four generated 3D approval angles" style={styles.approvalStillGrid}>
+                  {pending3DStills.slice(0, 4).map((still, index) => (
+                    <View key={APPROVAL_VIEW_LABELS[index]} style={styles.approvalStillItem}>
+                      <Image
+                        accessibilityLabel={`${APPROVAL_VIEW_LABELS[index]} view of generated 3D model`}
+                        resizeMode="contain"
+                        source={{ uri: still }}
+                        style={styles.approvalStillImage}
+                      />
+                      <Text style={styles.approvalStillLabel}>{APPROVAL_VIEW_LABELS[index]}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {(!pending3DStills || pending3DStills.length < 4) && !pendingMeshReady ? (
                 <View accessibilityRole="alert" style={styles.previewBlocked}>
                   <Text style={styles.previewBlockedTitle}>PREVIEW REQUIRED</Text>
                   <Text style={styles.approveNoShots}>
-                    PixBrik will not convert this model until the interactive preview or a still view
-                    can be inspected. Retrying does not create another provider generation.
+                    PixBrik will not convert this model until the interactive preview or all four still
+                    views can be inspected. Retrying does not create another provider generation.
                   </Text>
                 </View>
               ) : null}
-              {pendingMeshReady || !!pending3DStills?.length ? (
+              {pendingMeshReady || (pending3DStills?.length ?? 0) >= 4 ? (
                 <PrimaryButton label="Looks right — build it in bricks" onPress={onApprove3D} />
               ) : onRetry3DPreview ? (
                 <PrimaryButton
@@ -686,7 +824,9 @@ export function ResultScreen({
                 style={({ pressed }) => [styles.approveDiscard, pressed && styles.pdfPressed]}
               >
                 <Text style={styles.approveDiscardText}>
-                  Not quite — discard (generating again costs another run)
+                  {true3DRetakesRemaining > 0
+                    ? `Not quite — discard · ${true3DRetakesRemaining} retake${true3DRetakesRemaining === 1 ? '' : 's'} left`
+                    : 'Discard this model · 2 retakes used'}
                 </Text>
               </Pressable>
             </View>
@@ -950,6 +1090,91 @@ const styles = StyleSheet.create({
     fontSize: 9,
     marginBottom: 3,
   },
+  paletteCard: {
+    backgroundColor: colors.white,
+    borderColor: colors.ink,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  paletteHeading: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  paletteCopy: {
+    flex: 1,
+  },
+  paletteEyebrow: {
+    ...type.micro,
+    color: colors.coral,
+    fontSize: 8,
+    letterSpacing: 1.1,
+  },
+  paletteTitle: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 17,
+    marginTop: 3,
+  },
+  paletteSafe: {
+    backgroundColor: colors.mint,
+    borderRadius: radius.pill,
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  paletteOptions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  paletteOption: {
+    alignItems: 'center',
+    backgroundColor: colors.paperDeep,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    flex: 1,
+    gap: spacing.sm,
+    minHeight: 58,
+    padding: spacing.sm,
+  },
+  paletteOptionSelected: {
+    backgroundColor: colors.blueSoft,
+    borderColor: colors.blue,
+  },
+  paletteSwatches: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  paletteSwatch: {
+    borderColor: colors.ink,
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 14,
+    width: 14,
+  },
+  paletteOptionText: {
+    ...type.micro,
+    color: colors.inkSoft,
+    fontSize: 9,
+  },
+  paletteOptionTextSelected: {
+    color: colors.blue,
+  },
+  paletteHint: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: spacing.sm,
+  },
   previewTabs: {
     backgroundColor: colors.paperDeep,
     borderRadius: radius.md,
@@ -1008,6 +1233,53 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 17,
     marginTop: 2,
+  },
+  approvedMeshCard: {
+    backgroundColor: '#10131D',
+    borderColor: '#31384D',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  approvedMeshFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  approvedMeshCopy: {
+    flex: 1,
+  },
+  approvedMeshTitle: {
+    ...type.micro,
+    color: colors.saffron,
+    fontSize: 8,
+    letterSpacing: 1,
+  },
+  approvedMeshText: {
+    ...type.body,
+    color: '#C6CDDE',
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  retake3DButton: {
+    alignItems: 'center',
+    backgroundColor: colors.saffron,
+    borderRadius: radius.sm,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  retake3DButtonText: {
+    color: colors.ink,
+    fontFamily: fonts.extrabold,
+    fontSize: 9,
+  },
+  retakeLimit: {
+    ...type.micro,
+    color: '#C6CDDE',
+    fontSize: 8,
   },
   likenessShell: {
     backgroundColor: '#10131D',
@@ -1175,6 +1447,30 @@ const styles = StyleSheet.create({
   },
   rawMeshApproval: {
     marginBottom: spacing.lg,
+  },
+  approvalStillGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  approvalStillItem: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    width: '48%',
+  },
+  approvalStillImage: {
+    aspectRatio: 1,
+    backgroundColor: colors.ink,
+    width: '100%',
+  },
+  approvalStillLabel: {
+    ...type.micro,
+    color: colors.white,
+    fontSize: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
   },
   approveNoShots: {
     ...type.body,
