@@ -215,11 +215,24 @@ export default function App() {
       ) {
         throw new Error('The photo crop or background changed while 3D generation was running. Please start again.');
       }
-      setTrue3DNote('Preparing the preview');
-      const { snapshotGlb } = await import('./src/lib/photoEngine/meshSnapshot');
-      const stills = await snapshotGlb(meshUrl).catch(() => [] as string[]);
-      setPending3D({ meshUrl, sourceRevision, sourceUri, stills });
+      // Open the real GLB immediately. Four stills are rendered in the
+      // background as a native/failure fallback, but they no longer hold the
+      // interactive approval screen hostage.
+      setTrue3DNote('Opening the rotatable preview');
+      setPending3D({ meshUrl, sourceRevision, sourceUri, stills: [] });
       setTrue3DState('idle');
+      void import('./src/lib/photoEngine/meshSnapshot')
+        .then(({ snapshotGlb }) => snapshotGlb(meshUrl))
+        .then((stills) => {
+          if (!stills.length) return;
+          setPending3D((current) =>
+            current?.meshUrl === meshUrl ? { ...current, stills } : current,
+          );
+        })
+        .catch(() => {
+          // The interactive GLB remains the approval surface on web. Native
+          // can retry still rendering without starting another paid task.
+        });
     } catch (error) {
       setTrue3DError(error instanceof Error ? error.message : '3D generation failed.');
       setTrue3DState('failed');
@@ -405,11 +418,11 @@ export default function App() {
             onOpenLibrary={() => navigate('library')}
             onStart={() => {
               setCaptureMode('photo');
-              navigate('mode');
+              navigate('capture');
             }}
             onStart3D={() => {
               setCaptureMode('orbit');
-              navigate('mode');
+              navigate('capture');
             }}
           />
         );
@@ -546,6 +559,7 @@ export default function App() {
               setPending3D(null);
               setTrue3DState('idle');
             }}
+            pending3DMeshUrl={pending3D?.meshUrl ?? null}
             pending3DStills={pending3D?.stills ?? null}
             photoBuild={activeBuild}
             photoUri={photoUri}

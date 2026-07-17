@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
+import { RawMeshView } from '../components/RawMeshView';
 import { ScreenFrame } from '../components/ScreenFrame';
+import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import { estimateBuild } from '../lib/brickify';
 import { has360Capture, load360Capture } from '../lib/capture360Store';
 import { hasLastCapture, loadLastCapture } from '../lib/captureStore';
-import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import {
   exportCoachData,
   getTuning,
@@ -322,7 +323,16 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
 
             {state.status === 'done' && state.model && isRealisticViewSupported ? (
               <>
-                {state.meshShots ? (
+                {candidate.id === 'demo' && state.meshUrl ? (
+                  <>
+                    <Text style={styles.sectionTag}>FREE INTERACTIVE GLB CHECK</Text>
+                    <RawMeshView
+                      fallbackImageUri={state.meshShots?.[0]}
+                      label="Free duck fixture in the raw 3D approval viewer"
+                      modelUrl={state.meshUrl}
+                    />
+                  </>
+                ) : state.meshShots ? (
                   <>
                     <Text style={styles.sectionTag}>RAW 3D FROM THE ENGINE</Text>
                     <View style={styles.shotRow}>

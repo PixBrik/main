@@ -34,7 +34,7 @@ export function ModeScreen({ value, onChange, onBack, onContinue, full3DAvailabl
       }
       onBack={onBack}
       progress={0.12}
-      subtitle="These are two different products: a photo-faithful flat panel, or a provider-generated 3D mesh that is approved before we turn it into bricks."
+      subtitle="These are two different products: a photo-faithful flat panel, or a complete 3D model that you rotate and approve before we turn it into bricks."
       title="Choose flat or true 3D."
     >
       <View accessibilityRole="radiogroup">
@@ -50,7 +50,7 @@ export function ModeScreen({ value, onChange, onBack, onContinue, full3DAvailabl
           accent="mint"
           description="Four real views are required for people and give objects the highest accuracy. They replace one-photo hidden-side guesses with front, left, back and right evidence."
           disabled={!full3DAvailable}
-          meta={full3DAvailable ? 'API MESH · ALL SIDES' : 'API NOT CONFIGURED'}
+          meta={full3DAvailable ? '4 VIEWS · ALL SIDES' : '3D GENERATION UNAVAILABLE'}
           onPress={() => onChange('orbit')}
           selected={value === 'orbit'}
           title="True 3D sculpture"
@@ -61,7 +61,7 @@ export function ModeScreen({ value, onChange, onBack, onContinue, full3DAvailabl
         <Text style={styles.pipelineText}>
           {value === 'photo'
             ? 'PHOTO  →  COLOUR GRID  →  CATALOG BRICKS'
-            : '4 PHOTOS  →  TRIPO MULTIVIEW MESH  →  APPROVE  →  CATALOG BRICKS'}
+            : '4 PHOTOS  →  COMPLETE 3D MODEL  →  APPROVE  →  CATALOG BRICKS'}
         </Text>
       </View>
     </ScreenFrame>

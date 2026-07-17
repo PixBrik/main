@@ -3,12 +3,13 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { RawMeshView, isInteractiveRawMeshViewSupported } from '../components/RawMeshView';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { save360Capture } from '../lib/capture360Store';
 import { pickPhoto } from '../lib/pickPhoto';
 import {
   buildFromMeshUrlAllProfiles,
-  generateMeshFromMultiview,
+  generateBestMeshFromMultiview,
   isLive3DConfigured,
   toCompactDataUrl,
   type MultiviewShots,
@@ -27,50 +28,75 @@ type GenerationState = 'idle' | 'generating' | 'preview' | 'preview-failed' | 'c
 
 const VIEWS: ReadonlyArray<{ id: ViewId; label: string; hint: string; glyph: string }> = [
   { glyph: '●', hint: 'Face it straight on', id: 'front', label: 'FRONT' },
-  { glyph: '◐', hint: 'Quarter-turn to its left side', id: 'left', label: 'LEFT' },
-  { glyph: '○', hint: 'All the way behind it', id: 'back', label: 'BACK' },
-  { glyph: '◑', hint: 'Quarter-turn to its right side', id: 'right', label: 'RIGHT' },
+  { glyph: '◐', hint: 'Turn the subject to its left', id: 'left', label: 'LEFT' },
+  { glyph: '○', hint: 'Photograph the back', id: 'back', label: 'BACK' },
+  { glyph: '◑', hint: 'Turn the subject to its right', id: 'right', label: 'RIGHT' },
 ];
 const MESH_APPROVAL_VIEWS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
 
+function customerGenerationNote(note: string): string {
+  if (/preparing/i.test(note)) return 'Preparing all four photos';
+  if (/uploading/i.test(note)) return 'Uploading the four views securely';
+  if (/resuming/i.test(note)) return 'Resuming your saved 3D model';
+  if (/rejected|trying/i.test(note)) return 'Switching to the backup 3D engine';
+  return note;
+}
+
 /**
- * 360° capture: four photos around the object → Tripo multiview → bricks.
+ * True 3D capture: four photos → the best configured multiview provider → bricks.
  * Real geometry from real photos on every side — the single-photo path has
  * to hallucinate whatever the camera didn't see; this one doesn't.
  */
 export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps) {
   const live = isLive3DConfigured();
   const [shots, setShots] = useState<Partial<MultiviewShots>>({});
+  const [activeViewId, setActiveViewId] = useState<ViewId>('front');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [genState, setGenState] = useState<GenerationState>('idle');
   const [progressNote, setProgressNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pendingMeshUrl, setPendingMeshUrl] = useState<string | null>(null);
   const [meshStills, setMeshStills] = useState<string[]>([]);
+  const [meshPreviewReady, setMeshPreviewReady] = useState(false);
+  const shotsRef = useRef<Partial<MultiviewShots>>({});
+  const photoPickerLock = useRef(false);
   const submitLock = useRef(false);
   const conversionLock = useRef(false);
 
   const shotCount = VIEWS.filter((view) => shots[view.id]).length;
   const allViewsReady = VIEWS.every((view) => !!shots[view.id]);
+  const activeViewIndex = Math.max(0, VIEWS.findIndex((view) => view.id === activeViewId));
+  const activeView = VIEWS[activeViewIndex]!;
+  const activeShot = shots[activeView.id];
   const busy = genState === 'generating' || genState === 'converting';
   const canGenerate = live && allViewsReady && rightsConfirmed && !busy && !pendingMeshUrl;
 
   const takeShot = async (id: ViewId) => {
-    if (busy || pendingMeshUrl) return;
-    const uri = await pickPhoto();
-    if (!uri) return;
-    // Compact immediately: keeps the request body small, the persisted set
-    // within localStorage quota, and the slot thumbnails cheap.
-    const compact = await toCompactDataUrl(uri).catch(() => uri);
-    setShots((current) => {
-      const next = { ...current, [id]: compact };
+    if (busy || pendingMeshUrl || photoPickerLock.current) return;
+    photoPickerLock.current = true;
+    try {
+      const uri = await pickPhoto();
+      if (!uri) return;
+      // Compact immediately: keeps the request body small, the persisted set
+      // within localStorage quota, and the slot thumbnails cheap.
+      const compact = await toCompactDataUrl(uri).catch(() => uri);
+      const next = { ...shotsRef.current, [id]: compact };
+      shotsRef.current = next;
+      setShots(next);
       if (next.front) save360Capture(next as MultiviewShots);
-      return next;
-    });
+      const nextMissing = VIEWS.find((view) => !next[view.id]);
+      if (nextMissing) setActiveViewId(nextMissing.id);
+    } finally {
+      photoPickerLock.current = false;
+    }
   };
 
   const renderMeshPreview = async (meshUrl: string) => {
     setProgressNote('Rendering the raw 3D preview');
+    if (isInteractiveRawMeshViewSupported) {
+      setError(null);
+      setGenState('preview');
+    }
     try {
       const { snapshotGlb } = await import('../lib/photoEngine/meshSnapshot');
       const stills = await snapshotGlb(meshUrl);
@@ -78,14 +104,17 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
         throw new Error('The raw 3D preview returned no images.');
       }
       setMeshStills(stills);
+      setMeshPreviewReady(true);
       setError(null);
-      setGenState('preview');
+      if (!conversionLock.current) setGenState('preview');
     } catch (previewError) {
       setMeshStills([]);
-      setError(
-        `${previewError instanceof Error ? previewError.message : 'Could not render the raw 3D preview.'} Retry the preview below; it will not start or charge for another generation.`,
-      );
-      setGenState('preview-failed');
+      if (!isInteractiveRawMeshViewSupported) {
+        setError(
+          `${previewError instanceof Error ? previewError.message : 'Could not render the raw 3D preview.'} Retry the preview below; it will not start or charge for another generation.`,
+        );
+        if (!conversionLock.current) setGenState('preview-failed');
+      }
     }
   };
 
@@ -98,11 +127,13 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
     setError(null);
     setProgressNote('Starting');
     try {
-      const meshUrl = await generateMeshFromMultiview(shots as MultiviewShots, {
-        onProgress: (fraction, note) => setProgressNote(`${Math.round(fraction * 100)}% · ${note}`),
+      const meshUrl = await generateBestMeshFromMultiview(shots as MultiviewShots, {
+        onProgress: (fraction, note) =>
+          setProgressNote(`${Math.round(fraction * 100)}% · ${customerGenerationNote(note)}`),
       });
       setPendingMeshUrl(meshUrl);
-      await renderMeshPreview(meshUrl);
+      setMeshPreviewReady(false);
+      void renderMeshPreview(meshUrl);
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : 'generation failed');
       setGenState('failed');
@@ -112,7 +143,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
   };
 
   const approveMesh = async () => {
-    if (!pendingMeshUrl || !meshStills.length || conversionLock.current || !shots.front) return;
+    if (!pendingMeshUrl || !meshPreviewReady || conversionLock.current || !shots.front) return;
     conversionLock.current = true;
     setGenState('converting');
     setError(null);
@@ -136,6 +167,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
     if (busy) return;
     setPendingMeshUrl(null);
     setMeshStills([]);
+    setMeshPreviewReady(false);
     setError(null);
     setProgressNote('');
     setGenState('idle');
@@ -150,7 +182,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
   const footerDisabled =
     busy ||
     (genState === 'preview'
-      ? !meshStills.length
+      ? !meshPreviewReady
       : genState === 'preview-failed'
         ? !pendingMeshUrl
         : !canGenerate);
@@ -160,7 +192,9 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
       : genState === 'converting'
         ? 'Building three distinct sizes…'
         : genState === 'preview'
-          ? 'Approve this mesh — build all 3 sizes'
+          ? meshPreviewReady
+            ? 'Approve this 3D model — build all 3 sizes'
+            : 'Opening your rotatable 3D model…'
           : genState === 'preview-failed'
             ? 'Retry raw preview — no new generation'
             : !live
@@ -176,7 +210,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
   return (
     <ScreenFrame
       accent="coral"
-      eyebrow="2 / 360° capture"
+      eyebrow="True 3D · guided capture"
       footer={
         <PrimaryButton
           disabled={footerDisabled}
@@ -185,54 +219,91 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
         />
       }
       onBack={onBack}
-      progress={0.25}
-      subtitle="Walk around the subject and shoot four real sides. For people, these views prevent the AI from inventing or mirroring a face onto the unseen head surfaces."
-      title="Circle the object."
+      progress={0.2 + shotCount * 0.075}
+      subtitle="Add one clear photo from each side. Keep the subject centered and the distance unchanged; we combine the four views into one complete model."
+      title="Show every side."
     >
-      <View style={styles.grid}>
-        {VIEWS.map((view) => {
-          const shot = shots[view.id];
-          return (
-            <Pressable
-              accessibilityLabel={
-                shot ? `Retake the ${view.label.toLowerCase()} view` : `Shoot the ${view.label.toLowerCase()} view`
-              }
-              accessibilityRole="button"
-              disabled={busy || !!pendingMeshUrl}
-              key={view.id}
-              onPress={() => takeShot(view.id)}
-              style={({ pressed }) => [styles.slot, shot && styles.slotFilled, pressed && styles.pressed]}
-            >
-              {shot ? (
-                <>
-                  <Image
-                    accessibilityLabel={`${view.label} view photo`}
-                    resizeMode="cover"
-                    source={{ uri: shot }}
-                    style={styles.slotPhoto}
-                  />
-                  <View style={styles.slotDone}>
-                    <Text style={styles.slotDoneText}>{view.label} ✓ · RETAKE</Text>
-                  </View>
-                </>
-              ) : (
-                <View style={styles.slotEmpty}>
-                  <Text style={styles.slotGlyph}>{view.glyph}</Text>
-                  <Text style={styles.slotLabel}>
-                    {view.label}
-                    {view.id === 'front' ? ' *' : ''}
-                  </Text>
-                  <Text style={styles.slotHint}>{view.hint}</Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
+      <View style={styles.captureCard}>
+        <View style={styles.captureMeta}>
+          <Text style={styles.captureStep}>ANGLE {activeViewIndex + 1} OF {VIEWS.length}</Text>
+          <Text style={styles.captureCount}>{shotCount} / {VIEWS.length} READY</Text>
+        </View>
+
+        <View accessibilityLabel="Required photo angles" style={styles.angleTabs}>
+          {VIEWS.map((view, index) => {
+            const done = !!shots[view.id];
+            const selected = view.id === activeViewId;
+            return (
+              <Pressable
+                accessibilityLabel={`${view.label.toLowerCase()} view${done ? ', ready' : ', missing'}`}
+                accessibilityRole="button"
+                disabled={busy || !!pendingMeshUrl}
+                key={view.id}
+                onPress={() => setActiveViewId(view.id)}
+                style={({ pressed }) => [
+                  styles.angleTab,
+                  selected && styles.angleTabActive,
+                  done && !selected && styles.angleTabDone,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.angleNumber, selected && styles.angleNumberActive]}>
+                  {done ? '✓' : index + 1}
+                </Text>
+                <Text style={[styles.angleLabel, selected && styles.angleLabelActive]}>{view.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable
+          accessibilityLabel={activeShot ? `Retake the ${activeView.label.toLowerCase()} view` : `Add the ${activeView.label.toLowerCase()} view`}
+          accessibilityRole="button"
+          disabled={busy || !!pendingMeshUrl}
+          onPress={() => takeShot(activeView.id)}
+          style={({ pressed }) => [styles.focusCapture, activeShot && styles.focusCaptureFilled, pressed && styles.pressed]}
+        >
+          {activeShot ? (
+            <Image
+              accessibilityLabel={`${activeView.label} view photo`}
+              resizeMode="cover"
+              source={{ uri: activeShot }}
+              style={styles.focusPhoto}
+            />
+          ) : (
+            <View style={styles.captureGuide}>
+              <View style={styles.guideFrame}>
+                <Text style={styles.guideGlyph}>{activeView.glyph}</Text>
+                <View style={styles.guideCrosshair} />
+              </View>
+              <Text style={styles.guideAction}>ADD {activeView.label} PHOTO</Text>
+              <Text style={styles.guideHint}>{activeView.hint}</Text>
+            </View>
+          )}
+          {activeShot ? (
+            <View style={styles.retakeBand}>
+              <View>
+                <Text style={styles.retakeTitle}>{activeView.label} READY</Text>
+                <Text style={styles.retakeHint}>Tap the image to replace it</Text>
+              </View>
+              <Text style={styles.retakeAction}>RETAKE</Text>
+            </View>
+          ) : null}
+        </Pressable>
+
+        <Text style={styles.captureTip}>
+          {activeView.id === 'back'
+            ? 'The back photo is essential for people: include the hair and shoulders so the model never mirrors the face.'
+            : 'Use the same framing, lighting and subject position in every view. Plain backgrounds work best.'}
+        </Text>
       </View>
-      <Text style={styles.gridNote}>
-        All four views are required. Move the camera around the subject; keep the subject still,
-        at the same height and under the same lighting.
-      </Text>
+
+      {allViewsReady ? (
+        <View style={styles.readyBanner}>
+          <Text style={styles.readyTitle}>ALL FOUR SIDES CAPTURED</Text>
+          <Text style={styles.readyText}>Review any angle above, confirm the photo rights, then create the 3D model.</Text>
+        </View>
+      ) : null}
 
       {busy ? (
         <View style={styles.progress}>
@@ -240,7 +311,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
           <Text style={styles.progressHint}>
             {genState === 'generating'
               ? 'The generator reads all four views at once — this takes a minute or two.'
-              : 'Only the approved provider mesh is being converted; no depth or relief shortcut is used.'}
+              : 'Only the 3D model you approved is being converted; no depth or relief shortcut is used.'}
           </Text>
         </View>
       ) : null}
@@ -249,14 +320,35 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
 
       {pendingMeshUrl ? (
         <View style={styles.previewCard}>
-          <Text style={styles.previewEyebrow}>RAW 3D FROM ALL FOUR PHOTOS</Text>
-          <Text style={styles.previewTitle}>Approve the shape before any bricks are built.</Text>
+          <Text style={styles.previewEyebrow}>YOUR GENERATED 3D MODEL</Text>
+          <Text style={styles.previewTitle}>Turn it around before we build it.</Text>
           <Text style={styles.previewHint}>
-            Inspect FRONT, RIGHT, BACK and LEFT—especially the rear surface—before approving.
+            Drag the model to inspect every surface, especially the back. Approve only when its shape and appearance feel true to your photos.
           </Text>
+          <View style={styles.interactivePreview}>
+            <RawMeshView
+              fallbackImageUri={meshStills[0]}
+              label="Generated raw 3D model from four photos"
+              modelUrl={pendingMeshUrl}
+              onError={(message) => {
+                if (conversionLock.current) return;
+                if (meshStills.length) return;
+                setMeshPreviewReady(false);
+                setError(`${message} Retry this saved model below; no new generation will be started.`);
+                setGenState('preview-failed');
+              }}
+              onReady={() => {
+                setMeshPreviewReady(true);
+                setError(null);
+                if (!conversionLock.current) setGenState('preview');
+              }}
+            />
+          </View>
           {meshStills.length ? (
-            <View style={styles.previewShots}>
-              {meshStills.map((still, index) => {
+            <View>
+              <Text style={styles.stillLabel}>QUICK ANGLE CHECK</Text>
+              <View style={styles.previewShots}>
+                {meshStills.map((still, index) => {
                 const view = MESH_APPROVAL_VIEWS[index] ?? `VIEW ${index + 1}`;
                 return (
                   <View key={view} style={styles.previewShotWrap}>
@@ -269,17 +361,17 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
                     <Text style={styles.previewShotLabel}>{view}</Text>
                   </View>
                 );
-              })}
+                })}
+              </View>
             </View>
           ) : (
             <Text style={styles.previewHint}>
-              The paid mesh is preserved. Retry its preview without starting another provider task.
+              Opening your saved 3D model. This does not start another paid generation.
             </Text>
           )}
           {meshStills.length ? (
             <Text style={styles.previewHint}>
-              The button below is explicit approval. It converts this exact mesh independently at
-              efficient, balanced and detailed resolutions.
+              Approval converts this exact model into efficient, balanced and detailed brick builds.
             </Text>
           ) : null}
           {!busy ? (
@@ -289,7 +381,7 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
               style={({ pressed }) => [styles.discard, pressed && styles.pressed]}
             >
               <Text style={styles.discardText}>
-                Discard this mesh — generating another one spends another provider run
+                Discard this model — generating another one spends another paid run
               </Text>
             </Pressable>
           ) : null}
@@ -325,77 +417,185 @@ export function Capture360Screen({ onBack, onGenerated }: Capture360ScreenProps)
 }
 
 const styles = StyleSheet.create({
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  slot: {
+  captureCard: {
     backgroundColor: colors.white,
-    borderColor: colors.line,
+    borderColor: inkAlpha(0.12),
     borderRadius: radius.lg,
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    flexBasis: '47%',
-    flexGrow: 1,
-    minHeight: 148,
-    overflow: 'hidden',
-  },
-  slotFilled: {
-    borderColor: colors.ink,
-    borderStyle: 'solid',
-  },
-  pressed: {
-    opacity: 0.75,
-  },
-  slotEmpty: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
+    borderWidth: 1,
     padding: spacing.md,
   },
-  slotGlyph: {
-    color: colors.ink,
-    fontSize: 22,
-    lineHeight: 26,
+  captureMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
-  slotLabel: {
+  captureStep: {
+    ...type.micro,
+    color: colors.ink,
+  },
+  captureCount: {
+    ...type.micro,
+    color: inkAlpha(0.48),
+    fontVariant: ['tabular-nums'],
+  },
+  angleTabs: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  angleTab: {
+    alignItems: 'center',
+    backgroundColor: inkAlpha(0.06),
+    borderColor: 'transparent',
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    flex: 1,
+    minHeight: 58,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  angleTabActive: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  angleTabDone: {
+    backgroundColor: colors.saffron,
+    borderColor: colors.ink,
+  },
+  angleNumber: {
     color: colors.ink,
     fontFamily: fonts.display,
     fontSize: 14,
-    letterSpacing: 0.4,
-    marginTop: spacing.sm,
-  },
-  slotHint: {
-    ...type.micro,
-    color: inkAlpha(0.5),
-    marginTop: 2,
     textAlign: 'center',
-    textTransform: 'none',
   },
-  slotPhoto: {
-    flex: 1,
-    minHeight: 118,
+  angleNumberActive: {
+    color: colors.saffron,
+  },
+  angleLabel: {
+    color: inkAlpha(0.58),
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    letterSpacing: 0.6,
+    marginTop: 3,
+  },
+  angleLabelActive: {
+    color: colors.white,
+  },
+  focusCapture: {
+    backgroundColor: inkAlpha(0.04),
+    borderColor: colors.ink,
+    borderRadius: radius.md,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  focusCaptureFilled: {
+    borderStyle: 'solid',
+  },
+  focusPhoto: {
+    aspectRatio: 1,
     width: '100%',
   },
-  slotDone: {
-    backgroundColor: colors.ink,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+  captureGuide: {
+    alignItems: 'center',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    width: '100%',
   },
-  slotDoneText: {
+  guideFrame: {
+    alignItems: 'center',
+    aspectRatio: 0.82,
+    borderColor: inkAlpha(0.28),
+    borderRadius: radius.pill,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    justifyContent: 'center',
+    maxHeight: 190,
+    width: '42%',
+  },
+  guideGlyph: {
+    color: colors.ink,
+    fontSize: 40,
+    lineHeight: 44,
+  },
+  guideCrosshair: {
+    borderColor: colors.alarm,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    height: 16,
+    marginTop: spacing.sm,
+    width: 16,
+  },
+  guideAction: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 16,
+    marginTop: spacing.lg,
+  },
+  guideHint: {
+    ...type.body,
+    color: inkAlpha(0.55),
+    fontSize: 12,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  retakeBand: {
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  retakeTitle: {
     color: colors.saffron,
     fontFamily: fonts.extrabold,
     fontSize: 10,
-    letterSpacing: 0.6,
-    textAlign: 'center',
+    letterSpacing: 0.8,
   },
-  gridNote: {
+  retakeHint: {
+    color: 'rgba(255,255,255,0.62)',
+    fontFamily: fonts.semibold,
+    fontSize: 9,
+    marginTop: 2,
+  },
+  retakeAction: {
+    color: colors.white,
+    fontFamily: fonts.extrabold,
+    fontSize: 10,
+    letterSpacing: 0.6,
+  },
+  captureTip: {
     ...type.body,
     color: inkAlpha(0.6),
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 16,
     marginTop: spacing.md,
+  },
+  readyBanner: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
+  readyTitle: {
+    color: colors.saffron,
+    fontFamily: fonts.extrabold,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  readyText: {
+    ...type.body,
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: spacing.xs,
+  },
+  pressed: {
+    opacity: 0.75,
   },
   progress: {
     alignItems: 'center',
@@ -435,6 +635,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 21,
     marginTop: spacing.xs,
+  },
+  interactivePreview: {
+    marginTop: spacing.md,
+  },
+  stillLabel: {
+    color: colors.saffron,
+    fontFamily: fonts.extrabold,
+    fontSize: 8,
+    letterSpacing: 1,
+    marginTop: spacing.md,
   },
   previewShots: {
     flexDirection: 'row',

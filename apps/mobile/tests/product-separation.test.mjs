@@ -20,6 +20,13 @@ test('an unapproved sculpture cannot enter the purchasing or build flow', async 
   assert.match(dock, /disabled = downstreamDisabled && item\.screen !== 'result'/);
 });
 
+test('homepage build choices open their selected capture flow directly', async () => {
+  const app = await source('App.tsx');
+  assert.doesNotMatch(app, /navigate\('mode'\)/);
+  assert.match(app, /setCaptureMode\('photo'\);\s*navigate\('capture'\)/);
+  assert.match(app, /setCaptureMode\('orbit'\);\s*navigate\('capture'\)/);
+});
+
 test('saved builds preserve product provenance and legacy entries default safely', async () => {
   const [app, gallery] = await Promise.all([
     source('App.tsx'),
@@ -67,8 +74,10 @@ test('people route to four views while objects retain honest one-photo inference
   assert.match(result, /Take 4 guided photos of this person/);
   assert.match(result, /This is an object — generate one-photo mesh/);
   assert.match(result, /Contains a person — use 4 real views instead/);
-  assert.match(result, /FRONT', 'RIGHT', 'BACK', 'LEFT/);
-  assert.match(result, /resizeMode="contain"/);
+  assert.match(result, /pending3DMeshUrl/);
+  assert.match(result, /modelUrl=\{pending3DMeshUrl\}/);
+  assert.match(result, /pendingMeshReady/);
   assert.match(mode, /Four real views are required for people/);
-  assert.match(capture360, /prevent the AI from inventing or mirroring a face/);
+  assert.match(capture360, /The back photo is essential for people/);
+  assert.match(capture360, /RawMeshView/);
 });

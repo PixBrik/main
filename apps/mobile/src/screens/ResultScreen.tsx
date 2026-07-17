@@ -6,6 +6,7 @@ import { BuildNameField } from '../components/BuildNameField';
 import { DemoDock } from '../components/DemoDock';
 import { InkLoader } from '../components/InkLoader';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { RawMeshView } from '../components/RawMeshView';
 import { RotatableBuildPreview } from '../components/RotatableBuildPreview';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
@@ -31,6 +32,8 @@ interface ResultScreenProps {
   onSelectProduct: (product: BuildProduct) => void;
   onGuided3D?: () => void;
   onTrue3D?: () => Promise<void>;
+  /** Exact provider GLB awaiting approval. */
+  pending3DMeshUrl?: string | null;
   /** Raw stills of the generated 3D model awaiting the buyer's approval. */
   pending3DStills?: string[] | null;
   onApprove3D?: () => Promise<void>;
@@ -96,8 +99,6 @@ interface ProfileCard {
 }
 
 type PreviewMode = 'likeness' | 'angle';
-const MESH_APPROVAL_VIEWS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
-
 export function ResultScreen({
   selectedVariant,
   onSelectVariant,
@@ -111,6 +112,7 @@ export function ResultScreen({
   onSelectProduct,
   onGuided3D,
   onTrue3D,
+  pending3DMeshUrl = null,
   pending3DStills = null,
   onApprove3D,
   onDiscard3D,
@@ -123,7 +125,14 @@ export function ResultScreen({
 }: ResultScreenProps) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>('likeness');
   const [confirm3D, setConfirm3D] = useState(false);
+  const [pendingMeshReady, setPendingMeshReady] = useState(false);
+  const [pendingMeshError, setPendingMeshError] = useState('');
   const [pdfState, setPdfState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
+
+  useEffect(() => {
+    setPendingMeshReady(false);
+    setPendingMeshError('');
+  }, [pending3DMeshUrl]);
   const [profileCards, setProfileCards] = useState<Record<string, ProfileCard>>({});
 
   // Each profile ticket previews ITS OWN outcome with real numbers, so the
@@ -234,9 +243,9 @@ export function ResultScreen({
         awaitingSculpture
           ? humanSubject
             ? 'People use four real views so the generator does not invent or mirror a face onto the unseen sides of a head.'
-            : 'This option creates a textured Meshy or Tripo mesh first. One-photo AI guesses unseen sides; you approve the mesh before brick conversion.'
+            : 'This option creates a textured 3D model first. One-photo AI guesses unseen sides; you rotate and approve the model before brick conversion.'
           : generatedSculpture
-            ? 'This is the brick conversion of the API-generated 3D mesh you approved—not a relief or depth guess.'
+            ? 'This is the brick conversion of the generated 3D model you approved—not a relief or depth guess.'
             : 'The flat panel preserves the framed photo directly. Its angled view only shows panel thickness; it is not the 3D sculpture.'
       }
       title={`${buildName} / ${activeProduct === 'sculpture' ? 'True 3D sculpture' : 'Flat photo panel'}`}
@@ -270,9 +279,9 @@ export function ResultScreen({
           >
             <Text style={styles.productKicker}>
               {sculptureBuild
-                ? 'MESH APPROVED'
-                : pending3DStills
-                  ? 'MESH READY'
+                ? 'MODEL APPROVED'
+                : pending3DMeshUrl
+                  ? 'MODEL READY'
                   : true3DState === 'working'
                     ? 'GENERATING'
                     : 'PREMIUM OPTION'}
@@ -307,7 +316,7 @@ export function ResultScreen({
               <Text style={styles.generationBody}>
                 {humanSubject
                   ? 'One portrait cannot show the sides or back of a head. Four guided photos stop the AI from using a guessed or mirrored face as hidden-surface evidence.'
-                  : 'One-photo AI infers—and therefore guesses—the unseen sides of an object. You inspect the raw textured Meshy or Tripo model before brick conversion.'}
+                  : 'One-photo AI infers—and therefore guesses—the unseen sides of an object. You rotate and inspect the raw textured model before brick conversion.'}
               </Text>
             </View>
           </View>
@@ -315,7 +324,7 @@ export function ResultScreen({
           <View accessibilityLabel="True 3D process" style={styles.pipeline}>
             <Text style={styles.pipelineStep}>{humanSubject ? '4 REAL VIEWS' : '1 OBJECT PHOTO'}</Text>
             <Text style={styles.pipelineArrow}>→</Text>
-            <Text style={styles.pipelineStep}>MESHY / TRIPO</Text>
+            <Text style={styles.pipelineStep}>AI 3D MODEL</Text>
             <Text style={styles.pipelineArrow}>→</Text>
             <Text style={styles.pipelineStep}>APPROVE MESH</Text>
             <Text style={styles.pipelineArrow}>→</Text>
@@ -437,10 +446,10 @@ export function ResultScreen({
           {previewMode === 'likeness'
             ? activeProduct === 'panel'
               ? 'A straight-on build map: use this view to judge the face, colours and framing.'
-              : 'A front projection of the sculpture generated from the provider mesh you approved.'
+              : 'A front projection of the sculpture generated from the 3D model you approved.'
             : activeProduct === 'panel'
               ? 'This camera only reveals the panel backing and stud depth. It does not turn the photo into a 3D sculpture.'
-              : 'Rotate the catalog-brick sculpture to inspect the geometry inherited from the approved Meshy or Tripo mesh.'}
+              : 'Rotate the catalog-brick sculpture to inspect the geometry inherited from your approved 3D model.'}
         </Text>
       </View>
       {previewMode === 'likeness' ? (
@@ -624,48 +633,46 @@ export function ResultScreen({
       ) : null}
 
       {/* Approve-first: the generated 3D model gets a yes/no BEFORE bricks. */}
-      {pending3DStills && onApprove3D && onDiscard3D ? (
+      {pending3DMeshUrl && onApprove3D && onDiscard3D ? (
         <Modal animationType="fade" onRequestClose={onDiscard3D} transparent visible>
           <View style={styles.approveBackdrop}>
             <View style={styles.approveCard}>
               <Text style={styles.approveTitle}>YOUR 3D MODEL IS READY</Text>
               <Text style={styles.approveBody}>
-                This is the exact 3D shape your bricks will be built from. Inspect FRONT, RIGHT,
-                BACK and LEFT—especially the rear surface—before approving three build sizes.
+                Drag to inspect the exact 3D shape your bricks will be built from. Check every side,
+                especially the rear surface, before approving three build sizes.
               </Text>
-              {true3DError ? (
+              {true3DError || pendingMeshError ? (
                 <View accessibilityRole="alert" style={styles.generationError}>
-                  <Text style={styles.generationErrorText}>{true3DError}</Text>
+                  <Text style={styles.generationErrorText}>{true3DError || pendingMeshError}</Text>
                 </View>
               ) : null}
-              {pending3DStills.length ? (
-                <View style={styles.approveShots}>
-                  {pending3DStills.map((still, index) => {
-                    const view = MESH_APPROVAL_VIEWS[index] ?? `VIEW ${index + 1}`;
-                    return (
-                      <View key={view} style={styles.approveShotWrap}>
-                        <Image
-                          accessibilityLabel={`Generated 3D model, ${view.toLowerCase()} view`}
-                          resizeMode="contain"
-                          source={{ uri: still }}
-                          style={styles.approveShot}
-                        />
-                        <Text style={styles.approveShotLabel}>{view}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
+              <View style={styles.rawMeshApproval}>
+                <RawMeshView
+                  fallbackImageUri={pending3DStills?.[0]}
+                  label="Generated one-photo 3D model awaiting approval"
+                  modelUrl={pending3DMeshUrl}
+                  onError={(message) => {
+                    if (!pending3DStills?.length) setPendingMeshReady(false);
+                    setPendingMeshError(message);
+                  }}
+                  onReady={() => {
+                    setPendingMeshReady(true);
+                    setPendingMeshError('');
+                  }}
+                />
+              </View>
+              {!pending3DStills?.length && !pendingMeshReady ? (
                 <View accessibilityRole="alert" style={styles.previewBlocked}>
                   <Text style={styles.previewBlockedTitle}>PREVIEW REQUIRED</Text>
                   <Text style={styles.approveNoShots}>
-                    The approval images did not render, so PixBrik will not convert this mesh blindly.
-                    Retrying the preview does not create another provider generation.
+                    PixBrik will not convert this model until the interactive preview or a still view
+                    can be inspected. Retrying does not create another provider generation.
                   </Text>
                 </View>
-              )}
-              {pending3DStills.length ? (
-                <PrimaryButton label="Looks right — brick it" onPress={onApprove3D} />
+              ) : null}
+              {pendingMeshReady || !!pending3DStills?.length ? (
+                <PrimaryButton label="Looks right — build it in bricks" onPress={onApprove3D} />
               ) : onRetry3DPreview ? (
                 <PrimaryButton
                   disabled={true3DState === 'working'}
@@ -1148,6 +1155,7 @@ const styles = StyleSheet.create({
   approveCard: {
     backgroundColor: colors.paper,
     borderRadius: radius.lg,
+    maxHeight: '96%',
     maxWidth: 460,
     padding: spacing.lg,
     width: '100%',
@@ -1165,28 +1173,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     marginTop: spacing.sm,
   },
-  approveShots: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
+  rawMeshApproval: {
     marginBottom: spacing.lg,
-  },
-  approveShotWrap: {
-    flexBasis: '45%',
-    flexGrow: 1,
-  },
-  approveShot: {
-    aspectRatio: 460 / 400,
-    backgroundColor: colors.ink,
-    borderRadius: radius.md,
-    width: '100%',
-  },
-  approveShotLabel: {
-    ...type.micro,
-    color: colors.ink,
-    fontSize: 8,
-    marginTop: 4,
-    textAlign: 'center',
   },
   approveNoShots: {
     ...type.body,

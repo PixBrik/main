@@ -4,7 +4,7 @@
  * the Meshy CDN URL is never exposed to the client).
  */
 
-import { fetchMeshyTask } from '../_meshy';
+import { fetchMeshyTask, parseMeshyTaskKind } from '../_meshy';
 
 export default async function handler(req: any, res: any): Promise<void> {
   const taskId = req.query?.taskId;
@@ -12,9 +12,14 @@ export default async function handler(req: any, res: any): Promise<void> {
     res.status(400).json({ error: 'taskId query param required' });
     return;
   }
+  const taskKind = parseMeshyTaskKind(req.query?.taskKind);
+  if (!taskKind) {
+    res.status(400).json({ error: 'taskKind must be image-to-3d or multi-image-to-3d' });
+    return;
+  }
 
   try {
-    const { task } = await fetchMeshyTask(taskId);
+    const { task } = await fetchMeshyTask(taskId, taskKind);
     if (task?.status !== 'SUCCEEDED') {
       res.status(409).json({ error: 'model not ready', status: task?.status });
       return;

@@ -388,6 +388,7 @@ export type TripoVersionId = (typeof TRIPO_VERSIONS)[number]['id'];
 
 /** Which hosted image→3D generator to use. */
 export type MeshEngine = 'tripo' | 'meshy';
+type MeshGenerationMode = 'single' | 'multiview';
 
 export interface BuildFromPhotoOptions {
   /** Generator to use. Default 'tripo' (the lab's version cards). */
@@ -420,6 +421,8 @@ interface PendingGenerationTask {
   createdAt: number;
   engine: MeshEngine;
   fingerprint: string;
+  /** Optional so one-photo tasks saved before multiview routing still resume. */
+  mode?: MeshGenerationMode;
   taskId: string;
 }
 
@@ -547,16 +550,27 @@ async function submitTask(engine: MeshEngine, body: Record<string, unknown>): Pr
 }
 
 /** Poll a submitted task until its mesh is ready; resolves to the mesh URL. */
-async function awaitTask(engine: MeshEngine, taskId: string, onProgress?: ProgressFn): Promise<string> {
+async function awaitTask(
+  engine: MeshEngine,
+  taskId: string,
+  onProgress?: ProgressFn,
+  mode: MeshGenerationMode = 'single',
+): Promise<string> {
   const base = ENGINE_BASE[engine];
   const label = PROVIDER_LABEL[engine];
+  const meshyTaskKind =
+    engine === 'meshy' && mode === 'multiview'
+      ? '&taskKind=multi-image-to-3d'
+      : '';
   let ready = false;
   let lastStatusError = '';
   for (let attempt = 0; attempt < 90 && !ready; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 2500));
     let statusRes: Response;
     try {
-      statusRes = await fetch(`${base}/status?taskId=${encodeURIComponent(taskId)}`);
+      statusRes = await fetch(
+        `${base}/status?taskId=${encodeURIComponent(taskId)}${meshyTaskKind}`,
+      );
     } catch (error) {
       lastStatusError = error instanceof Error ? error.message : 'network error';
       continue;
@@ -591,7 +605,7 @@ async function awaitTask(engine: MeshEngine, taskId: string, onProgress?: Progre
       `${label} generation timed out${lastStatusError ? `; last status error: ${lastStatusError}` : ''}. Retry resumes this existing task; it will not submit or charge for another generation.`,
     );
   }
-  return `${base}/model?taskId=${encodeURIComponent(taskId)}`;
+  return `${base}/model?taskId=${encodeURIComponent(taskId)}${meshyTaskKind}`;
 }
 
 async function awaitRememberedTask(
@@ -599,7 +613,12 @@ async function awaitRememberedTask(
   onProgress?: ProgressFn,
 ): Promise<string> {
   try {
-    const meshUrl = await awaitTask(pending.engine, pending.taskId, onProgress);
+    const meshUrl = await awaitTask(
+      pending.engine,
+      pending.taskId,
+      onProgress,
+      pending.mode ?? 'single',
+    );
     forgetPendingTask(pending);
     return meshUrl;
   } catch (error) {
@@ -616,6 +635,7 @@ async function submitRememberedTask(
   body: Record<string, unknown>,
   fingerprint: string,
   onProgress?: ProgressFn,
+  mode: MeshGenerationMode = 'single',
 ): Promise<string> {
   const resumed = readPendingTask(fingerprint);
   if (resumed) {
@@ -623,7 +643,7 @@ async function submitRememberedTask(
     return awaitRememberedTask(resumed, onProgress);
   }
   const taskId = await submitTask(engine, body);
-  const pending = { createdAt: Date.now(), engine, fingerprint, taskId };
+  const pending = { createdAt: Date.now(), engine, fingerprint, mode, taskId };
   rememberPendingTask(pending);
   return awaitRememberedTask(pending, onProgress);
 }
@@ -766,7 +786,7 @@ export function missingMultiviewShots(shots: MultiviewShots): Array<(typeof MULT
   return MULTIVIEW_ORDER.filter((name) => typeof shots[name] !== 'string' || !shots[name]);
 }
 
-/** Generate the Tripo multiview mesh without starting brick conversion. */
+/** Generate a Meshy or Tripo multiview mesh without starting brick conversion. */
 export async function generateMeshFromMultiview(
   shots: MultiviewShots,
   options: BuildFromPhotoOptions = {},
@@ -781,14 +801,49 @@ export async function generateMeshFromMultiview(
 
   options.onProgress?.(0.05, 'Preparing all four views');
   const views = await compactMultiviewWithinBudget(shots);
-  options.onProgress?.(0.12, 'Uploading four views to Tripo');
-  const body = { modelVersion: options.modelVersion, views };
-  const fingerprint = taskFingerprint('four-view', body);
-  return submitRememberedTask('tripo', body, fingerprint, options.onProgress);
+  const engine = options.engine ?? 'tripo';
+  options.onProgress?.(0.12, `Uploading four views to ${PROVIDER_LABEL[engine]}`);
+  const body =
+    engine === 'meshy'
+      ? { views }
+      : { modelVersion: options.modelVersion, views };
+  const fingerprint = taskFingerprint(`four-view-${engine}`, body);
+  return submitRememberedTask(
+    engine,
+    body,
+    fingerprint,
+    options.onProgress,
+    'multiview',
+  );
 }
 
 /**
- * 360° path: 4 photos around the object → Tripo multiview → GLB → bricks.
+ * Buyer-facing smart route: prefer Meshy-6's multi-image reconstruction, then
+ * use Tripo only when Meshy definitively rejected the request before creating
+ * a task. An ambiguous timeout, 5xx response, or malformed success never
+ * double-submits because the first provider may already have spent credits.
+ * Explicit engines remain available to the comparison lab without fallback.
+ */
+export async function generateBestMeshFromMultiview(
+  shots: MultiviewShots,
+  options: BuildFromPhotoOptions = {},
+): Promise<string> {
+  if (options.engine) {
+    return generateMeshFromMultiview(shots, options);
+  }
+  try {
+    return await generateMeshFromMultiview(shots, { ...options, engine: 'meshy' });
+  } catch (error) {
+    if (!(error instanceof GenerationSubmitError) || !error.definitivePreTaskRejection) {
+      throw error;
+    }
+    options.onProgress?.(0.12, 'Meshy rejected before creating a task; trying Tripo');
+    return generateMeshFromMultiview(shots, { ...options, engine: 'tripo' });
+  }
+}
+
+/**
+ * 360° path: 4 photos around the object → Meshy/Tripo multiview → GLB → bricks.
  * Real geometry from real photos on every side, instead of the AI
  * hallucinating whatever the single photo didn't show. Kept for the model
  * lab; the buyer path previews and approves the mesh before conversion.
