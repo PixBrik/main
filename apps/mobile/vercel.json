@@ -5,5 +5,14 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "functions": { "api/**/*.ts": { "maxDuration": 30 } },
+  "headers": [
+    {
+      "source": "/g/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ],
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }

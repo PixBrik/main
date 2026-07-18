@@ -45,6 +45,8 @@ interface ScreenFrameProps {
   progress?: number;
   trailing?: ReactNode;
   scroll?: boolean;
+  /** Scroll the content back to its start whenever this identity changes. */
+  scrollResetKey?: string | number;
   /** Retired in Saffron Press — accepted for API compatibility. */
   accent?: SignalName;
 }
@@ -59,8 +61,15 @@ export function ScreenFrame({
   progress,
   trailing,
   scroll = true,
+  scrollResetKey,
 }: ScreenFrameProps) {
   const [journeyIn, headIn, bodyIn] = useStagger(3);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (scrollResetKey === undefined) return;
+    scrollRef.current?.scrollTo({ animated: true, y: 0 });
+  }, [scrollResetKey]);
 
   const fill = useRef(new Animated.Value(progress ?? 0)).current;
   useEffect(() => {
@@ -143,6 +152,7 @@ export function ScreenFrame({
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
         >
           {content}

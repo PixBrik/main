@@ -13,8 +13,8 @@ import { colors, radius, signals, spacing, type } from '../theme/tokens';
 const STEPS = [
   { number: '01', title: 'Shoot', body: 'Snap any object — a car, a pet, a face, a plant.', signal: signals.coral },
   { number: '02', title: 'Model', body: 'AI turns it into a real 3D brick build.', signal: signals.indigo },
-  { number: '03', title: 'Source', body: 'Real parts, real prices, hollow or full.', signal: signals.mint },
-  { number: '04', title: 'Build', body: 'A prepared kit ships with a step-by-step guide.', signal: signals.saffron },
+  { number: '03', title: 'Source', body: 'Real parts and prices, reinforced hollow or solid.', signal: signals.mint },
+  { number: '04', title: 'Build', body: 'A prepared kit ships with one-piece-at-a-time steps.', signal: signals.saffron },
 ] as const;
 
 const CYCLE_MS = 2600;

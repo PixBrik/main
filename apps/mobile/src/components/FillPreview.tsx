@@ -42,7 +42,7 @@ export function FillPreview({ hollow, color = '#FFC800' }: { hollow: boolean; co
       <Svg height={size} viewBox={`0 0 ${size} ${size}`} width={size}>
         {rects}
       </Svg>
-      <Text style={styles.caption}>{hollow ? 'EMPTY INSIDE' : 'SOLID'}</Text>
+      <Text style={styles.caption}>{hollow ? 'BRACED HOLLOW CORE' : 'SOLID CORE'}</Text>
     </View>
   );
 }

@@ -35,6 +35,8 @@ export interface PhotoModels {
   /** True when the volume build used measured depth, not just inflation. */
   hasDepth: boolean;
   models: Record<BuildProfile, VoxelModel>;
+  /** Restored legacy builds may own only one frozen physical size. */
+  availableProfiles?: BuildProfile[];
 }
 
 /** Real catalog colours: five neutral values keep facial mid-tones readable. */

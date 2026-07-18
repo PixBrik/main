@@ -1,6 +1,10 @@
 export type DemoScreen =
   | 'home'
   | 'account'
+  | 'legal'
+  | 'terms'
+  | 'privacy'
+  | 'contact'
   | 'mode'
   | 'capture'
   | 'preferences'
@@ -15,7 +19,7 @@ export type DemoScreen =
   | 'lab'
   | 'instructions';
 
-/** Solid build vs hollow (shell-only) build. */
+/** Solid build vs reinforced hollow build. */
 export type BuildFill = 'full' | 'hollow';
 
 /** The two distinct products a buyer can switch between for one photo. */

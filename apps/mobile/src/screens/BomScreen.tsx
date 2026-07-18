@@ -6,6 +6,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
 import { brickify, isCatalogStockError, partUrl } from '../lib/brickify';
+import { createAssemblyPlan } from '../lib/instructions/assemblyPlan';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { colors, radius, spacing, type } from '../theme/tokens';
 import type { BuildFill, DemoScreen } from '../types/navigation';
@@ -88,6 +89,7 @@ export function BomScreen({
       throw error;
     }
   }, [photoBuild, selectedVariant, buildFill]);
+  const assemblyPlan = useMemo(() => (bom ? createAssemblyPlan(bom) : null), [bom]);
 
   if (!bom) {
     return (
@@ -101,6 +103,30 @@ export function BomScreen({
         <View accessibilityRole="alert">
           <Text style={styles.demoNote}>
             Go back and choose another build profile, or try this design again when the catalog is refreshed.
+          </Text>
+        </View>
+      </ScreenFrame>
+    );
+  }
+
+  const hardPlanError = assemblyPlan?.warnings.find((warning) => warning.severity === 'error');
+  if (hardPlanError || (assemblyPlan?.supportSummary.unsupported ?? 0) > 0) {
+    return (
+      <ScreenFrame
+        accent="coral"
+        eyebrow="Buildability check"
+        footer={<PrimaryButton label="Choose another option" onPress={onBack} />}
+        onBack={onBack}
+        progress={0.72}
+        title="This preview needs a safer parts plan."
+        subtitle="You can keep reviewing the 3D preview, but PixBrik will not create an order or a child-facing manual while any catalog piece would float or overlap."
+      >
+        <View accessibilityRole="alert">
+          <Text style={styles.demoNote}>
+            {hardPlanError?.message ?? 'One or more placements cannot lock onto the assembled model.'}
+          </Text>
+          <Text style={styles.demoNote}>
+            Try another size, switch between solid and hollow, or regenerate with a catalog-compatible palette.
           </Text>
         </View>
       </ScreenFrame>

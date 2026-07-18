@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -36,7 +37,7 @@ async function loadTypeScriptModule(sourceUrl, { env = {}, fetchImpl, stubs = {}
       }),
     module,
     process: { env },
-    require: (id) => stubs[id] ?? {},
+    require: (id) => stubs[id] ?? (id === 'node:crypto' ? { createHash } : {}),
     setTimeout,
   });
   new vm.Script(output, { filename: sourceUrl.pathname }).runInContext(context);
@@ -140,7 +141,13 @@ test('proxy sends provider multipart settings and returns no-store PNG without l
   const output = fakePng(320, 320);
   let request;
   const api = await loadTypeScriptModule(apiSourceUrl, {
-    env: { BACKGROUND_REMOVAL_PROVIDER: 'photoroom', PHOTOROOM_API_KEY: 'server-secret' },
+    env: {
+      BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'https://pixbrik.com',
+      BACKGROUND_REMOVAL_API_ENABLED: '1',
+      BACKGROUND_REMOVAL_PROVIDER: 'photoroom',
+      NODE_ENV: 'production',
+      PHOTOROOM_API_KEY: 'server-secret',
+    },
     fetchImpl: async (url, options) => {
       request = { options, url };
       return new Response(output, { headers: { 'Content-Type': 'image/png' }, status: 200 });
@@ -161,7 +168,7 @@ test('proxy sends provider multipart settings and returns no-store PNG without l
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   assert.equal(res.headers.get('content-type'), 'image/png');
-  assert.equal(res.headers.get('x-background-removal-provider'), 'photoroom');
+  assert.equal(res.headers.has('x-background-removal-provider'), false);
   assert.deepEqual(Buffer.from(res.body), output);
   assert.equal(request.url, 'https://sdk.photoroom.com/v1/segment');
   assert.equal(request.options.method, 'POST');
@@ -169,6 +176,290 @@ test('proxy sends provider multipart settings and returns no-store PNG without l
   assert.equal(request.options.body.get('channels'), 'rgba');
   assert.equal(request.options.body.get('size'), 'medium');
   assert.equal(api.BACKGROUND_REMOVAL_TIMEOUT_MS, 15_000);
+});
+
+test('production is default-off and denies foreign or malformed origins before reading a body', async () => {
+  let fetchCalls = 0;
+  const disabled = await loadTypeScriptModule(apiSourceUrl, {
+    env: { NODE_ENV: 'production', PHOTOROOM_API_KEY: 'must-not-be-read' },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      throw new Error('must not fetch');
+    },
+  });
+  const disabledResponse = responseRecorder();
+  await disabled.default({
+    get body() {
+      throw new Error('disabled request body must not be read');
+    },
+    headers: {},
+    method: 'POST',
+  }, disabledResponse);
+  assert.equal(disabledResponse.statusCode, 503);
+  assert.equal(disabledResponse.body.code, 'background_removal_disabled');
+  assert.equal(disabledResponse.headers.get('cache-control'), 'no-store');
+  assert.equal(disabledResponse.headers.get('content-type'), 'application/json; charset=utf-8');
+  assert.equal(fetchCalls, 0);
+  assert.throws(
+    () => disabled.guardBackgroundRemovalRequest({ headers: {} }, { VERCEL_ENV: 'production' }),
+    (error) => error.code === 'background_removal_disabled',
+  );
+  assert.throws(
+    () => disabled.guardBackgroundRemovalRequest(
+      { headers: {} },
+      { BACKGROUND_REMOVAL_API_ENABLED: '1', NODE_ENV: 'production' },
+    ),
+    (error) => error.code === 'background_removal_misconfigured',
+  );
+
+  for (const origins of ['https://pixbrik.com/path', 'https://pixbrik.com,,https://www.pixbrik.com']) {
+    const malformed = await loadTypeScriptModule(apiSourceUrl, {
+      env: {
+        BACKGROUND_REMOVAL_ALLOWED_ORIGINS: origins,
+        BACKGROUND_REMOVAL_API_ENABLED: '1',
+        NODE_ENV: 'production',
+        PHOTOROOM_API_KEY: 'must-not-be-read',
+      },
+      fetchImpl: async () => {
+        fetchCalls += 1;
+        throw new Error('must not fetch');
+      },
+    });
+    const response = responseRecorder();
+    await malformed.default({
+      get body() {
+        throw new Error('misconfigured request body must not be read');
+      },
+      headers: {},
+      method: 'POST',
+    }, response);
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.body.code, 'background_removal_misconfigured');
+  }
+
+  const denied = await loadTypeScriptModule(apiSourceUrl, {
+    env: {
+      BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'https://pixbrik.com',
+      BACKGROUND_REMOVAL_API_ENABLED: '1',
+      NODE_ENV: 'production',
+      PHOTOROOM_API_KEY: 'must-not-be-read',
+    },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      throw new Error('must not fetch');
+    },
+  });
+  const deniedResponse = responseRecorder();
+  await denied.default({
+    get body() {
+      throw new Error('denied request body must not be read');
+    },
+    headers: { origin: 'https://attacker.invalid' },
+    method: 'POST',
+  }, deniedResponse);
+  assert.equal(deniedResponse.statusCode, 403);
+  assert.equal(deniedResponse.body.code, 'background_removal_origin_denied');
+  assert.equal(fetchCalls, 0);
+});
+
+test('configured origins canonicalize safely while no-Origin native clients remain deliberate', async () => {
+  const output = fakePng(128, 128);
+  let fetchCalls = 0;
+  const api = await loadTypeScriptModule(apiSourceUrl, {
+    env: {
+      BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'https://PIXBRIK.com:443/,http://localhost:8081',
+      BACKGROUND_REMOVAL_API_ENABLED: '1',
+      NODE_ENV: 'production',
+      REMOVE_BG_API_KEY: 'server-key',
+    },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(output, { status: 200 });
+    },
+  });
+  assert.deepEqual(
+    Array.from(api.allowedBackgroundRemovalOrigins({
+      BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'https://PIXBRIK.com:443/',
+      NODE_ENV: 'production',
+    })),
+    ['https://pixbrik.com'],
+  );
+  assert.throws(
+    () => api.allowedBackgroundRemovalOrigins({
+      BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'http://pixbrik.com',
+      NODE_ENV: 'production',
+    }),
+    (error) => error.code === 'background_removal_misconfigured',
+  );
+
+  const boundary = 'native-no-origin';
+  const response = responseRecorder();
+  await api.default({
+    body: multipartBody(fakePng(512, 512), boundary),
+    headers: {
+      'content-type': `multipart/form-data; boundary=${boundary}`,
+      'x-forwarded-for': '192.0.2.40',
+    },
+    method: 'POST',
+  }, response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(fetchCalls, 1);
+});
+
+test('hashed per-IP and global daily provider breakers enforce exact boundaries', async () => {
+  const api = await loadTypeScriptModule(apiSourceUrl);
+  const now = Date.parse('2026-07-18T12:00:00.000Z');
+  const perIpEnv = {
+    BACKGROUND_REMOVAL_DAILY_PROVIDER_LIMIT: '10',
+    BACKGROUND_REMOVAL_IP_HOURLY_LIMIT: '2',
+  };
+  const firstIp = { headers: { 'x-forwarded-for': '192.0.2.50, 10.0.0.1' } };
+  assert.notEqual(api.backgroundRemovalRateKey(firstIp), '192.0.2.50');
+  assert.match(api.backgroundRemovalRateKey(firstIp), /^[0-9a-f]{24}$/);
+  api.clearBackgroundRemovalSecurityForTests();
+  api.consumeBackgroundRemovalQuota(firstIp, perIpEnv, now);
+  api.consumeBackgroundRemovalQuota(firstIp, perIpEnv, now + 1);
+  assert.throws(
+    () => api.consumeBackgroundRemovalQuota(firstIp, perIpEnv, now + 2),
+    (error) =>
+      error.status === 429 &&
+      error.code === 'background_removal_rate_limited' &&
+      error.retryAfterSeconds > 0,
+  );
+  // The exact reset boundary starts a fresh hourly bucket.
+  api.consumeBackgroundRemovalQuota(firstIp, perIpEnv, now + api.BACKGROUND_REMOVAL_RATE_WINDOW_MS);
+
+  api.clearBackgroundRemovalSecurityForTests();
+  const dailyEnv = {
+    BACKGROUND_REMOVAL_DAILY_PROVIDER_LIMIT: '2',
+    BACKGROUND_REMOVAL_IP_HOURLY_LIMIT: '10',
+  };
+  api.consumeBackgroundRemovalQuota({ headers: { 'x-real-ip': '192.0.2.60' } }, dailyEnv, now);
+  api.consumeBackgroundRemovalQuota({ headers: { 'x-real-ip': '192.0.2.61' } }, dailyEnv, now + 1);
+  assert.throws(
+    () => api.consumeBackgroundRemovalQuota({ headers: { 'x-real-ip': '192.0.2.62' } }, dailyEnv, now + 2),
+    (error) => error.status === 429 && error.code === 'background_removal_daily_limit',
+  );
+  api.consumeBackgroundRemovalQuota(
+    { headers: { 'x-real-ip': '192.0.2.62' } },
+    dailyEnv,
+    Date.parse('2026-07-19T00:00:00.000Z'),
+  );
+
+  for (const badValue of ['0', '-1', '1.5', 'NaN', '1000001']) {
+    api.clearBackgroundRemovalSecurityForTests();
+    assert.throws(
+      () => api.consumeBackgroundRemovalQuota(firstIp, {
+        BACKGROUND_REMOVAL_DAILY_PROVIDER_LIMIT: badValue,
+      }, now),
+      (error) => error.status === 503 && error.code === 'background_removal_misconfigured',
+    );
+  }
+});
+
+test('invalid input cannot select a provider, fetch, or consume provider-call allowance', async () => {
+  const output = fakePng(64, 64);
+  let fetchCalls = 0;
+  const env = {
+    BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'https://pixbrik.com',
+    BACKGROUND_REMOVAL_API_ENABLED: '1',
+    BACKGROUND_REMOVAL_DAILY_PROVIDER_LIMIT: '10',
+    BACKGROUND_REMOVAL_IP_HOURLY_LIMIT: '1',
+    BACKGROUND_REMOVAL_PROVIDER: 'not-a-provider',
+    NODE_ENV: 'production',
+    PHOTOROOM_API_KEY: 'server-key',
+  };
+  const api = await loadTypeScriptModule(apiSourceUrl, {
+    env,
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(output, { status: 200 });
+    },
+  });
+  const ip = '192.0.2.70';
+  const invalidBoundary = 'invalid-before-provider';
+  const invalid = responseRecorder();
+  await api.default({
+    body: multipartBody(Buffer.from('not a PNG'), invalidBoundary),
+    headers: {
+      'content-type': `multipart/form-data; boundary=${invalidBoundary}`,
+      'x-forwarded-for': ip,
+    },
+    method: 'POST',
+  }, invalid);
+  assert.equal(invalid.statusCode, 415);
+  assert.equal(invalid.body.code, 'background_removal_media_type');
+  assert.equal(fetchCalls, 0);
+
+  // Changing the same environment object makes provider configuration valid.
+  // The first valid upload must still receive the one-call allowance, proving
+  // the invalid upload never consumed it or selected the invalid provider.
+  env.BACKGROUND_REMOVAL_PROVIDER = 'photoroom';
+  const validBoundary = 'valid-after-invalid';
+  const validRequest = {
+    body: multipartBody(fakePng(256, 256), validBoundary),
+    headers: {
+      'content-type': `multipart/form-data; boundary=${validBoundary}`,
+      'x-forwarded-for': ip,
+    },
+    method: 'POST',
+  };
+  const valid = responseRecorder();
+  await api.default(validRequest, valid);
+  assert.equal(valid.statusCode, 200);
+  assert.equal(fetchCalls, 1);
+
+  const limited = responseRecorder();
+  await api.default(validRequest, limited);
+  assert.equal(limited.statusCode, 429);
+  assert.equal(limited.body.code, 'background_removal_rate_limited');
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  assert.equal(fetchCalls, 1);
+});
+
+test('upstream failures are generic no-store JSON and static ordering keeps paid work last', async () => {
+  const boundary = 'upstream-error';
+  const api = await loadTypeScriptModule(apiSourceUrl, {
+    env: {
+      BACKGROUND_REMOVAL_ALLOWED_ORIGINS: 'https://pixbrik.com',
+      BACKGROUND_REMOVAL_API_ENABLED: '1',
+      NODE_ENV: 'production',
+      PHOTOROOM_API_KEY: 'server-secret-never-return',
+    },
+    fetchImpl: async () => new Response('provider says key server-secret-never-return is invalid', { status: 401 }),
+  });
+  const response = responseRecorder();
+  await api.default({
+    body: multipartBody(fakePng(256, 256), boundary),
+    headers: {
+      'content-type': `multipart/form-data; boundary=${boundary}`,
+      origin: 'https://pixbrik.com',
+      'x-forwarded-for': '192.0.2.80',
+    },
+    method: 'POST',
+  }, response);
+  assert.equal(response.statusCode, 502);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
+  assert.equal(response.body.code, 'background_removal_provider_failed');
+  assert.doesNotMatch(JSON.stringify(response.body), /server-secret|401|photoroom/i);
+
+  const source = await readFile(apiSourceUrl, 'utf8');
+  const orderedMarkers = [
+    'guardBackgroundRemovalRequest(req);',
+    'const body = await readRequestBody(req);',
+    'validatePngInput(png);',
+    'consumeBackgroundRemovalQuota(req);',
+    'selectBackgroundRemovalProvider();',
+    'await fetch(settings.endpoint',
+  ];
+  let previous = -1;
+  for (const marker of orderedMarkers) {
+    const index = source.indexOf(marker);
+    assert.ok(index > previous, `${marker} must follow all earlier request guards`);
+    previous = index;
+  }
+  assert.doesNotMatch(source, /await upstream\.(?:text|json)\(/);
 });
 
 test('alpha grid keeps disconnected subjects and real holes', async () => {

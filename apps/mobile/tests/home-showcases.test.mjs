@@ -111,7 +111,7 @@ test('all homepage samples are detailed, subject-only silhouettes', () => {
   const expected = {
     portrait: { borderOccupancy: 66, occupiedCells: 3088, paletteSize: 20 },
     pet: { borderOccupancy: 46, occupiedCells: 2672, paletteSize: 18 },
-    car: { borderOccupancy: 0, occupiedCells: 1388, paletteSize: 11 },
+    car: { borderOccupancy: 0, occupiedCells: 1423, paletteSize: 11 },
   };
 
   for (const [id, data] of Object.entries(generated)) {
@@ -149,8 +149,8 @@ test('semantic foreground guards preserve clothing and car parts without keeping
   const carBody = { minX: 7, maxX: 64, minY: 36, maxY: 46 };
   const carMainWheel = { minX: 38, maxX: 52, minY: 39, maxY: 52 };
   const carRearWheel = { minX: 58, maxX: 66, minY: 35, maxY: 48 };
-  const carLowerFrontBody = { minX: 8, maxX: 36, minY: 49, maxY: 49 };
-  const carFloorShadow = { minX: 0, maxX: 36, minY: 50, maxY: 71 };
+  const carLowerFrontBody = { minX: 8, maxX: 36, minY: 49, maxY: 50 };
+  const carFloorShadow = { minX: 0, maxX: 36, minY: 51, maxY: 71 };
   const belowCar = { minX: 0, maxX: 71, minY: 53, maxY: 71 };
 
   assert.ok(regionOccupancy(portrait, shirt) >= 0.95, 'portrait shirt must not become transparent');

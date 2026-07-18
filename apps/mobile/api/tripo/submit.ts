@@ -7,6 +7,11 @@
  */
 
 import { TRIPO_BASE, authHeaders } from '../_tripo';
+import {
+  GenerationSecurityError,
+  guardPaidGeneration,
+  sendGenerationSecurityError,
+} from '../_generationSecurity';
 
 const DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp);base64,(.+)$/;
 
@@ -145,6 +150,9 @@ export default async function handler(req: any, res: any): Promise<void> {
       };
     }
 
+    // All uploads and settings are valid. Apply the paid-task circuit breaker
+    // immediately before asking Tripo to create a chargeable task.
+    guardPaidGeneration(req);
     const taskRes = await fetch(`${TRIPO_BASE}/task`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -160,6 +168,10 @@ export default async function handler(req: any, res: any): Promise<void> {
 
     res.status(200).json({ taskId: taskJson.data.task_id });
   } catch (err: any) {
+    if (err instanceof GenerationSecurityError) {
+      sendGenerationSecurityError(res, err);
+      return;
+    }
     res.status(500).json({ error: err?.message || 'submit failed' });
   }
 }

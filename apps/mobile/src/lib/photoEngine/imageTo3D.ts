@@ -781,7 +781,15 @@ export async function buildFromMeshUrlAllProfiles(
   label: string,
   onProgress?: ProgressFn,
 ): Promise<PhotoModels> {
-  const models = await voxelizeGlbUrl(url, (fraction) => onProgress?.(fraction, 'Converting to bricks'));
+  let models: Awaited<ReturnType<typeof voxelizeGlbUrl>>;
+  try {
+    models = await voxelizeGlbUrl(url, (fraction) => onProgress?.(fraction, 'Converting to bricks'));
+  } catch (error) {
+    const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
+    throw new Error(
+      `The 3D model was generated successfully, but PixBrik could not convert its mesh into bricks${detail}. Retry uses the already-paid model and does not spend more credits.`,
+    );
+  }
   onProgress?.(1, 'Done');
   return { hasDepth: true, label, mode: 'volume', models, style: 'natural' };
 }

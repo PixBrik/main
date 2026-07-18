@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,13 +28,25 @@ import { CheckoutScreen } from './src/screens/CheckoutScreen';
 import { LabScreen } from './src/screens/LabScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { StoresScreen } from './src/screens/StoresScreen';
+import { SharedGuideLoadingScreen } from './src/screens/SharedGuideLoadingScreen';
+import { ContactScreen } from './src/screens/ContactScreen';
+import { LegalHubScreen } from './src/screens/LegalHubScreen';
+import { PrivacyScreen } from './src/screens/PrivacyScreen';
+import { TermsScreen } from './src/screens/TermsScreen';
 import type { LibraryEntry } from './src/data/carLibrary';
 import { loadModel, saveBuild } from './src/lib/buildGallery';
 import { accentForVariant, profileForVariant, resolveActiveModel } from './src/lib/activeBuild';
 import { hollowBuildModel } from './src/lib/brickify';
 import { clear360Capture, clear360ProviderRuns } from './src/lib/capture360Store';
 import { NavigationContext } from './src/lib/navigationContext';
+import { LEGAL_CONTENT_AVAILABLE } from './src/lib/legalAvailability';
 import { loadOrderModel, type OrderRecord } from './src/lib/orderStore';
+import {
+  loadGuideModel,
+  loadPublishedGuide,
+  readGuideShareId,
+  type PublishedGuideSnapshot,
+} from './src/lib/guideShare';
 import {
   recolorPhotoModels,
   requiresGuidedMultiview,
@@ -48,19 +60,55 @@ import type {
   BuildProduct,
   CaptureMode,
   DemoScreen,
-  DetailLevel,
   TargetSize,
 } from './src/types/navigation';
+import type { LegalLocale } from './src/legal/legalContent';
+
+const LEGAL_DOCUMENT_SCREENS = new Set<DemoScreen>(['legal', 'terms', 'privacy']);
+const PUBLIC_INFORMATION_SCREENS = new Set<DemoScreen>([
+  ...LEGAL_DOCUMENT_SCREENS,
+  'contact',
+]);
+const LEGAL_LOCALES = new Set<LegalLocale>(['en', 'fr', 'es', 'it', 'ar']);
+const LEGAL_LOCALE_STORAGE_KEY = 'pixbrik.legal-locale';
+
+function legalScreenFromLocation(): DemoScreen | null {
+  if (typeof window === 'undefined') return null;
+  const candidate = window.location.hash.replace(/^#/, '') as DemoScreen;
+  if (candidate === 'contact') return candidate;
+  return LEGAL_CONTENT_AVAILABLE && LEGAL_DOCUMENT_SCREENS.has(candidate) ? candidate : null;
+}
+
+function initialLegalLocale(): LegalLocale {
+  if (typeof window === 'undefined') return 'en';
+  try {
+    const stored = window.localStorage.getItem(LEGAL_LOCALE_STORAGE_KEY) as LegalLocale | null;
+    if (stored && LEGAL_LOCALES.has(stored)) return stored;
+  } catch {
+    // Storage can be unavailable in private or embedded browser contexts.
+  }
+  const browserLocale = window.navigator.language.toLowerCase().split(/[-_]/)[0] as LegalLocale;
+  return LEGAL_LOCALES.has(browserLocale) ? browserLocale : 'en';
+}
 
 /**
  * Hidden deep link: #lab (or ?lab) opens the model-comparison lab + Coach
  * directly — an internal tool, deliberately not linked from the home page.
  */
 function initialScreen(): DemoScreen {
+  if (typeof window !== 'undefined' && readGuideShareId(window.location.href)) {
+    return 'instructions';
+  }
+  const legalScreen = legalScreenFromLocation();
+  if (legalScreen) return legalScreen;
   if (typeof window !== 'undefined' && /[#?&]lab\b/.test(window.location.hash + window.location.search)) {
     return 'lab';
   }
   return 'home';
+}
+
+function initialGuideId(): string | null {
+  return typeof window === 'undefined' ? null : readGuideShareId(window.location.href);
 }
 
 function samePhotoInput(a: Segmentation | null, b: Segmentation): boolean {
@@ -98,6 +146,7 @@ export default function App() {
   });
   const [screen, setScreen] = useState<DemoScreen>(initialScreen);
   const [history, setHistory] = useState<DemoScreen[]>([]);
+  const [legalLocale, setLegalLocale] = useState<LegalLocale>(initialLegalLocale);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBuild, setPhotoBuild] = useState<PhotoModels | null>(null);
@@ -120,10 +169,12 @@ export default function App() {
   // fixed footer stuck on "Add a photo first" over the real next action.
   const captured = photoUri !== null || photoBuild !== null || sampleUsed;
   const [size, setSize] = useState<TargetSize>('shelf');
-  const [detail, setDetail] = useState<DetailLevel>('balanced');
   const [selectedVariant, setSelectedVariant] = useState('balanced');
   const [countryCode, setCountryCode] = useState('FR');
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
+  const [sharedGuideId] = useState<string | null>(initialGuideId);
+  const [sharedGuide, setSharedGuide] = useState<PublishedGuideSnapshot | null>(null);
+  const [sharedGuideError, setSharedGuideError] = useState('');
   // Hollow is the standard kit: identical from the outside, a fraction of
   // the parts and price. Solid is the collector upsell, not the default.
   const [buildFill, setBuildFill] = useState<BuildFill>('hollow');
@@ -145,6 +196,64 @@ export default function App() {
   const photoInputRevisionRef = useRef(0);
   const [libraryGenerating, setLibraryGenerating] = useState(false);
   const [libraryGenerationProgress, setLibraryGenerationProgress] = useState(0);
+
+  useEffect(() => {
+    if (!sharedGuideId) return;
+    let cancelled = false;
+    setSharedGuideError('');
+    void loadPublishedGuide(sharedGuideId)
+      .then((guide) => {
+        if (cancelled) return;
+        setSharedGuide(guide);
+        setSelectedOrder(null);
+        setScreen('instructions');
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setSharedGuideError(error instanceof Error ? error.message : 'This guide could not be loaded.');
+        setScreen('instructions');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sharedGuideId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(LEGAL_LOCALE_STORAGE_KEY, legalLocale);
+    } catch {
+      // Locale persistence is helpful, never required for navigation.
+    }
+    if (PUBLIC_INFORMATION_SCREENS.has(screen)) {
+      document.documentElement.lang = legalLocale;
+    } else {
+      document.documentElement.lang = 'en';
+    }
+  }, [legalLocale, screen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), pixbrikScreen: screen },
+      '',
+      window.location.href,
+    );
+    const onPopState = (event: PopStateEvent) => {
+      const stateScreen = (event.state as { pixbrikScreen?: unknown } | null)?.pixbrikScreen;
+      const destination =
+        typeof stateScreen === 'string' &&
+        (PUBLIC_INFORMATION_SCREENS.has(stateScreen as DemoScreen) ||
+          stateScreen === 'home' ||
+          stateScreen === 'instructions')
+          ? (stateScreen as DemoScreen)
+          : legalScreenFromLocation() ?? 'home';
+      setHistory((current) => current.slice(0, -1));
+      setScreen(destination);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const selectSculpturePalette = (style: MeshBrickColorStyle) => {
     if (!naturalSculptureBuild) return;
@@ -373,6 +482,7 @@ export default function App() {
 
   const selectBuildProduct = (product: BuildProduct) => {
     setBuildProduct(product);
+    if (product === 'panel') setBuildFill('hollow');
     setPhotoBuild(product === 'panel' ? panelBuild : sculptureBuild);
   };
 
@@ -397,6 +507,10 @@ export default function App() {
       return;
     }
 
+    if (LEGAL_DOCUMENT_SCREENS.has(destination) && !LEGAL_CONTENT_AVAILABLE) {
+      return;
+    }
+
     const needsApprovedBuild = new Set<DemoScreen>([
       'bom',
       'purchase',
@@ -417,8 +531,25 @@ export default function App() {
       }
     }
 
-    if (destination !== 'account' && destination !== 'instructions') {
+    if (
+      destination !== 'account' &&
+      destination !== 'instructions' &&
+      !PUBLIC_INFORMATION_SCREENS.has(destination)
+    ) {
       setSelectedOrder(null);
+    }
+
+    if (typeof window !== 'undefined' && PUBLIC_INFORMATION_SCREENS.has(destination)) {
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), pixbrikScreen: screen },
+        '',
+        window.location.href,
+      );
+      window.history.pushState(
+        { pixbrikScreen: destination },
+        '',
+        `${window.location.pathname}${window.location.search}#${destination}`,
+      );
     }
 
     setHistory((current) => [...current, screen]);
@@ -426,6 +557,15 @@ export default function App() {
   };
 
   const goBack = () => {
+    if (
+      typeof window !== 'undefined' &&
+      PUBLIC_INFORMATION_SCREENS.has(screen) &&
+      window.location.hash === `#${screen}`
+    ) {
+      setHistory((current) => current.slice(0, -1));
+      window.history.back();
+      return;
+    }
     const destination = history[history.length - 1] ?? 'home';
     if (destination === 'capture' && panelBuild) {
       setBuildProduct('panel');
@@ -463,6 +603,39 @@ export default function App() {
   const renderScreen = () => {
     const activeBuild = buildProduct === 'panel' ? panelBuild : sculptureBuild;
     switch (screen) {
+      case 'legal':
+        return (
+          <LegalHubScreen
+            locale={legalLocale}
+            onBack={goBack}
+            onLocaleChange={setLegalLocale}
+            onNavigate={(destination) => navigate(destination)}
+          />
+        );
+      case 'terms':
+        return (
+          <TermsScreen
+            locale={legalLocale}
+            onBack={goBack}
+            onLocaleChange={setLegalLocale}
+          />
+        );
+      case 'privacy':
+        return (
+          <PrivacyScreen
+            locale={legalLocale}
+            onBack={goBack}
+            onLocaleChange={setLegalLocale}
+          />
+        );
+      case 'contact':
+        return (
+          <ContactScreen
+            locale={legalLocale}
+            onBack={goBack}
+            onLocaleChange={setLegalLocale}
+          />
+        );
       case 'account':
         return (
           <AccountScreen
@@ -490,6 +663,7 @@ export default function App() {
                 saved.product === 'sculpture' &&
                 (saved.provenance === 'provider-3d' || saved.provenance === 'library');
               const restoredBuild: PhotoModels = {
+                availableProfiles: ['balanced'],
                 hasDepth: restoredAsSculpture ? (saved.hasDepth ?? true) : false,
                 label: saved.name,
                 mode: restoredAsSculpture ? (saved.mode ?? 'volume') : 'relief',
@@ -513,6 +687,7 @@ export default function App() {
                   : null,
               );
               setTrue3DProviderRuns(0);
+              setSelectedVariant('balanced');
               setBuildProduct(restoredAsSculpture ? 'sculpture' : 'panel');
               setPhotoBuild(restoredBuild);
               setTrue3DState(restoredAsSculpture ? 'done' : 'idle');
@@ -654,13 +829,11 @@ export default function App() {
       case 'preferences':
         return (
           <PreferencesScreen
-            detail={detail}
             onBack={goBack}
             onContinue={() => {
-              setSelectedVariant(variantForPreferences(size, detail));
+              setSelectedVariant(variantForPreferences(size));
               navigate('result');
             }}
-            onDetailChange={setDetail}
             onSizeChange={setSize}
             size={size}
           />
@@ -673,6 +846,8 @@ export default function App() {
             onBack={goBack}
             onNavigate={navigate}
             onSelectVariant={setSelectedVariant}
+            buildFill={buildFill}
+            onBuildFillChange={setBuildFill}
             activeProduct={buildProduct}
             panelBuild={panelBuild}
             sculptureBuild={sculptureBuild}
@@ -813,6 +988,32 @@ export default function App() {
           />
         );
       case 'instructions':
+        if (sharedGuide) {
+          return (
+            <InstructionsScreen
+              accent={sharedGuide.build.accent}
+              buildName={sharedGuide.build.name}
+              bomOverride={sharedGuide.build.bom}
+              model={loadGuideModel(sharedGuide)}
+              onBack={() => setScreen('home')}
+              onNavigate={navigate}
+              onRestart={restart}
+              placementOrder={sharedGuide.manual.placementOrder}
+              profile={sharedGuide.build.profile}
+              publishedGuideUrl={
+                typeof window === 'undefined' ? undefined : window.location.href
+              }
+            />
+          );
+        }
+        if (sharedGuideId) {
+          return (
+            <SharedGuideLoadingScreen
+              error={sharedGuideError || undefined}
+              onBack={() => setScreen('home')}
+            />
+          );
+        }
         if (selectedOrder) {
           return (
             <InstructionsScreen
@@ -828,12 +1029,16 @@ export default function App() {
             />
           );
         }
-        if (activeBuild) {
+        if (activeBuild || sampleUsed) {
           const activeModel = resolveActiveModel(activeBuild, selectedVariant);
           return (
             <InstructionsScreen
               accent={accentForVariant(selectedVariant)}
-              buildName={activeBuild.label.charAt(0).toUpperCase() + activeBuild.label.slice(1)}
+              buildName={
+                activeBuild
+                  ? activeBuild.label.charAt(0).toUpperCase() + activeBuild.label.slice(1)
+                  : 'Signal Fox'
+              }
               model={buildFill === 'hollow' ? hollowBuildModel(activeModel) : activeModel}
               onBack={goBack}
               onNavigate={navigate}

@@ -6,6 +6,11 @@
  */
 
 import { MESHY_BASE, meshyHeaders } from '../_meshy';
+import {
+  GenerationSecurityError,
+  guardPaidGeneration,
+  sendGenerationSecurityError,
+} from '../_generationSecurity';
 
 const DATA_URL_PATTERN = /^data:image\/(png|jpe?g);base64,[a-z0-9+/]+={0,2}$/i;
 const MAX_REQUEST_JSON_CHARS = 3_600_000;
@@ -93,6 +98,10 @@ export default async function handler(req: any, res: any): Promise<void> {
       taskBody = buildMeshyRequestBody(image);
     }
 
+    // Consume the safety quota only after the complete request has passed
+    // validation, immediately before the call that can spend credits.
+    guardPaidGeneration(req);
+
     // Meshy-6 keeps its full source geometry here. Catalog-aware voxelization
     // is the single controlled simplification step after buyer approval.
     const taskRes = await fetch(`${MESHY_BASE}/${taskPath}`, {
@@ -110,6 +119,10 @@ export default async function handler(req: any, res: any): Promise<void> {
 
     res.status(200).json({ taskId: body.result });
   } catch (err: any) {
+    if (err instanceof GenerationSecurityError) {
+      sendGenerationSecurityError(res, err);
+      return;
+    }
     res.status(500).json({ error: err?.message || 'submit failed' });
   }
 }

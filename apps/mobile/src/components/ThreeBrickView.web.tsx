@@ -24,6 +24,8 @@ interface ThreeBrickViewProps {
   packedParts?: number;
   /** Frozen order packing, when this preview belongs to an existing order. */
   packedPlan?: BillOfMaterials;
+  /** One catalog piece to keep bright while completed pieces are dimmed. */
+  highlightPlacement?: BrickPlacement;
 }
 
 const ROTATION_STEP = Math.PI / 8;
@@ -31,9 +33,28 @@ const INITIAL_YAW = 0.62;
 
 interface StageHandles {
   dispose: () => void;
-  setModel: (model: VoxelModel, accent: string, packed: BillOfMaterials | null) => void;
+  setModel: (
+    model: VoxelModel,
+    accent: string,
+    packed: BillOfMaterials | null,
+    highlightPlacement?: BrickPlacement,
+  ) => void;
   setTargetYaw: (yaw: number) => void;
   getTargetYaw: () => number;
+}
+
+function isSamePlacement(a: BrickPlacement, b: BrickPlacement): boolean {
+  return (
+    a.i === b.i &&
+    a.j === b.j &&
+    a.k === b.k &&
+    a.part === b.part &&
+    a.colorId === b.colorId &&
+    a.spanI === b.spanI &&
+    a.spanK === b.spanK &&
+    a.shape === b.shape &&
+    (a.facing ?? 0) === (b.facing ?? 0)
+  );
 }
 
 function createStage(container: HTMLElement): StageHandles {
@@ -137,14 +158,27 @@ function createStage(container: HTMLElement): StageHandles {
   let currentYaw = INITIAL_YAW;
   let modelRadius = 6;
   let modelHeight = 6;
+  let stepContext = false;
 
   function frameCamera() {
     const distance = Math.max(modelRadius * 2.4, modelHeight * 1.65) + 3;
-    camera.position.set(0, modelHeight * 0.62 + 1.2, distance);
-    camera.lookAt(0, modelHeight * 0.42, 0);
+    if (stepContext) {
+      const targetY = Math.max(modelHeight * 0.52, 0.12);
+      camera.position.set(0, targetY + Math.max(modelRadius * 0.52, 0.55), distance);
+      camera.lookAt(0, targetY, 0);
+    } else {
+      camera.position.set(0, modelHeight * 0.62 + 1.2, distance);
+      camera.lookAt(0, modelHeight * 0.42, 0);
+    }
   }
 
-  function setModel(model: VoxelModel, accent: string, packed: BillOfMaterials | null) {
+  function setModel(
+    model: VoxelModel,
+    accent: string,
+    packed: BillOfMaterials | null,
+    highlightPlacement?: BrickPlacement,
+  ) {
+    stepContext = !!highlightPlacement;
     while (modelGroup.children.length) {
       const child = modelGroup.children[0] as THREE.Mesh;
       modelGroup.remove(child);
@@ -156,19 +190,21 @@ function createStage(container: HTMLElement): StageHandles {
     const studGeometry = new THREE.CylinderGeometry(size * 0.3, size * 0.3, size * 0.17, 14);
     const matrix = new THREE.Matrix4();
     const color = new THREE.Color();
+    const dimColor = new THREE.Color('#343A43');
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    const boundsCells = model.shell.length ? model.shell : model.cells;
-    boundsCells.forEach((voxel) => {
-      minX = Math.min(minX, voxel.cx); maxX = Math.max(maxX, voxel.cx);
-      minY = Math.min(minY, voxel.cy); maxY = Math.max(maxY, voxel.cy);
-      minZ = Math.min(minZ, voxel.cz); maxZ = Math.max(maxZ, voxel.cz);
-    });
-
-    if (packed && model.cells.length) {
+    if (packed?.placements.length && model.cells.length) {
       const seed = model.cells[0]!;
       const worldX = (i: number) => seed.cx + (i - seed.i) * size;
       const worldY = (j: number) => seed.cy + (j - seed.j) * layerHeight;
       const worldZ = (k: number) => seed.cz + (k - seed.k) * size;
+      for (const placement of packed.placements) {
+        minX = Math.min(minX, worldX(placement.i) - size / 2);
+        maxX = Math.max(maxX, worldX(placement.i + placement.spanI - 1) + size / 2);
+        minY = Math.min(minY, worldY(placement.j) - layerHeight / 2);
+        maxY = Math.max(maxY, worldY(placement.j) + layerHeight / 2);
+        minZ = Math.min(minZ, worldZ(placement.k) - size / 2);
+        maxZ = Math.max(maxZ, worldZ(placement.k + placement.spanK - 1) + size / 2);
+      }
       const colorByPart = new Map(
         packed.lines.map((line) => [`${line.part}|${line.colorId}`, line.colorRgb]),
       );
@@ -209,6 +245,9 @@ function createStage(container: HTMLElement): StageHandles {
           }
           pieces.setMatrixAt(index, matrix);
           color.set(colorByPart.get(`${placement.part}|${placement.colorId}`) ?? accent);
+          if (highlightPlacement && !isSamePlacement(placement, highlightPlacement)) {
+            color.lerp(dimColor, 0.74);
+          }
           pieces.setColorAt(index, color);
         });
         pieces.instanceMatrix.needsUpdate = true;
@@ -226,6 +265,9 @@ function createStage(container: HTMLElement): StageHandles {
       let studIndex = 0;
       for (const placement of brickPlacements) {
         color.set(colorByPart.get(`${placement.part}|${placement.colorId}`) ?? accent);
+        if (highlightPlacement && !isSamePlacement(placement, highlightPlacement)) {
+          color.lerp(dimColor, 0.74);
+        }
         for (let di = 0; di < placement.spanI; di++) {
           for (let dk = 0; dk < placement.spanK; dk++) {
             matrix.makeTranslation(
@@ -244,6 +286,12 @@ function createStage(container: HTMLElement): StageHandles {
       if (studs.instanceColor) studs.instanceColor.needsUpdate = true;
       modelGroup.add(studs);
     } else {
+      const boundsCells = model.shell.length ? model.shell : model.cells;
+      boundsCells.forEach((voxel) => {
+        minX = Math.min(minX, voxel.cx); maxX = Math.max(maxX, voxel.cx);
+        minY = Math.min(minY, voxel.cy); maxY = Math.max(maxY, voxel.cy);
+        minZ = Math.min(minZ, voxel.cz); maxZ = Math.max(maxZ, voxel.cz);
+      });
       // Catalog packing can be unavailable when a stock rule rejects the
       // model. Keep a clear shape fallback instead of leaving a blank stage.
       const cubes = model.shell.filter((voxel) => voxel.shape !== 'slope');
@@ -302,10 +350,11 @@ function createStage(container: HTMLElement): StageHandles {
     // Centre the model on the stage with its feet on the floor.
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
-    modelGroup.position.set(-centerX, -minY + layerHeight / 2, -centerZ);
-
     modelRadius = Math.max(maxX - minX, maxZ - minZ) / 2 + 1;
     modelHeight = maxY - minY + layerHeight;
+    const stepLift = stepContext ? Math.max(0.18, modelRadius * 0.16) : 0;
+    modelGroup.position.set(-centerX, -minY + layerHeight / 2 + stepLift, -centerZ);
+
     frameCamera();
   }
 
@@ -379,6 +428,7 @@ export function ThreeBrickView({
   label = 'Realistic 3D brick preview',
   packedParts,
   packedPlan,
+  highlightPlacement,
 }: ThreeBrickViewProps) {
   const containerRef = useRef<View>(null);
   const stageRef = useRef<StageHandles | null>(null);
@@ -405,9 +455,9 @@ export function ThreeBrickView({
 
   useEffect(() => {
     if (ready && stageRef.current) {
-      stageRef.current.setModel(model, accent, packed);
+      stageRef.current.setModel(model, accent, packed, highlightPlacement);
     }
-  }, [accent, model, packed, ready]);
+  }, [accent, highlightPlacement, model, packed, ready]);
 
   const rotateBy = (amount: number) => {
     stageRef.current?.setTargetYaw(stageRef.current.getTargetYaw() + amount);
@@ -418,13 +468,18 @@ export function ThreeBrickView({
       <View style={styles.header}>
         <View style={styles.liveMark}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>{packed ? 'CATALOG KIT PREVIEW' : 'SHAPE PREVIEW'}</Text>
+          <Text style={styles.liveText}>
+            {highlightPlacement ? 'ONE-PIECE STEP PREVIEW' : packed ? 'CATALOG KIT PREVIEW' : 'SHAPE PREVIEW'}
+          </Text>
         </View>
         <Text numberOfLines={1} style={styles.count}>
-          {model.shell.length.toLocaleString('en-US')} CELLS
-          {(packed?.totalParts ?? packedParts) !== undefined
-            ? ` · ${(packed?.totalParts ?? packedParts)!.toLocaleString('en-US')} PARTS`
-            : ''}
+          {highlightPlacement
+            ? `${(packed?.totalParts ?? packedParts ?? 0).toLocaleString('en-US')} LAYER-CONTEXT PIECE${(packed?.totalParts ?? packedParts) === 1 ? '' : 'S'}`
+            : `${model.shell.length.toLocaleString('en-US')} CELLS${
+              (packed?.totalParts ?? packedParts) !== undefined
+                ? ` · ${(packed?.totalParts ?? packedParts)!.toLocaleString('en-US')} PARTS`
+                : ''
+            }`}
         </Text>
       </View>
       <View

@@ -11,13 +11,14 @@ import { RotatableBuildPreview } from '../components/RotatableBuildPreview';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import { demoProject, variants } from '../data/mockData';
-import { estimateBuild } from '../lib/brickify';
+import { estimateBuild, type BuildEstimateSide } from '../lib/brickify';
 import { facesToPngDataUrl, fitFacesToBox, panelMosaicFaces } from '../lib/fitFaces';
+import { physicalDimensions, SCULPTURE_SIZE_OPTIONS } from '../lib/kitSizing';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { getVoxelModel, type VoxelModel } from '../lib/voxelFox';
 import { buildRenderFaces } from '../lib/voxelRender';
 import { colors, fonts, radius, shadow, spacing, type } from '../theme/tokens';
-import type { BuildProduct, DemoScreen } from '../types/navigation';
+import type { BuildFill, BuildProduct, DemoScreen } from '../types/navigation';
 
 interface ResultScreenProps {
   selectedVariant: string;
@@ -30,6 +31,8 @@ interface ResultScreenProps {
   sculptureBuild?: PhotoModels | null;
   activeProduct: BuildProduct;
   onSelectProduct: (product: BuildProduct) => void;
+  buildFill: BuildFill;
+  onBuildFillChange: (fill: BuildFill) => void;
   onGuided3D?: () => void;
   onTrue3D?: () => Promise<void>;
   /** Exact provider GLB awaiting approval. */
@@ -106,9 +109,15 @@ const SCULPTURE_PALETTE_OPTIONS = [
 const APPROVAL_VIEW_LABELS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
 
 interface ProfileCard {
+  dimensions: string;
+  full: BuildEstimateSide | null;
+  hollow: BuildEstimateSide | null;
+  hollowSaving: number;
   png: string | null;
-  pieces: number;
-  priceEur: number | null;
+}
+
+function hollowSavesPieces(card: ProfileCard | null | undefined): boolean {
+  return !!card?.hollow && !!card.full && card.hollow.parts < card.full.parts;
 }
 
 type PreviewMode = 'likeness' | 'angle' | 'source3d';
@@ -123,6 +132,8 @@ export function ResultScreen({
   sculptureBuild = null,
   activeProduct,
   onSelectProduct,
+  buildFill,
+  onBuildFillChange,
   onGuided3D,
   onTrue3D,
   pending3DMeshUrl = null,
@@ -146,7 +157,6 @@ export function ResultScreen({
   const [confirm3D, setConfirm3D] = useState(false);
   const [pendingMeshReady, setPendingMeshReady] = useState(false);
   const [pendingMeshError, setPendingMeshError] = useState('');
-  const [pdfState, setPdfState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
 
   useEffect(() => {
     setPendingMeshReady(false);
@@ -159,15 +169,24 @@ export function ResultScreen({
     }
   }, [activeProduct, approved3DMeshUrl, previewMode]);
   const [profileCards, setProfileCards] = useState<Record<string, ProfileCard>>({});
+  const availableVariants = useMemo(
+    () =>
+      variants.filter((variant) => {
+        if (!photoBuild?.availableProfiles?.length) return true;
+        const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
+        return photoBuild.availableProfiles.includes(profile);
+      }),
+    [photoBuild],
+  );
 
   // Each profile ticket previews ITS OWN outcome with real numbers, so the
   // choice is visual instead of a leap of faith. Rasterized to one PNG per
   // ticket (a detailed model as live SVG would be thousands of nodes).
   useEffect(() => {
     let cancelled = false;
+    setProfileCards({});
     (async () => {
-      const next: Record<string, ProfileCard> = {};
-      for (const variant of variants) {
+      for (const variant of availableVariants) {
         const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
         const model = photoBuild ? photoBuild.models[profile] : getVoxelModel(profile);
         const variantAccent = accentByName[variant.accent] ?? colors.blue;
@@ -182,34 +201,35 @@ export function ResultScreen({
                 TICKET_VIEW,
                 0.9,
               );
-        // Price the STANDARD kit (hollow): identical from outside, and the
-        // number a buyer can actually afford — a solid detailed build prices
-        // in four digits and belongs behind the collector option, not here.
-        let parts: number | null = null;
-        let priceEur: number | null = null;
+        // Calculate both real constructions up front so size and fill can be
+        // compared together, before the buyer enters parts and checkout.
+        let estimate: ReturnType<typeof estimateBuild> | null = null;
         try {
-          const estimate = estimateBuild(model, variantAccent).hollow;
-          parts = estimate.parts;
-          priceEur = estimate.bundleEur;
+          estimate = estimateBuild(model, variantAccent);
         } catch {
-          priceEur = null;
+          estimate = null;
         }
-        next[variant.id] = {
-          pieces: parts ?? model.brickCount,
+        const card: ProfileCard = {
+          dimensions: physicalDimensions(model).label,
+          full: estimate?.full ?? null,
+          hollow: estimate?.hollow ?? null,
+          hollowSaving: estimate?.hollowSaving ?? 0,
           png: facesToPngDataUrl(faces, TICKET_VIEW, TICKET_VIEW, 3),
-          priceEur,
         };
-        // Yield between profiles so first paint isn't blocked.
-        await new Promise((resolve) => setTimeout(resolve, 0));
         if (cancelled) return;
+        setProfileCards((current) => ({ ...current, [variant.id]: card }));
+        // Yield between profiles so each exact proposal paints immediately.
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
-      if (!cancelled) setProfileCards(next);
     })();
     return () => {
       cancelled = true;
     };
-  }, [photoBuild]);
-  const selected = variants.find((variant) => variant.id === selectedVariant) ?? variants[0];
+  }, [availableVariants, photoBuild]);
+  const selected =
+    availableVariants.find((variant) => variant.id === selectedVariant) ??
+    availableVariants[0] ??
+    variants[0];
   const accent = selected ? accentByName[selected.accent] ?? colors.blue : colors.blue;
   const modelProfile = modelProfileById[selected?.id as keyof typeof modelProfileById] ?? 'balanced';
   const photoModel = photoBuild ? photoBuild.models[modelProfile] : null;
@@ -237,7 +257,8 @@ export function ResultScreen({
     };
   }, [likenessFaces]);
   const selectedCard = selected ? profileCards[selected.id] : null;
-  const photoStats = photoModel ? describeModel(photoModel, selectedCard?.pieces) : null;
+  const selectedEstimate = selectedCard?.[buildFill] ?? null;
+  const photoStats = photoModel ? describeModel(photoModel, selectedEstimate?.parts) : null;
   const namingBuild = photoBuild ?? panelBuild;
   const buildName = namingBuild
     ? namingBuild.label.charAt(0).toUpperCase() + namingBuild.label.slice(1)
@@ -619,10 +640,10 @@ export function ResultScreen({
       ) : isRealisticViewSupported ? (
         <ThreeBrickView
           accent={accent}
-          hollow
+          hollow={buildFill === 'hollow'}
           label={`${buildName} ${activeProduct === 'panel' ? 'angled panel thickness view' : 'rotatable 3D sculpture'}`}
           model={previewModel}
-          packedParts={selectedCard?.pieces}
+          packedParts={selectedEstimate?.parts}
         />
       ) : (
         <RotatableBuildPreview
@@ -650,19 +671,77 @@ export function ResultScreen({
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>CHOOSE A BUILD PROFILE — PREVIEWED</Text>
+      {activeProduct === 'sculpture' ? (
+        <>
+          <Text style={styles.sectionLabel}>CHOOSE THE INSIDE</Text>
+          <View accessibilityRole="radiogroup" style={styles.fillChoices}>
+            {(['hollow', 'full'] as const).map((fill) => {
+              const isSelected = buildFill === fill;
+              const side = selectedCard?.[fill];
+              const saving = selectedCard ? Math.round(selectedCard.hollowSaving * 100) : 0;
+              const unavailable = fill === 'hollow' && !!selectedCard && !hollowSavesPieces(selectedCard);
+              return (
+                <Pressable
+                  aria-checked={isSelected}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected, disabled: unavailable }}
+                  disabled={unavailable}
+                  key={fill}
+                  onPress={() => onBuildFillChange(fill)}
+                  style={({ pressed }) => [
+                    styles.fillChoice,
+                    isSelected && styles.fillChoiceSelected,
+                    unavailable && styles.fillChoiceUnavailable,
+                    pressed && styles.ticketPressed,
+                  ]}
+                >
+                  <Text style={[styles.fillChoiceTitle, isSelected && styles.fillChoiceTitleSelected]}>
+                    {fill === 'hollow' ? 'REINFORCED HOLLOW' : 'SOLID CORE'}
+                  </Text>
+                  <Text style={[styles.fillChoiceBody, isSelected && styles.fillChoiceBodySelected]}>
+                    {fill === 'hollow'
+                      ? unavailable
+                        ? 'Solid uses fewer pieces at this compact size'
+                        : `Same outside · internal supports${saving > 0 ? ` · ${saving}% fewer parts` : ''}`
+                      : 'Filled throughout · heaviest collector build'}
+                  </Text>
+                  {side ? (
+                    <Text style={[styles.fillChoiceMeta, isSelected && styles.fillChoiceTitleSelected]}>
+                      {side.parts.toLocaleString('en-US')} parts · €{side.bundleEur.toFixed(0)}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
+
+      <Text style={styles.sectionLabel}>
+        {activeProduct === 'sculpture' ? 'CHOOSE A FINISHED SIZE — REAL DIMENSIONS' : 'CHOOSE A BUILD PROFILE — PREVIEWED'}
+      </Text>
       <View accessibilityRole="radiogroup" style={styles.ticketGroup}>
-        {variants.map((variant, index) => {
+        {availableVariants.map((variant, index) => {
           const isSelected = variant.id === selectedVariant;
           const variantAccent = accentByName[variant.accent] ?? colors.blue;
           const card = profileCards[variant.id];
+          const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
+          const sizeOption = SCULPTURE_SIZE_OPTIONS[profile];
+          const effectiveFill =
+            activeProduct === 'sculpture' && buildFill === 'hollow' && card && !hollowSavesPieces(card)
+              ? 'full'
+              : buildFill;
+          const side = card?.[effectiveFill] ?? null;
           return (
             <Pressable
               aria-checked={isSelected}
               accessibilityRole="radio"
               accessibilityState={{ checked: isSelected }}
               key={variant.id}
-              onPress={() => onSelectVariant(variant.id)}
+              onPress={() => {
+                onSelectVariant(variant.id);
+                if (effectiveFill !== buildFill) onBuildFillChange(effectiveFill);
+              }}
               style={({ pressed }) => [
                 styles.ticket,
                 isSelected && styles.ticketSelected,
@@ -682,17 +761,22 @@ export function ResultScreen({
                 </View>
               )}
               <View style={styles.ticketCopy}>
-                <Text style={styles.ticketTitle}>{variant.name}</Text>
+                <Text style={styles.ticketTitle}>
+                  {activeProduct === 'sculpture' ? sizeOption.name : variant.name}
+                </Text>
                 <Text style={styles.ticketNote}>
-                  {variant.note} · {card ? card.pieces.toLocaleString('en-US') : variant.pieces}{' '}
-                  parts
+                  {card && side
+                    ? `${activeProduct === 'sculpture' ? sizeOption.promise : variant.note} · ${card.dimensions} · ${side.parts.toLocaleString('en-US')} parts${effectiveFill !== buildFill ? ' · solid uses fewer pieces' : ''}`
+                    : 'Calculating exact dimensions, parts, and price…'}
                 </Text>
               </View>
               <View style={styles.ticketPrice}>
                 <Text style={styles.ticketPriceValue}>
-                  €{card?.priceEur ? card.priceEur.toFixed(0) : variant.price.toFixed(0)}
+                  {side ? `€${side.bundleEur.toFixed(0)}` : '—'}
                 </Text>
-                <Text style={styles.ticketPriceLabel}>standard kit</Text>
+                <Text style={styles.ticketPriceLabel}>
+                  {activeProduct === 'panel' ? 'panel kit' : effectiveFill === 'hollow' ? 'hollow kit' : 'solid kit'}
+                </Text>
               </View>
             </Pressable>
           );
@@ -837,43 +921,11 @@ export function ResultScreen({
       {Platform.OS === 'web' && !awaitingSculpture ? (
         <Pressable
           accessibilityRole="button"
-          disabled={pdfState === 'working'}
-          onPress={async () => {
-            setPdfState('working');
-            try {
-              const { generateInstructionsPdf } = await import('../lib/instructionsPdf');
-              await generateInstructionsPdf({
-                accent,
-                buildName,
-                // The guide should always use the exact head-on build map,
-                // regardless of which optional preview tab is currently open.
-                heroImage:
-                  likenessPng ??
-                  facesToPngDataUrl(
-                    likenessFaces,
-                    LIKENESS_VIEW_WIDTH,
-                    LIKENESS_VIEW_HEIGHT,
-                    2,
-                  ),
-                model: previewModel,
-              });
-              setPdfState('done');
-            } catch {
-              setPdfState('failed');
-            }
-          }}
+          onPress={() => onNavigate('instructions')}
           style={({ pressed }) => [styles.pdfButton, pressed && styles.pdfPressed]}
         >
           <Text style={styles.pdfIcon}>▤</Text>
-          <Text style={styles.pdfText}>
-            {pdfState === 'working'
-              ? 'Building your guide…'
-              : pdfState === 'done'
-                ? 'Guide downloaded ✓ — export again'
-                : pdfState === 'failed'
-                  ? 'Export failed — try again'
-                  : 'Export PixBrik build guide (PDF)'}
-          </Text>
+          <Text style={styles.pdfText}>Open phone, print and PDF build guide</Text>
         </Pressable>
       ) : null}
 
@@ -1632,6 +1684,54 @@ const styles = StyleSheet.create({
     ...type.label,
     color: colors.inkSoft,
     marginBottom: spacing.md,
+  },
+  fillChoices: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  fillChoice: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexBasis: 140,
+    flex: 1,
+    minWidth: 190,
+    minHeight: 118,
+    padding: spacing.md,
+  },
+  fillChoiceSelected: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  fillChoiceUnavailable: {
+    opacity: 0.55,
+  },
+  fillChoiceTitle: {
+    ...type.label,
+    color: colors.ink,
+    fontSize: 11,
+  },
+  fillChoiceTitleSelected: {
+    color: colors.saffron,
+  },
+  fillChoiceBody: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: spacing.xs,
+  },
+  fillChoiceBodySelected: {
+    color: colors.white,
+  },
+  fillChoiceMeta: {
+    ...type.micro,
+    color: colors.ink,
+    fontSize: 9,
+    marginTop: spacing.sm,
   },
   ticketGroup: {
     marginBottom: spacing.xl,

@@ -25,8 +25,6 @@ export interface Projection {
   scale: number;
 }
 
-const BODY_TONES = ['#E96632', '#F0773F', '#DE5E2B', '#F57C46'] as const;
-
 const ZONE_COLORS: Record<Exclude<Voxel['zone'], 'body' | 'accent'>, string> = {
   cream: '#E8E2D5',
   dark: '#171B26',
@@ -81,12 +79,6 @@ export function adjustHexColor(hex: string, amount: number) {
   return `#${channels.join('')}`;
 }
 
-/** Deterministic per-brick tone so the body reads as many individual pieces. */
-function bodyTone(voxel: Voxel) {
-  const hash = Math.abs(voxel.i * 73856093 + voxel.j * 19349663 + voxel.k * 83492791);
-  return BODY_TONES[hash % BODY_TONES.length]!;
-}
-
 /** Resolved base colour of a voxel — shared by the SVG and WebGL renderers. */
 export function voxelBaseColor(voxel: Voxel, accent: string): string {
   if (voxel.colorHex) {
@@ -97,7 +89,11 @@ export function voxelBaseColor(voxel: Voxel, accent: string): string {
     return voxel.colorHex;
   }
   if (voxel.zone === 'accent') return accent;
-  if (voxel.zone === 'body') return bodyTone(voxel);
+  // Keep each material region in one real plastic colour. Per-cell random
+  // tones looked like camouflage and also prevented longer catalog bricks
+  // from tying side overhangs back into the body. Face lighting still gives
+  // the rendered bricks enough definition.
+  if (voxel.zone === 'body') return accent;
   return ZONE_COLORS[voxel.zone];
 }
 

@@ -33,7 +33,7 @@ const currencyMeta: Readonly<Record<string, { rate: number; symbol: string }>> =
   USD: { rate: 1.1, symbol: '$' },
 };
 
-/** 5×3 cross-section grid: FULL is solid; HOLLOW empties the hidden core. */
+/** 5×3 cross-section: hollow keeps a supported outer shell; full fills the core. */
 function CrossSection({ hollow, onInk }: { hollow: boolean; onInk: boolean }) {
   const cells = [];
   for (let row = 0; row < 3; row++) {
@@ -195,10 +195,10 @@ export function PurchaseScreen({
   const totalWhole = Math.floor(shownTotal);
   const totalCents = Math.round((shownTotal - totalWhole) * 100);
 
-  // Hollow first and framed as the standard product — same look from
-  // outside at a fraction of the price; solid is the collector upsell.
+  // Reinforced hollow first — same approved outside, with the base/ribs that
+  // make the lower-part-count model practical to assemble.
   const options = [
-    { id: 'hollow' as BuildFill, name: 'STANDARD', meta: `${estimate.hollow.parts.toLocaleString('en-US')} parts${savingPct > 0 ? ` · −${savingPct}%` : ''}`, price: estimate.hollow.bundleEur },
+    { id: 'hollow' as BuildFill, name: 'REINFORCED HOLLOW', meta: `${estimate.hollow.parts.toLocaleString('en-US')} parts${savingPct > 0 ? ` · −${savingPct}%` : ''} · internal supports`, price: estimate.hollow.bundleEur },
     { id: 'full' as BuildFill, name: 'SOLID · COLLECTOR', meta: `${estimate.full.parts.toLocaleString('en-US')} parts · filled core`, price: estimate.full.bundleEur },
   ];
 
@@ -260,8 +260,8 @@ export function PurchaseScreen({
           })}
         </View>
         <Text style={styles.cardCaption}>
-          Same look from outside — the standard kit skips the hidden core. Printed step-by-step
-          guide in every box.
+          Same approved outside. Reinforced hollow keeps two base layers plus internal ribs and
+          columns; solid fills the entire hidden core. One-piece-at-a-time guide included.
         </Text>
 
         <Text style={styles.shipLabel}>SHIP TO</Text>

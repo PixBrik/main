@@ -6,6 +6,7 @@
 
 import type { PanelStyle } from './photoEngine/voxelizePhoto';
 import { brickify, type BillOfMaterials } from './brickify';
+import { isAssemblyBuildable } from './instructions/assemblyPlan';
 import { buildModelFromCells, type BuildProfile, type VoxelModel } from './voxelFox';
 import { voxelBaseColor } from './voxelRender';
 import type { BuildFill, BuildProduct } from '../types/navigation';
@@ -207,6 +208,9 @@ export function createOrder(input: CreateOrderInput): OrderRecord | null {
   const store = storage();
   if (!store) return null;
   const bom = brickify(input.model, input.accent);
+  // A visual preview is not yet a sellable kit. Persist neither an order nor
+  // its manual until every frozen catalog placement is physically connected.
+  if (!isAssemblyBuildable(bom)) return null;
   const quantities = new Map<string, OrderColor>();
   for (const line of bom.lines) {
     const key = `${line.colorName}|${line.colorRgb}`;

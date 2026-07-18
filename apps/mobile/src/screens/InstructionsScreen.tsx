@@ -1,13 +1,27 @@
-import { useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Image, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { BuildPreview } from '../components/BuildPreview';
 import { DemoDock } from '../components/DemoDock';
+import { InstructionStepDiagram } from '../components/InstructionStepDiagram';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { ThreeBrickView, isRealisticViewSupported } from '../components/ThreeBrickView';
-import { brickify, type BillOfMaterials } from '../lib/brickify';
-import { generateInstructionsPdf } from '../lib/instructionsPdf';
-import { buildModelFromCells, type BuildProfile, type VoxelModel } from '../lib/voxelFox';
+import { brickify, type BillOfMaterials, type BomLine } from '../lib/brickify';
+import {
+  createGuideShareDraft,
+  publishGuide,
+  readGuideShareId,
+} from '../lib/guideShare';
+import {
+  createAssemblyPlan,
+  partColorKey,
+} from '../lib/instructions/assemblyPlan';
+import {
+  generateInstructionsPdf,
+  type GuideExportAction,
+  type GuidePaperSize,
+} from '../lib/instructionsPdf';
+import type { BuildProfile, VoxelModel } from '../lib/voxelFox';
 import { colors, radius, spacing, type } from '../theme/tokens';
 import type { DemoScreen } from '../types/navigation';
 
@@ -21,6 +35,53 @@ interface InstructionsScreenProps {
   profile: BuildProfile;
   orderId?: string | null;
   bomOverride?: BillOfMaterials;
+  /** Exact original BOM index order frozen into a published guide. */
+  placementOrder?: readonly number[];
+  /** Existing clean-browser URL when this guide was opened from a QR. */
+  publishedGuideUrl?: string;
+}
+
+type ExportState = 'idle' | 'working' | 'done' | 'failed';
+type ShareState = 'idle' | 'working' | 'done' | 'failed';
+
+function progressKey(
+  orderId: string | null,
+  publishedGuideUrl: string | undefined,
+  buildName: string,
+  profile: BuildProfile,
+): string {
+  const guideId = publishedGuideUrl ? readGuideShareId(publishedGuideUrl) : null;
+  const identity = orderId ?? guideId ?? `${buildName}-${profile}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  return `pixbrik.guide.progress.v1.${identity}`;
+}
+
+function publicationCacheKey(draft: unknown): string {
+  const serialized = JSON.stringify(draft);
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+  for (let index = 0; index < serialized.length; index++) {
+    const code = serialized.charCodeAt(index);
+    first = Math.imul(first ^ code, 0x01000193);
+    second = Math.imul(second ^ code, 0x85ebca6b);
+  }
+  return `pixbrik.guide.published.v1.${(first >>> 0).toString(16)}${(second >>> 0).toString(16)}`;
+}
+
+function linesForPlacements(
+  allLines: BomLine[],
+  placements: BillOfMaterials['placements'],
+): BomLine[] {
+  const quantities = new Map<string, number>();
+  for (const placement of placements) {
+    const key = partColorKey(placement.part, placement.colorId);
+    quantities.set(key, (quantities.get(key) ?? 0) + 1);
+  }
+  return allLines
+    .filter((line) => quantities.has(partColorKey(line.part, line.colorId)))
+    .map((line) => {
+      const quantity = quantities.get(partColorKey(line.part, line.colorId)) ?? 0;
+      return { ...line, lineTotalEur: Number((quantity * line.unitPriceEur).toFixed(2)), quantity };
+    });
 }
 
 export function InstructionsScreen({
@@ -33,88 +94,287 @@ export function InstructionsScreen({
   profile,
   orderId = null,
   bomOverride,
+  placementOrder,
+  publishedGuideUrl,
 }: InstructionsScreenProps) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState('');
   const bom = useMemo(() => bomOverride ?? brickify(model, accent), [accent, bomOverride, model]);
-  const steps = useMemo(() => {
-    const layers = [...new Set(model.cells.map((cell) => cell.j))].sort((a, b) => a - b);
-    const layersPerStep = Math.max(1, Math.ceil(layers.length / 8));
-    const grouped: number[][] = [];
-    for (let index = 0; index < layers.length; index += layersPerStep) {
-      grouped.push(layers.slice(index, index + layersPerStep));
+  const plan = useMemo(
+    () => createAssemblyPlan(bom, placementOrder ? { placementOrder } : {}),
+    [bom, placementOrder],
+  );
+  const [stepIndex, setStepIndex] = useState(0);
+  const [paperSize, setPaperSize] = useState<GuidePaperSize>('a4');
+  const [exportState, setExportState] = useState<ExportState>('idle');
+  const [exportNote, setExportNote] = useState('');
+  const [exportError, setExportError] = useState('');
+  const [shareState, setShareState] = useState<ShareState>('idle');
+  const [shareUrl, setShareUrl] = useState(publishedGuideUrl ?? '');
+  const [shareExpiry, setShareExpiry] = useState('');
+  const [shareError, setShareError] = useState('');
+  const [qrUri, setQrUri] = useState('');
+  const [copied, setCopied] = useState(false);
+  const step = plan.steps[stepIndex] ?? null;
+  const stepsByLayer = useMemo(() => {
+    const grouped = new Map<number, typeof plan.steps>();
+    for (const candidate of plan.steps) {
+      const layer = grouped.get(candidate.layer) ?? [];
+      layer.push(candidate);
+      grouped.set(candidate.layer, layer);
     }
     return grouped;
-  }, [model]);
-  const stepLayers = steps[stepIndex] ?? steps[0] ?? [0];
-  const firstLayer = stepLayers[0] ?? 0;
-  const lastLayer = stepLayers[stepLayers.length - 1] ?? firstLayer;
-  const atStart = stepIndex === 0;
-  const atEnd = stepIndex === steps.length - 1;
-  const { stepLines, stepPlacements } = useMemo(() => {
-    const placements = bom.placements.filter(
-      (placement) => placement.j >= firstLayer && placement.j <= lastLayer,
-    );
-    const quantities = new Map<string, { label: string; color: string; quantity: number }>();
-    for (const placement of placements) {
-      const line = bom.lines.find(
-        (candidate) => candidate.part === placement.part && candidate.colorId === placement.colorId,
-      );
-      const key = `${placement.part}|${placement.colorId}`;
-      const current = quantities.get(key);
-      if (current) current.quantity += 1;
-      else {
-        quantities.set(key, {
-          color: line?.colorRgb ?? '#E96632',
-          label: `${line?.partName ?? placement.part} · ${line?.colorName ?? 'Colour'}`,
-          quantity: 1,
-        });
-      }
+  }, [plan]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    try {
+      const saved = Number(localStorage.getItem(progressKey(orderId, publishedGuideUrl, buildName, profile)));
+      if (Number.isInteger(saved) && saved >= 0 && saved < plan.totalSteps) setStepIndex(saved);
+    } catch {
+      // Private browsing or storage disabled: the guide still works in-session.
     }
-    return {
-      stepLines: [...quantities.values()].sort((a, b) => b.quantity - a.quantity),
-      stepPlacements: placements,
-    };
-  }, [bom, firstLayer, lastLayer]);
-  const progressModel = useMemo(
-    () =>
-      buildModelFromCells(
-        model.cells.filter((cell) => cell.j <= lastLayer).map((cell) => ({ ...cell })),
-        model.size,
-        { layerHeight: model.layerHeight, preserveShapes: true },
-      ),
-    [lastLayer, model],
+  }, [buildName, orderId, plan.totalSteps, profile, publishedGuideUrl]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    try {
+      localStorage.setItem(progressKey(orderId, publishedGuideUrl, buildName, profile), String(stepIndex));
+    } catch {
+      // Progress persistence is optional.
+    }
+  }, [buildName, orderId, profile, publishedGuideUrl, stepIndex]);
+
+  const atStart = stepIndex === 0;
+  const atEnd = stepIndex >= plan.totalSteps - 1;
+  // Keep the interactive 3D helper fast on a phone: it only needs the layer
+  // being built and the support layer directly underneath it. The numbered
+  // plan and PDFs still retain every frozen catalog placement.
+  const previewPlacements = useMemo(
+    () => step
+      ? [
+          ...(stepsByLayer.get(step.layer + (step.support.status === 'underside' ? 1 : -1)) ?? []),
+          ...(stepsByLayer.get(step.layer) ?? []),
+        ]
+          .filter((candidate) =>
+            candidate.number <= step.number,
+          )
+          .map((candidate) => candidate.placement)
+      : [],
+    [step, stepsByLayer],
   );
-  const progressBom = useMemo(() => {
-    const placements = bom.placements.filter((placement) => placement.j <= lastLayer);
-    const used = new Set(placements.map((placement) => `${placement.part}|${placement.colorId}`));
-    const lines = bom.lines.filter((line) => used.has(`${line.part}|${line.colorId}`));
+  const previewBom = useMemo<BillOfMaterials>(() => {
+    const lines = linesForPlacements(bom.lines, previewPlacements);
     return {
       ...bom,
       colorCount: new Set(lines.map((line) => line.colorId)).size,
       lines,
-      placements,
-      totalParts: placements.length,
+      placements: previewPlacements,
+      totalEur: Number(lines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2)),
+      totalParts: previewPlacements.length,
     };
-  }, [bom, lastLayer]);
+  }, [bom, previewPlacements]);
+  const visibleChapters = useMemo(() => {
+    if (plan.chapters.length <= 7) return plan.chapters.map((chapter) => ({ chapter, gap: false }));
+    const active = Math.max(0, (step?.chapterNumber ?? 1) - 1);
+    const keep = new Set([0, plan.chapters.length - 1]);
+    for (let index = active - 2; index <= active + 2; index++) {
+      if (index >= 0 && index < plan.chapters.length) keep.add(index);
+    }
+    const ordered = [...keep].sort((a, b) => a - b);
+    return ordered.flatMap((index, position) => {
+      const chapter = plan.chapters[index]!;
+      const previous = ordered[position - 1];
+      return previous !== undefined && index - previous > 1
+        ? [{ chapter: null, gap: true }, { chapter, gap: false }]
+        : [{ chapter, gap: false }];
+    });
+  }, [plan.chapters, step?.chapterNumber]);
 
-  const downloadGuide = async () => {
+  const exportGuide = async (action: GuideExportAction) => {
     setExportError('');
-    setExporting(true);
+    setExportNote('Preparing the exact parts plan');
+    setExportState('working');
+    const printWindow =
+      action === 'print' && typeof window !== 'undefined'
+        ? window.open('', '_blank')
+        : null;
+    if (printWindow) printWindow.opener = null;
     try {
-      await generateInstructionsPdf({ accent, bomOverride: bom, buildName, model });
+      await generateInstructionsPdf({
+        accent,
+        action,
+        bomOverride: bom,
+        buildName,
+        model,
+        paperSize,
+        printWindow,
+        onProgress: (fraction, note) => {
+          setExportNote(`${Math.round(fraction * 100)}% · ${note}`);
+        },
+      });
+      setExportNote(action === 'print' ? 'Print copy opened' : 'PDF downloaded');
+      setExportState('done');
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : 'Could not generate the PDF guide.');
-    } finally {
-      setExporting(false);
+      printWindow?.close();
+      setExportError(error instanceof Error ? error.message : 'Could not generate the build guide.');
+      setExportState('failed');
     }
   };
+
+  const renderQr = async (url: string) => {
+    const QRCode = await import('qrcode');
+    const svg = await QRCode.toString(url, {
+      color: { dark: '#111315', light: '#FFFFFF' },
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      type: 'svg',
+      width: 300,
+    });
+    setQrUri(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  };
+
+  const openPhoneGuide = async () => {
+    setShareError('');
+    setCopied(false);
+    setShareState('working');
+    try {
+      let url = shareUrl;
+      if (!url) {
+        const draft = createGuideShareDraft({
+          accent,
+          assemblyPlan: plan,
+          bom,
+          buildName,
+          model,
+          profile,
+        });
+        const cacheKey = publicationCacheKey(draft);
+        if (Platform.OS === 'web') {
+          try {
+            const cached = JSON.parse(localStorage.getItem(cacheKey) ?? 'null') as {
+              expiresAt?: unknown;
+              url?: unknown;
+            } | null;
+            if (
+              cached &&
+              typeof cached.url === 'string' &&
+              typeof cached.expiresAt === 'string' &&
+              readGuideShareId(cached.url) &&
+              Date.parse(cached.expiresAt) > Date.now() + 60_000
+            ) {
+              url = cached.url;
+              setShareExpiry(cached.expiresAt);
+              setShareUrl(url);
+            }
+          } catch {
+            // A damaged or unavailable browser cache simply republishes once.
+          }
+        }
+        const nativeOrigin = process.env.EXPO_PUBLIC_GUIDE_APP_URL?.replace(/\/$/, '');
+        if (Platform.OS !== 'web' && !nativeOrigin) {
+          throw new Error('Phone guide sharing needs EXPO_PUBLIC_GUIDE_APP_URL configured.');
+        }
+        if (!url) {
+          const published = await publishGuide(
+            draft,
+            Platform.OS === 'web' ? {} : { endpoint: `${nativeOrigin}/api/guides/share` },
+          );
+          url = published.url;
+          setShareExpiry(published.expiresAt);
+          setShareUrl(url);
+          if (Platform.OS === 'web') {
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({
+                expiresAt: published.expiresAt,
+                url: published.url,
+              }));
+            } catch {
+              // Publication remains usable when browser storage is unavailable.
+            }
+          }
+        }
+      }
+      if (Platform.OS === 'web') {
+        await renderQr(url);
+      } else {
+        await Share.share({ message: `${buildName} PixBrik build guide: ${url}`, url });
+      }
+      setShareState('done');
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'Could not create the phone guide.');
+      setShareState('failed');
+    }
+  };
+
+  const copyShareLink = async () => {
+    if (!shareUrl || typeof navigator === 'undefined' || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const hardPlanError = plan.warnings.find((entry) => entry.severity === 'error');
+  if (hardPlanError || plan.supportSummary.unsupported > 0) {
+    return (
+      <ScreenFrame
+        accent="coral"
+        eyebrow="Buildability check"
+        footer={<DemoDock active="instructions" onNavigate={onNavigate} />}
+        onBack={onBack}
+        progress={0}
+        subtitle="PixBrik found a catalog placement that cannot lock onto the assembled model. It will not publish unsafe instructions."
+        title="This kit needs a safer parts plan."
+      >
+        <View accessibilityRole="alert" style={styles.warningCard}>
+          <Text style={styles.warningTitle}>DO NOT START THIS VERSION</Text>
+          <Text style={styles.warningText}>
+            {hardPlanError?.message ?? 'One or more catalog pieces cannot lock onto the assembled model.'}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onBack}
+          style={({ pressed }) => [styles.next, pressed && styles.pressed]}
+        >
+          <Text style={styles.nextText}>Return and regenerate â†’</Text>
+        </Pressable>
+      </ScreenFrame>
+    );
+  }
+
+  if (!step) {
+    return (
+      <ScreenFrame
+        accent="saffron"
+        eyebrow="Build guide"
+        footer={<DemoDock active="instructions" onNavigate={onNavigate} />}
+        onBack={onBack}
+        progress={0}
+        subtitle="The frozen order does not contain any catalog placements."
+        title="No build steps available."
+      >
+        <Text accessibilityRole="alert" style={styles.error}>Return to the order and regenerate its parts plan.</Text>
+      </ScreenFrame>
+    );
+  }
+
+  const supportMessage =
+    step.support.status === 'base'
+      ? 'Start on a flat table. Line up FRONT before pressing down.'
+      : step.support.status === 'full'
+        ? `All ${step.support.footprintStuds} studs lock onto the layer below.`
+        : step.support.status === 'partial'
+          ? `${step.support.supportedStuds} of ${step.support.footprintStuds} studs connect below. Press the connected side first.`
+          : step.support.status === 'underside'
+            ? `Turn the connected model over. Press this piece onto the ${step.support.supportedStuds} highlighted stud${step.support.supportedStuds === 1 ? '' : 's'} from underneath, then turn it upright again.`
+            : 'STOP: this piece has no connection to the assembled model. Regenerate the kit before building.';
 
   return (
     <ScreenFrame
       accent="saffron"
-      eyebrow={`${orderId ? `Order ${orderId} / ` : ''}Step ${stepIndex + 1} of ${steps.length}`}
+      eyebrow={`${orderId ? `Order ${orderId} / ` : ''}${step.chapterLabel} / Step ${step.number} of ${plan.totalSteps}`}
       footer={
         <View style={styles.footerGap}>
           <View style={styles.controls}>
@@ -131,16 +391,16 @@ export function InstructionsScreen({
               accessibilityRole="button"
               onPress={() => {
                 if (atEnd) {
-                  if (orderId) onBack();
+                  if (orderId || publishedGuideUrl) onBack();
                   else onRestart();
                   return;
                 }
-                setStepIndex((current) => Math.min(steps.length - 1, current + 1));
+                setStepIndex((current) => Math.min(plan.totalSteps - 1, current + 1));
               }}
               style={({ pressed }) => [styles.next, pressed && styles.pressed]}
             >
               <Text style={styles.nextText}>
-                {atEnd ? (orderId ? 'Back to order →' : 'Start new build ↻') : 'Next step →'}
+                {atEnd ? (orderId || publishedGuideUrl ? 'Finish guide ✓' : 'Finish build ✓') : 'Next piece →'}
               </Text>
             </Pressable>
           </View>
@@ -148,77 +408,164 @@ export function InstructionsScreen({
         </View>
       }
       onBack={onBack}
-      progress={steps.length ? (stepIndex + 1) / steps.length : 1}
-      subtitle={`Generated from the exact ${profile} model${orderId ? ' saved with this order' : ''}. Add only the highlighted layer group before continuing.`}
-      title={`${buildName} · Layers ${firstLayer + 1}–${lastLayer + 1}`}
+      progress={step.number / plan.totalSteps}
+      scrollResetKey={step.id}
+      subtitle={step.support.status === 'underside'
+        ? 'One number adds exactly one catalog piece. This overhang locks on from underneath; the connected section above is shown pale.'
+        : 'One number adds exactly one catalog piece. Match the colour, keep FRONT toward you, then press it fully down.'}
+      title={`Add 1 ${step.partLine?.partName ?? 'catalog piece'}.`}
     >
-      {isRealisticViewSupported ? (
-        <ThreeBrickView
-          accent={accent}
-          label={`${buildName}, complete through layer ${lastLayer + 1}`}
-          model={progressModel}
-          packedParts={progressBom.totalParts}
-          packedPlan={progressBom}
-        />
-      ) : (
-        <BuildPreview accent={accent} label={`LAYERS 1–${lastLayer + 1}`} step={Math.min(4, stepIndex + 1)} />
-      )}
-
-      <View style={styles.stepCard}>
-        <View style={styles.stepTop}>
-          <View style={styles.stepBadge}>
-            <Text style={styles.stepBadgeNumber}>{String(stepIndex + 1).padStart(2, '0')}</Text>
-          </View>
-          <View style={styles.stepCopy}>
-            <Text style={styles.stepTitle}>ADD {stepPlacements.length} PIECES</Text>
-            <Text style={styles.stepBody}>
-              Build layers {firstLayer + 1} through {lastLayer + 1}. Rotate the model to check every side before moving on.
-            </Text>
-          </View>
-        </View>
-        <View style={styles.partsList}>
-          {stepLines.slice(0, 8).map((line) => (
-            <View key={`${line.label}-${line.color}`} style={styles.partRow}>
-              <View style={[styles.swatch, { backgroundColor: line.color }]} />
-              <Text style={styles.partQuantity}>{line.quantity} ×</Text>
-              <Text numberOfLines={1} style={styles.partName}>{line.label}</Text>
-            </View>
-          ))}
-          {stepLines.length > 8 ? (
-            <Text style={styles.moreParts}>+ {stepLines.length - 8} more part/colour combinations in this step</Text>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.timeline}>
-        {steps.map((layers, index) => {
-          const active = index === stepIndex;
-          const complete = index < stepIndex;
+      <View style={styles.bagNav}>
+        {visibleChapters.map(({ chapter, gap }, index) => {
+          if (gap || !chapter) {
+            return <Text key={`stage-gap-${index}`} style={styles.bagGap}>…</Text>;
+          }
+          const active = chapter.id === step.chapterId;
           return (
             <Pressable
-              accessibilityLabel={`Go to step ${index + 1}, layers ${(layers[0] ?? 0) + 1} through ${(layers[layers.length - 1] ?? 0) + 1}`}
+              accessibilityLabel={`Open ${chapter.label}, steps ${chapter.startStepNumber} to ${chapter.endStepNumber}`}
               accessibilityRole="button"
-              key={`${layers[0]}-${layers[layers.length - 1]}`}
-              onPress={() => setStepIndex(index)}
-              style={[styles.timelineDot, complete && styles.timelineDotComplete, active && styles.timelineDotActive]}
+              key={chapter.id}
+              onPress={() => setStepIndex(chapter.startStepNumber - 1)}
+              style={[styles.bagChip, active && styles.bagChipActive]}
             >
-              <Text style={[styles.timelineText, (active || complete) && styles.timelineTextActive]}>{index + 1}</Text>
+              <Text style={[styles.bagChipText, active && styles.bagChipTextActive]}>{chapter.label}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      {Platform.OS === 'web' ? (
-        <Pressable
-          accessibilityRole="button"
-          disabled={exporting}
-          onPress={downloadGuide}
-          style={({ pressed }) => [styles.pdfButton, exporting && styles.disabled, pressed && styles.pressed]}
-        >
-          <Text style={styles.pdfButtonText}>{exporting ? 'GENERATING GUIDE…' : 'DOWNLOAD THIS BUILD GUIDE (PDF)'}</Text>
-        </Pressable>
+      <View style={styles.findCard}>
+        <View style={styles.stepBadge}><Text style={styles.stepBadgeNumber}>{step.number}</Text></View>
+        <View style={[styles.bigSwatch, { backgroundColor: step.partLine?.colorRgb ?? '#E96632' }]} />
+        <View style={styles.findCopy}>
+          <Text style={styles.findLabel}>1 · FIND THIS PIECE</Text>
+          <Text style={styles.findTitle}>1 × {step.partLine?.partName ?? step.placement.part}</Text>
+          <Text style={styles.findMeta}>
+            {step.partLine?.colorName ?? 'Catalog colour'} · {step.placement.spanI} × {step.placement.spanK} studs
+            {step.placement.shape === 'slope' ? ' · slope arrow shown' : ''}
+          </Text>
+        </View>
+      </View>
+
+      <InstructionStepDiagram plan={plan} step={step} />
+
+      <View style={styles.checkCard}>
+        <Text style={styles.checkTitle}>2 · PLACE IT, THEN PRESS</Text>
+        <Text style={styles.checkText}>{supportMessage}</Text>
+      </View>
+
+      {isRealisticViewSupported ? (
+        <ThreeBrickView
+          accent={accent}
+          highlightPlacement={step.placement}
+          label={`${buildName}, layer ${step.layer + 1} context for step ${step.number}`}
+          model={model}
+          packedParts={previewBom.totalParts}
+          packedPlan={previewBom}
+        />
+      ) : (
+        <BuildPreview accent={accent} label={`STEP ${step.number}`} step={Math.min(4, step.chapterNumber)} />
+      )}
+
+      {step.warnings.length ? (
+        <View accessibilityRole="alert" style={styles.warningCard}>
+          <Text style={styles.warningTitle}>CHECK THIS CONNECTION</Text>
+          <Text style={styles.warningText}>{supportMessage}</Text>
+        </View>
       ) : null}
-      {exportError ? <Text accessibilityRole="alert" style={styles.error}>{exportError}</Text> : null}
+
+      <View style={styles.exportCard}>
+        <Text style={styles.exportKicker}>TAKE THE GUIDE WITH YOU</Text>
+        <Text style={styles.exportTitle}>Phone, print, or PDF.</Text>
+        <Text style={styles.exportBody}>
+          Phone mode remembers your step. Printed and downloaded copies use the same exact one-piece plan.
+        </Text>
+
+        {Platform.OS === 'web' ? (
+          <View accessibilityRole="radiogroup" style={styles.paperChoices}>
+            {(['a4', 'letter'] as const).map((paper) => {
+              const selected = paperSize === paper;
+              return (
+                <Pressable
+                  aria-checked={selected}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  key={paper}
+                  onPress={() => setPaperSize(paper)}
+                  style={[styles.paperChoice, selected && styles.paperChoiceActive]}
+                >
+                  <Text style={[styles.paperChoiceText, selected && styles.paperChoiceTextActive]}>
+                    {paper === 'a4' ? 'A4' : 'US LETTER'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <View style={styles.exportActions}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={shareState === 'working'}
+            onPress={() => void openPhoneGuide()}
+            style={({ pressed }) => [styles.actionPrimary, pressed && styles.pressed]}
+          >
+            <Text style={styles.actionPrimaryText}>
+              {shareState === 'working'
+                ? 'CREATING PHONE LINK…'
+                : Platform.OS === 'web'
+                  ? qrUri ? 'SHOW PHONE QR' : 'OPEN ON PHONE · QR'
+                  : 'SHARE GUIDE LINK'}
+            </Text>
+          </Pressable>
+          {Platform.OS === 'web' ? (
+            <View style={styles.secondaryActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={exportState === 'working'}
+                onPress={() => void exportGuide('print')}
+                style={({ pressed }) => [styles.actionSecondary, pressed && styles.pressed]}
+              >
+                <Text style={styles.actionSecondaryText}>PRINT {paperSize === 'a4' ? 'A4' : 'LETTER'}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={exportState === 'working'}
+                onPress={() => void exportGuide('download')}
+                style={({ pressed }) => [styles.actionSecondary, pressed && styles.pressed]}
+              >
+                <Text style={styles.actionSecondaryText}>DOWNLOAD PDF</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.sharePrivacy}>
+          The unlisted link contains the model and parts plan. Anyone with it can view the guide until it expires.
+        </Text>
+
+        {exportState === 'working' || exportState === 'done' ? (
+          <Text accessibilityLiveRegion="polite" style={styles.statusText}>{exportNote}</Text>
+        ) : null}
+        {exportError ? <Text accessibilityRole="alert" style={styles.error}>{exportError}</Text> : null}
+        {shareError ? <Text accessibilityRole="alert" style={styles.error}>{shareError}</Text> : null}
+
+        {qrUri && shareUrl ? (
+          <View style={styles.qrPanel}>
+            <Image accessibilityLabel="QR code for this build guide" resizeMode="contain" source={{ uri: qrUri }} style={styles.qr} />
+            <View style={styles.qrCopy}>
+              <Text style={styles.qrTitle}>SCAN WITH YOUR PHONE CAMERA</Text>
+              <Text selectable style={styles.qrUrl}>{shareUrl}</Text>
+              {shareExpiry ? (
+                <Text style={styles.qrExpiry}>Unlisted link expires {new Date(shareExpiry).toLocaleDateString()}.</Text>
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={() => void copyShareLink()} style={styles.copyButton}>
+                <Text style={styles.copyButtonText}>{copied ? 'LINK COPIED ✓' : 'COPY LINK'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+      </View>
     </ScreenFrame>
   );
 }
@@ -238,38 +585,83 @@ const styles = StyleSheet.create({
   nextText: { ...type.body, color: colors.white, fontSize: 14, fontWeight: '900' },
   disabled: { opacity: 0.35 },
   pressed: { opacity: 0.72 },
-  stepCard: {
-    backgroundColor: colors.white, borderColor: colors.line, borderRadius: radius.lg, borderWidth: 1,
-    marginTop: spacing.md, overflow: 'hidden',
+  bagNav: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.md },
+  bagChip: {
+    backgroundColor: colors.white, borderColor: colors.line, borderRadius: radius.pill,
+    borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
-  stepTop: { alignItems: 'center', flexDirection: 'row', gap: spacing.lg, padding: spacing.lg },
+  bagChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  bagChipText: { ...type.micro, color: colors.inkSoft, fontSize: 9 },
+  bagChipTextActive: { color: colors.saffron },
+  bagGap: { ...type.heading, color: colors.inkSoft, fontSize: 14, paddingHorizontal: 2, paddingVertical: spacing.xs },
+  findCard: {
+    alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: radius.lg,
+    borderWidth: 1, flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md, padding: spacing.lg,
+  },
   stepBadge: {
-    alignItems: 'center', backgroundColor: colors.saffron, borderColor: colors.line, borderRadius: radius.sm,
-    borderWidth: 1, height: 48, justifyContent: 'center', width: 48,
+    alignItems: 'center', backgroundColor: colors.saffron, borderColor: colors.ink, borderRadius: radius.sm,
+    borderWidth: 2, height: 52, justifyContent: 'center', minWidth: 52, paddingHorizontal: spacing.xs,
   },
-  stepBadgeNumber: { ...type.heading, color: colors.ink },
-  stepCopy: { flex: 1 },
-  stepTitle: { ...type.label, color: colors.ink },
-  stepBody: { ...type.body, color: colors.inkSoft, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  partsList: { backgroundColor: colors.mintSoft, borderTopColor: colors.line, borderTopWidth: 1, padding: spacing.md },
-  partRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, minHeight: 29 },
-  swatch: { borderColor: colors.ink, borderRadius: 3, borderWidth: 1, height: 17, width: 17 },
-  partQuantity: { ...type.micro, color: colors.ink, minWidth: 34 },
-  partName: { ...type.body, color: colors.ink, flex: 1, fontSize: 11 },
-  moreParts: { ...type.micro, color: colors.inkSoft, fontSize: 8, marginTop: spacing.xs },
-  timeline: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center', marginTop: spacing.xl },
-  timelineDot: {
-    alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: radius.sm,
-    borderWidth: 1, height: 40, justifyContent: 'center', width: 40,
+  stepBadgeNumber: { ...type.heading, color: colors.ink, fontSize: 16 },
+  bigSwatch: { borderColor: colors.ink, borderRadius: radius.sm, borderWidth: 2, height: 52, width: 52 },
+  findCopy: { flex: 1 },
+  findLabel: { ...type.micro, color: colors.coral, fontSize: 9 },
+  findTitle: { ...type.heading, color: colors.ink, fontSize: 18, marginTop: 2 },
+  findMeta: { ...type.body, color: colors.inkSoft, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  checkCard: {
+    backgroundColor: colors.mintSoft, borderColor: colors.mintDeep, borderRadius: radius.md,
+    borderWidth: 1, marginBottom: spacing.md, marginTop: spacing.md, padding: spacing.lg,
   },
-  timelineDotComplete: { backgroundColor: colors.mintDeep, borderColor: colors.mintDeep },
-  timelineDotActive: { backgroundColor: colors.blue },
-  timelineText: { color: colors.ink, fontSize: 13, fontWeight: '900' },
-  timelineTextActive: { color: colors.white },
-  pdfButton: {
+  checkTitle: { ...type.label, color: colors.ink, fontSize: 11 },
+  checkText: { ...type.body, color: colors.ink, fontSize: 12, lineHeight: 18, marginTop: spacing.xs },
+  warningCard: {
+    backgroundColor: '#FFF0E9', borderColor: colors.coral, borderRadius: radius.md,
+    borderWidth: 1, marginTop: spacing.md, padding: spacing.md,
+  },
+  warningTitle: { ...type.label, color: colors.coral, fontSize: 10 },
+  warningText: { ...type.body, color: colors.ink, fontSize: 11, marginTop: 3 },
+  exportCard: {
+    backgroundColor: colors.white, borderColor: colors.ink, borderRadius: radius.lg,
+    borderWidth: 2, marginTop: spacing.xl, padding: spacing.lg,
+  },
+  exportKicker: { ...type.micro, color: colors.blue, fontSize: 9 },
+  exportTitle: { ...type.heading, color: colors.ink, marginTop: 2 },
+  exportBody: { ...type.body, color: colors.inkSoft, fontSize: 12, lineHeight: 18, marginTop: spacing.xs },
+  paperChoices: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  paperChoice: {
+    alignItems: 'center', borderColor: colors.line, borderRadius: radius.pill, borderWidth: 1,
+    flex: 1, justifyContent: 'center', minHeight: 42,
+  },
+  paperChoiceActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  paperChoiceText: { ...type.label, color: colors.ink, fontSize: 10 },
+  paperChoiceTextActive: { color: colors.saffron },
+  exportActions: { gap: spacing.sm, marginTop: spacing.md },
+  actionPrimary: {
+    alignItems: 'center', backgroundColor: colors.blue, borderRadius: radius.md,
+    justifyContent: 'center', minHeight: 50,
+  },
+  actionPrimaryText: { ...type.label, color: colors.white, fontSize: 11 },
+  secondaryActions: { flexDirection: 'row', gap: spacing.sm },
+  actionSecondary: {
     alignItems: 'center', borderColor: colors.ink, borderRadius: radius.md, borderWidth: 2,
-    justifyContent: 'center', marginTop: spacing.xl, minHeight: 48,
+    flex: 1, justifyContent: 'center', minHeight: 48,
   },
-  pdfButtonText: { ...type.label, color: colors.ink },
+  actionSecondaryText: { ...type.label, color: colors.ink, fontSize: 10 },
+  statusText: { ...type.body, color: colors.mintDeep, fontSize: 11, marginTop: spacing.sm },
+  sharePrivacy: { ...type.body, color: colors.inkSoft, fontSize: 9, lineHeight: 13, marginTop: spacing.sm },
   error: { ...type.body, color: colors.alarm, fontSize: 12, marginTop: spacing.md },
+  qrPanel: {
+    alignItems: 'center', backgroundColor: colors.mintSoft, borderColor: colors.line, borderRadius: radius.md,
+    borderWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginTop: spacing.lg, padding: spacing.md,
+  },
+  qr: { backgroundColor: colors.white, borderRadius: radius.sm, height: 138, width: 138 },
+  qrCopy: { flexBasis: 160, flexGrow: 1, minWidth: 0 },
+  qrTitle: { ...type.label, color: colors.ink, fontSize: 10 },
+  qrUrl: { ...type.body, color: colors.blue, fontSize: 9, lineHeight: 13, marginTop: spacing.xs },
+  qrExpiry: { ...type.body, color: colors.inkSoft, fontSize: 9, marginTop: spacing.xs },
+  copyButton: {
+    alignItems: 'center', alignSelf: 'flex-start', backgroundColor: colors.ink, borderRadius: radius.pill,
+    justifyContent: 'center', marginTop: spacing.sm, minHeight: 36, paddingHorizontal: spacing.md,
+  },
+  copyButtonText: { ...type.micro, color: colors.saffron, fontSize: 9 },
 });

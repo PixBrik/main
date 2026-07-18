@@ -20,12 +20,30 @@ test('demo checkout persists a complete order instead of only toggling confirmat
   assert.doesNotMatch(checkout, /onPress=\{\(\) => setPlaced\(true\)\}/);
 
   assert.match(store, /const STORAGE_KEY = 'pixbrik\.orders\.v1'/);
+  assert.match(store, /if \(!isAssemblyBuildable\(bom\)\) return null/);
   assert.match(store, /model: snapshotOrderModel\(input\.model, input\.accent\)/);
   assert.match(store, /placements: bom\.placements\.map/);
   assert.match(store, /partLines: bom\.lines\.map/);
   assert.match(store, /parts: bom\.totalParts/);
   assert.match(store, /status: 'reserved-demo'/);
   assert.match(store, /JSON\.stringify\(\[order, \.\.\.listOrders\(\)\]/);
+});
+
+test('unbuildable previews cannot become orders or child-facing manuals', async () => {
+  const [bomScreen, instructions, pdf, share, store] = await Promise.all([
+    source('src/screens/BomScreen.tsx'),
+    source('src/screens/InstructionsScreen.tsx'),
+    source('src/lib/instructionsPdf.ts'),
+    source('src/lib/guideShare.ts'),
+    source('src/lib/orderStore.ts'),
+  ]);
+
+  assert.match(bomScreen, /assemblyPlan\?\.supportSummary\.unsupported/);
+  assert.match(bomScreen, /will not create an order or a child-facing manual/);
+  assert.match(store, /isAssemblyBuildable\(bom\)/);
+  assert.match(instructions, /plan\.supportSummary\.unsupported > 0/);
+  assert.match(pdf, /plan\.supportSummary\.unsupported > 0/);
+  assert.match(share, /isAssemblyBuildable\(build\.bom, \{ placementOrder: manual\.placementOrder \}\)/);
 });
 
 test('account exposes persisted order details and the exact order guide', async () => {
@@ -58,11 +76,18 @@ test('account exposes persisted order details and the exact order guide', async 
   );
   assert.doesNotMatch(instructions, /from '\.\.\/data\/mockData'/);
   assert.match(instructions, /brickify\(model, accent\)/);
-  assert.match(instructions, /model\.cells\.filter\(\(cell\) => cell\.j <= lastLayer\)/);
-  assert.match(instructions, /generateInstructionsPdf\(\{ accent, bomOverride: bom, buildName, model \}\)/);
-  assert.match(instructions, /packedPlan=\{progressBom\}/);
+  assert.match(instructions, /createAssemblyPlan\(bom, placementOrder \? \{ placementOrder \} : \{\}\)/);
+  assert.match(instructions, /stepsByLayer/);
+  assert.match(instructions, /candidate\.number <= step\.number/);
+  assert.match(instructions, /generateInstructionsPdf\(\{/);
+  assert.match(instructions, /paperSize,/);
+  assert.match(instructions, /packedPlan=\{previewBom\}/);
+  assert.match(instructions, /highlightPlacement=\{step\.placement\}/);
   assert.match(pdf, /const bom = bomOverride \?\? brickify\(model, accent\)/);
-  assert.match(pdf, /const stepPlacements = bom\.placements\.filter/);
+  assert.match(pdf, /const plan = createAssemblyPlan\(bom\)/);
+  assert.match(pdf, /addManifestPages\(doc, bom\)/);
+  assert.match(pdf, /addStepPages\(doc, plan/);
+  assert.doesNotMatch(pdf, /stepLines\.slice\(0,/);
   assert.doesNotMatch(pdf, /const stepBom = brickify/);
   assert.match(three, /packed\.placements/);
   assert.match(three, /CATALOG KIT PREVIEW/);

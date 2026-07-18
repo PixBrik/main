@@ -1,6 +1,9 @@
 .DS_Store
 Thumbs.db
 *.log
+.codex/
+.codex-*/
+.codex-*.png
 
 # Secrets — never commit real keys. Use .env.example for placeholders.
 .env
@@ -17,4 +20,3 @@ catalog/*.sqlite3
 catalog/*.sqlite3-shm
 catalog/*.sqlite3-wal
 catalog/*.jsonl
-

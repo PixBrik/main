@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "api/**/*.ts",
+    "src/lib/contactForm.ts",
+    "src/lib/guideShare.ts"
+  ]
+}

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -33,7 +34,17 @@ async function loadTypeScriptModule(sourceUrl, stubs = {}, globals = {}) {
     module,
     FormData: globals.FormData ?? FormData,
     process: globals.process ?? { env: {} },
-    require: (id) => stubs[id] ?? {},
+    require: (id) =>
+      stubs[id] ??
+      (id === 'node:crypto'
+        ? { createHash }
+        : id === '../_generationSecurity'
+          ? {
+              GenerationSecurityError: class extends Error {},
+              guardPaidGeneration: () => {},
+              sendGenerationSecurityError: () => {},
+            }
+          : {}),
     setTimeout: globals.setTimeout ?? setTimeout,
   });
   new vm.Script(output, { filename: sourceUrl.pathname }).runInContext(context);

@@ -23,6 +23,7 @@ import {
 } from '../voxelFox';
 import { colorizeMeshCells, type MeshBrickColorStyle } from './meshFidelity';
 import { colorDistance } from './voxelizePhoto';
+import { SCULPTURE_STUD_SPAN } from '../kitSizing';
 
 // Accelerate THREE.Mesh raycasts with the BVH extension.
 (THREE.BufferGeometry.prototype as unknown as { computeBoundsTree: typeof computeBoundsTree }).computeBoundsTree =
@@ -31,8 +32,8 @@ import { colorDistance } from './voxelizePhoto';
   disposeBoundsTree;
 (THREE.Mesh.prototype as unknown as { raycast: typeof acceleratedRaycast }).raycast = acceleratedRaycast;
 
-/** Target voxel resolution on the model's longest axis, per profile. */
-const RES = { efficient: 40, balanced: 64, detailed: 88 } as const;
+/** Target standard-brick studs on the model's longest axis, per kit size. */
+const RES = SCULPTURE_STUD_SPAN;
 export type MeshProfile = keyof typeof RES;
 
 export interface MeshVoxelizeOptions {

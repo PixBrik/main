@@ -51,6 +51,7 @@ const { colorizeMeshCells, MESH_BW_RAMP, recolorMeshModel } = require(path.join(
   'meshFidelity.js',
 ));
 const { BRICK_HEIGHT_RATIO, buildModelFromCells } = require(path.join(compileDir, 'lib', 'voxelFox.js'));
+const { SCULPTURE_STUD_SPAN, STUD_PITCH_CM } = require(path.join(compileDir, 'lib', 'kitSizing.js'));
 const { brickify } = require(path.join(compileDir, 'lib', 'brickify.js'));
 const { loadOrderModel, snapshotOrderModel } = require(path.join(
   compileDir,
@@ -206,6 +207,15 @@ test('triangle-box conversion preserves asymmetric proportions and the thin atta
     const height = extent.maxJ - extent.minJ + 1;
     const depth = extent.maxK - extent.minK + 1;
     const verticalPitch = (model.layerHeight ?? model.size) / model.size;
+    const physicalLongestStuds = Math.max(width, depth, height * verticalPitch);
+    assert.ok(
+      Math.abs(physicalLongestStuds - SCULPTURE_STUD_SPAN[profile]) <= 1.25,
+      `${profile}: physical size follows its real stud target`,
+    );
+    assert.ok(
+      physicalLongestStuds * STUD_PITCH_CM <= 40,
+      `${profile}: proposal is gift-sized rather than the old 32–70 cm range`,
+    );
     assert.equal(verticalPitch, BRICK_HEIGHT_RATIO, `${profile}: standard brick pitch`);
     assert.ok(
       Math.abs((height * verticalPitch) / width - 2 / 3.8) < 0.07,

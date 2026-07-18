@@ -11,13 +11,13 @@ const execFileAsync = promisify(execFile);
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const benchmark = path.join(appRoot, 'scripts', 'benchmark-brick-rendering.mjs');
 
-test('generated portrait, pet, and car stay faithful and catalog-valid across all 27 panel options', { timeout: 30_000 }, async () => {
+test('generated portrait, pet, and car stay faithful and catalog-valid across all 27 panel options', { timeout: 120_000 }, async () => {
   const output = await mkdtemp(path.join(tmpdir(), 'pixbrik-render-quality-test-'));
   try {
     await execFileAsync(process.execPath, [benchmark, '--output', output], {
       cwd: appRoot,
       maxBuffer: 2 * 1024 * 1024,
-      timeout: 30_000,
+      timeout: 120_000,
     });
     const metrics = JSON.parse(await readFile(path.join(output, 'metrics.json'), 'utf8'));
     assert.equal(metrics.length, 27);

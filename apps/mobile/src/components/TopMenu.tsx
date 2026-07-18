@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppNavigation } from '../lib/navigationContext';
+import { LEGAL_CONTENT_AVAILABLE } from '../lib/legalAvailability';
 import { colors, fonts, radius, shadow, spacing } from '../theme/tokens';
 import type { DemoScreen } from '../types/navigation';
 
@@ -11,6 +12,9 @@ const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
   { label: 'OBJECT LIBRARY', screen: 'library' },
   { label: 'MY KIT', screen: 'purchase' },
   { label: 'MODEL LAB (BETA)', screen: 'lab' },
+  ...(LEGAL_CONTENT_AVAILABLE
+    ? ([{ label: 'LEGAL & CONTACT', screen: 'legal' }] as const)
+    : ([{ label: 'CONTACT', screen: 'contact' }] as const)),
 ];
 
 /**
