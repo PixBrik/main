@@ -11,6 +11,8 @@ export const APP_ROUTES = {
   forbidden: "/forbidden",
   portal: "/portal",
   signIn: "/sign-in",
+  changePassword: "/change-password",
+  users: "/settings/users",
   clerkProxy: "/__clerk"
 } as const;
 
@@ -27,6 +29,8 @@ export const PUBLIC_ROUTES = {
   forbidden: withAdminBasePath(APP_ROUTES.forbidden),
   portal: withAdminBasePath(APP_ROUTES.portal),
   signIn: withAdminBasePath(APP_ROUTES.signIn),
+  changePassword: withAdminBasePath(APP_ROUTES.changePassword),
+  users: withAdminBasePath(APP_ROUTES.users),
   clerkProxy: withAdminBasePath(APP_ROUTES.clerkProxy)
 } as const;
 

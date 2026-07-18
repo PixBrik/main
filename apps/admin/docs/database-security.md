@@ -5,7 +5,7 @@ PixBrik uses five independently rotated PostgreSQL credentials:
 - `MIGRATION_DATABASE_URL`: a privileged schema owner used only by controlled deployment migrations.
 - `ADMIN_DATABASE_URL`: the `pixbrik_admin_runtime` login used only by the authenticated desktop admin.
 - `CUSTOMER_DATABASE_URL`: the `pixbrik_customer_runtime` login used only by buyer-facing server handlers.
-- `IDENTITY_DATABASE_URL`: the `pixbrik_identity_runtime` login used only to execute the one-time audited seeded-owner claim.
+- `IDENTITY_DATABASE_URL`: the `pixbrik_identity_runtime` login used only to execute narrow audited identity functions for owner bootstrap, password sessions and staff access management. It has no direct table privileges.
 - `SERVICE_DATABASE_URL`: the `pixbrik_service_runtime` login used only by verified webhooks, queues, generation, messaging, and scheduled jobs.
 
 All runtime roles must be `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`. Never use the retired `pixbrik_runtime` credential: migration `0005_security_hardening.sql` revokes it completely.
@@ -57,11 +57,26 @@ The final `true` makes the user setting transaction-local, preventing identity l
 
 RLS is defense in depth. Admin requests must still pass the granular permission checks in `src/lib/auth`; the admin database role alone is not sufficient authorization for refunds, exports, publishing, pricing, or role changes. Customer code receives read access to its own records and narrow profile/address/build writes only. Legal evidence, contact submissions, and webhooks are written by the service role behind narrow handlers with validation, idempotency, rate limiting, and signed-provider verification rather than direct database access.
 
-`0005_security_hardening.sql` and `0006_clerk_owner_identity.sql` must be syntax- and behavior-tested against a disposable PostgreSQL 15+ database before Production. Static contract tests are not a substitute for exercising all five roles, forced RLS, triggers, owner-claim races/retries, and `SECURITY DEFINER` behavior with real connections.
+Migrations `0005` through `0007` must be syntax- and behavior-tested against a disposable PostgreSQL 15+ database before Production. Static contract tests are not a substitute for exercising all five roles, forced RLS, triggers, owner bootstrap, lockout, forced password change, session rotation/revocation, last-owner races and `SECURITY DEFINER` behavior with real connections.
 
-The database client requires an explicit `admin`, `customer`, `identity`, or `service` role and opens a separate pool for each URL. Every transaction verifies both `current_user` and `session_user` against the expected immutable login before running application SQL. The identity login has no role memberships, tables, sequences, or general function access; migration `0006` grants it schema usage and execute on `claim_seeded_clerk_owner` only. Buyer-portal and service handlers remain unwired until they explicitly select their dedicated role.
+The database client requires an explicit `admin`, `customer`, `identity`, or `service` role and opens a separate pool for each URL. Every transaction verifies both `current_user` and `session_user` against the expected immutable login before running application SQL. The identity login has no role memberships, table access, sequence access, or general function access. Migrations `0006` and `0007` grant only explicitly named, fixed-search-path identity functions. Those functions recheck active account state, non-expired roles, granular `staff.manage` permission and recent password confirmation where required. Buyer-portal and service handlers remain unwired until they explicitly select their dedicated role.
 
-The owner claim accepts only the existing invited staff row for `sam@benisty.ca`, only after the application verifies the Clerk primary email and immutable user ID on an MFA-complete session. It confirms that the seeded owner assignment already exists, binds `clerk:<userId>` under a row lock, and records an append-only audit event. It does not create a user or grant a role. Keep the identity credential independently rotated and alert on every `identity.owner_claimed` audit event.
+The built-in password bootstrap accepts only the existing invited staff row for `sam@benisty.ca`. It confirms that the seeded owner assignment already exists, activates a one-time Argon2id verifier under a row lock, forces immediate password replacement and records an append-only audit event. It does not create a user or grant a role. The optional Clerk claim remains separately available when `AUTH_MODE=clerk`. Keep the identity credential independently rotated and alert on every owner-bootstrap or identity-claim audit event.
+
+Bootstrap and emergency owner recovery must run from a controlled, non-CI shell
+with explicit target and temporary-output confirmations. Recovery uses only the
+deployment-held `MIGRATION_DATABASE_URL`, requires a human-readable reason,
+revokes all owner sessions, and writes a system/deployment-attributed audit
+event. Neither function is executable by any runtime database role. Never put a
+temporary password in Vercel environment variables, build output, tickets, or
+source control.
+
+Password-pepper rotation uses a bounded keyring: one current
+`AUTH_PASSWORD_PEPPER` plus, during migration only, up to four older keys in
+`AUTH_PASSWORD_PEPPER_PREVIOUS`. Previous versions must be lower than the
+current version and may never reuse the session-HMAC key. Successful
+authentication upgrades an older verifier atomically. Retain each old pepper
+until database reporting confirms that no credential still references it.
 
 The current legal evidence guard validates document language, market, and every explicit order-item product type. It does not yet persist the complete language × subdivision jurisdiction × product × permitted-use release scope used by legal governance. Checkout must remain blocked until a follow-up schema and real PostgreSQL integration test enforce that full approved release matrix; application-only metadata is not sufficient.
 

@@ -64,6 +64,60 @@ test("APP_URL supplies one credential-free authorized-party origin", () => {
   assert.throws(() => appOrigin({ APP_URL: "https://user:pass@example.com/backoffice" }), /without credentials/);
 });
 
+test("password mode requires distinct versioned 256-bit secrets and an HTTPS production URL", () => {
+  const pepper = `v1:${Buffer.alloc(32, 0x31).toString("base64url")}`;
+  const sessionKey = `v7:${Buffer.alloc(32, 0x72).toString("base64url")}`;
+  const configured = {
+    NODE_ENV: "production",
+    APP_URL: "https://www.pixbrik.com/backoffice",
+    AUTH_MODE: "password",
+    IDENTITY_DATABASE_URL: "postgresql://identity.invalid/pixbrik",
+    AUTH_PASSWORD_PEPPER: pepper,
+    AUTH_SESSION_HMAC_KEY: sessionKey
+  };
+
+  assert.doesNotThrow(() => assertSafeAuthEnvironment(configured));
+  assert.equal(
+    inspectEnvironment(configured).find((check) => check.key === "AUTH_MODE")?.configured,
+    true
+  );
+  assert.throws(
+    () => assertSafeAuthEnvironment({ ...configured, AUTH_SESSION_HMAC_KEY: pepper }),
+    /must be different/
+  );
+  const previousPepper = `v1:${Buffer.alloc(32, 0x21).toString("base64url")}`;
+  assert.doesNotThrow(() => assertSafeAuthEnvironment({
+    ...configured,
+    AUTH_PASSWORD_PEPPER: `v2:${Buffer.alloc(32, 0x32).toString("base64url")}`,
+    AUTH_PASSWORD_PEPPER_PREVIOUS: previousPepper
+  }));
+  assert.throws(
+    () => assertSafeAuthEnvironment({
+      ...configured,
+      AUTH_PASSWORD_PEPPER_PREVIOUS: `v8:${Buffer.alloc(32, 0x22).toString("base64url")}`
+    }),
+    /previous peppers/
+  );
+  assert.throws(
+    () => assertSafeAuthEnvironment({
+      ...configured,
+      AUTH_PASSWORD_PEPPER_PREVIOUS: `v1:${Buffer.alloc(32, 0x72).toString("base64url")}`
+    }),
+    /must be different/
+  );
+  assert.throws(
+    () => assertSafeAuthEnvironment({
+      ...configured,
+      AUTH_PASSWORD_PEPPER: `v1:${Buffer.alloc(31, 0x31).toString("base64url")}`
+    }),
+    /canonical 32-byte/
+  );
+  assert.throws(
+    () => assertSafeAuthEnvironment({ ...configured, APP_URL: "http://www.pixbrik.com/backoffice" }),
+    /HTTPS APP_URL/
+  );
+});
+
 test("development authentication is rejected in production", () => {
   assert.throws(
     () => assertSafeAuthEnvironment({ NODE_ENV: "production", AUTH_MODE: "development" }),

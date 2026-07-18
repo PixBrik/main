@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { withDatabaseRole } from "@/lib/db";
 import { assertSafeAuthEnvironment, authMode, readEnv } from "@/lib/env";
 import type { Permission } from "@/lib/permissions";
+import { resolvePasswordPrincipal } from "@/lib/auth/password-session";
 import type { Principal, VerifiedIdentity } from "@/lib/auth/types";
 import { APP_ROUTES } from "@/lib/routes";
 
@@ -156,11 +157,14 @@ async function loadDatabasePrincipal(identity: VerifiedIdentity): Promise<Princi
     displayName: row.display_name ?? identity.displayName,
     status: "active",
     roles: row.roles,
-    permissions: row.permissions as Permission[]
+    permissions: row.permissions as Permission[],
+    mustChangePassword: false
   };
 }
 
 export async function getOptionalPrincipal(): Promise<Principal | null> {
+  if (authMode() === "password") return resolvePasswordPrincipal();
+
   const identity = await resolveVerifiedIdentity();
   if (!identity) return null;
 
@@ -170,7 +174,8 @@ export async function getOptionalPrincipal(): Promise<Principal | null> {
       userId: "development-owner",
       status: "active",
       roles: ["owner"],
-      permissions: ["*"]
+      permissions: ["*"],
+      mustChangePassword: false
     };
   }
 
@@ -185,10 +190,24 @@ export function hasPermission(principal: Principal, permission: Permission): boo
   return principal.permissions.some((granted) => granted === "*" || granted === permission);
 }
 
-export async function requirePrincipal(): Promise<Principal> {
+async function requirePrincipalWithForcedChangeAccess(
+  allowForcedPasswordChange: boolean
+): Promise<Principal> {
   const principal = await getOptionalPrincipal();
   if (!principal) redirect(APP_ROUTES.signIn);
+  if (principal.mustChangePassword && !allowForcedPasswordChange) {
+    redirect(APP_ROUTES.changePassword);
+  }
   return principal;
+}
+
+export function requirePrincipal(): Promise<Principal> {
+  return requirePrincipalWithForcedChangeAccess(false);
+}
+
+/** Only the dedicated password-change route/action may use this escape hatch. */
+export function requirePasswordChangePrincipal(): Promise<Principal> {
+  return requirePrincipalWithForcedChangeAccess(true);
 }
 
 export async function requirePermission(permission: Permission): Promise<Principal> {

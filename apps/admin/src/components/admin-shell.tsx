@@ -1,8 +1,9 @@
 import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 
+import { signOutPasswordAction } from "@/app/auth-actions";
 import { BricklingAvatar } from "@/components/brickling-avatar";
-import type { Principal } from "@/lib/auth";
+import { hasPermission, type Principal } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/lib/launch-config";
 import { adminSectionRoute, APP_ROUTES, PUBLIC_ROUTES } from "@/lib/routes";
 
@@ -31,6 +32,12 @@ export function AdminShell({ principal, children }: AdminShellProps) {
               {section.label}
             </Link>
           ))}
+          {principal.provider === "password" && hasPermission(principal, "staff.manage") ? (
+            <Link className="nav-link" href={APP_ROUTES.users}>
+              <span className="nav-dot" />
+              Manage users
+            </Link>
+          ) : null}
         </nav>
 
         <div className="sidebar-footer">
@@ -56,10 +63,20 @@ export function AdminShell({ principal, children }: AdminShellProps) {
             <Link className="quiet-button" href={APP_ROUTES.portal}>
               Customer portal
             </Link>
+            {principal.provider === "password" ? (
+              <Link className="quiet-button" href={APP_ROUTES.changePassword}>
+                Password
+              </Link>
+            ) : null}
             {principal.provider === "clerk" ? (
               <SignOutButton redirectUrl={PUBLIC_ROUTES.signIn}>
                 <button className="quiet-button" type="button">Sign out</button>
               </SignOutButton>
+            ) : null}
+            {principal.provider === "password" ? (
+              <form action={signOutPasswordAction}>
+                <button className="quiet-button" type="submit">Sign out</button>
+              </form>
             ) : null}
             <span className="environment-pill">Foundation</span>
           </div>

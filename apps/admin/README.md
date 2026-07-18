@@ -5,7 +5,7 @@ This application is the isolated foundation for PixBrik's desktop admin and secu
 ## Included in this scaffold
 
 - A desktop-first operations shell with launch-readiness and module views.
-- Fail-closed Clerk staff authentication with PostgreSQL authorization and a provider-neutral fallback boundary.
+- Fail-closed built-in staff password authentication with PostgreSQL authorization, forced temporary-password replacement, revocable sessions and optional provider adapters.
 - Server-side permission checks for every protected layout.
 - PostgreSQL migrations for identity, RBAC, markets, shipping, EUR-based FX, builds and immutable build versions, orders, payments, invoices, coupons, checkout recovery, contact requests, localized messaging, analytics and audit events.
 - Append-only inventory movements and reservations, affiliate attribution/commissions/payouts, consent-aware visitor/session/page-view facts, and auditable private export jobs.
@@ -16,7 +16,7 @@ No tax, refund, cancellation, product-safety or trademark position is encoded as
 
 ## Local setup
 
-Requirements: Node.js 22+, npm and PostgreSQL 15+.
+Requirements: Node.js 24+, npm and PostgreSQL 15+.
 
 ```powershell
 cd C:\dev\Fotobrik\apps\admin
@@ -29,6 +29,44 @@ Provision the five separate database roles described in `docs/database-security.
 ```powershell
 npm run db:migrate
 ```
+
+For a brand-new provider database, the controlled role provisioner can create
+those five logins once. First disable Windows clipboard history and clipboard
+sync. Copy the Neon provider-owner **direct** connection into the OS clipboard,
+then run:
+
+```powershell
+.\scripts\prepare-database-provisioning.ps1
+```
+
+The command refuses an existing role or migrated database; it never rotates a
+credential. Before touching PostgreSQL it stores the generated values in a
+Windows-user-encrypted, one-time recovery file. The clipboard is then replaced
+with runtime variables only: pooled role URLs and the two authentication keys.
+It never contains the provider-owner or migrator URL.
+
+In Vercel, import that clipboard bundle into **Production only** for the
+`pixbrik-backoffice` project. Explicitly leave Preview and Development
+unchecked, and remove any owner-level URL that the provider integration added
+automatically. Keep the clipboard unchanged until initialization completes.
+Then pass the encrypted file path printed by the preparation command:
+
+```powershell
+.\scripts\initialize-database-from-clipboard.ps1 -RecoveryFile '<printed .dpapi path>'
+```
+
+The initializer cross-checks every role, password, key, Neon branch, pooled
+runtime hostname, and direct migration hostname before making a database call.
+It runs migrations, bootstraps `sam@benisty.ca`, shows the temporary password
+once, restores the caller's process environment, and removes the clipboard and
+encrypted recovery file after success. If clipboard delivery fails after role
+creation, copy the Neon owner direct URL again and recover the runtime bundle:
+
+```powershell
+.\scripts\resume-database-provisioning.ps1 -RecoveryFile '<printed .dpapi path>'
+```
+
+Never add the provider-owner or migrator connection to Vercel runtime variables.
 
 For local UI development only, set:
 
@@ -48,6 +86,67 @@ npm run dev -- --port 3001
 Open `http://localhost:3001/backoffice`. The authenticated dashboard uses that exact canonical path; staff sign-in is at `http://localhost:3001/backoffice/sign-in`.
 
 ## Staff authentication and authorization
+
+`AUTH_MODE=password` is the simplest production staff-login option. Passwords
+are Argon2id verifiers with a server-only pepper; the database stores only the
+verifier and an HMAC digest of each random session token. Temporary passwords
+expire after 24 hours and must be replaced on first sign-in. Ordinary sessions
+idle after 30 minutes and expire after 12 hours. Password resets, suspension,
+removal and password changes revoke existing sessions.
+
+Generate two independent 32-byte keys without printing them into build logs and
+set them using the versioned format `v1:<canonical-base64url>`:
+
+```env
+AUTH_MODE=password
+AUTH_PASSWORD_PEPPER=v1:<32-byte-base64url>
+AUTH_SESSION_HMAC_KEY=v1:<different-32-byte-base64url>
+```
+
+For a controlled pepper rotation, increment the current version and temporarily
+set `AUTH_PASSWORD_PEPPER_PREVIOUS` to at most four comma-separated older keys.
+Their versions must be lower and all key material must be unique. A successful
+sign-in rehashes an older verifier with the current pepper; remove an old key
+only after no credential references that version.
+
+After migration `0007_local_staff_auth.sql` is applied, run the one-time owner
+bootstrap from a controlled, non-CI shell using only `IDENTITY_DATABASE_URL`
+and `AUTH_PASSWORD_PEPPER`. The two confirmations prevent an accidental reset
+or a temporary password being written to deployment logs:
+
+```powershell
+$env:CONFIRM_OWNER_BOOTSTRAP='sam@benisty.ca'
+$env:CONFIRM_TEMP_PASSWORD_OUTPUT='sam@benisty.ca'
+npm run auth:bootstrap-owner
+```
+
+The command activates the exact pre-seeded `sam@benisty.ca` owner, prints one
+random temporary password once, and cannot be replayed. It does not store the
+plaintext in SQL, Vercel, Git or the audit trail. The owner-only **Manage users**
+screen can create staff, reset a password to a new one-time temporary value,
+change roles, suspend/restore access and soft-remove access. Sensitive changes
+require current-password confirmation and are reauthorized in PostgreSQL.
+
+Existing passwords are never displayed or edited. “Reset password” creates a
+new temporary password, shows it once and signs that staff member out everywhere.
+
+If the primary owner loses access, the runtime app still cannot reset that
+account. A deployment operator can use the separately audited migrator-only
+recovery path from a controlled shell:
+
+```powershell
+$env:CONFIRM_OWNER_RECOVERY='sam@benisty.ca'
+$env:CONFIRM_TEMP_PASSWORD_OUTPUT='sam@benisty.ca'
+$env:OWNER_RECOVERY_REASON='Owner requested emergency access recovery'
+npm run auth:recover-owner
+```
+
+The recovery command requires `MIGRATION_DATABASE_URL`, revokes every existing
+owner session, forces another password change, records the reason, and prints
+the new temporary password only once. It refuses to print in CI unless an
+operator deliberately sets the documented break-glass override.
+
+### Optional Clerk adapter
 
 `AUTH_MODE=clerk` uses the current `@clerk/nextjs` adapter for staff authentication. Create a **separate Clerk application/instance for the admin**; do not reuse the public buyer application's publishable or secret keys. Disable public sign-up, invite only approved staff, require primary-email verification, and configure the `setup-mfa` session task as mandatory. Pending Clerk sessions are treated as signed out, and the server also rejects an active identity that has not enabled two-factor authentication.
 
@@ -79,8 +178,8 @@ Required before live traffic:
 - `IDENTITY_DATABASE_URL` (dedicated `pixbrik_identity_runtime` login; execute-only owner invitation claim)
 - `SERVICE_DATABASE_URL` (dedicated `pixbrik_service_runtime` login; jobs/webhooks only)
 - `MIGRATION_DATABASE_URL` using the provider's direct (non-pooler) endpoint, only in the controlled migration/deployment environment; never expose it to runtime functions
-- `APP_URL=https://www.pixbrik.com/backoffice`
-- `AUTH_MODE=clerk`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/backoffice/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/backoffice`, and `NEXT_PUBLIC_CLERK_PROXY_URL=/backoffice/__clerk` from the dedicated invite-only staff Clerk instance
+- `APP_URL=https://pixbrik-backoffice.vercel.app/backoffice` (or the future dedicated admin hostname)
+- `AUTH_MODE=password`, `AUTH_PASSWORD_PEPPER`, and `AUTH_SESSION_HMAC_KEY` for the built-in staff login; the two authentication keys must be independently generated versioned 32-byte base64url values
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`
 - `RESEND_FROM_EMAIL=PixBrik <hello@pixbrik.com>`
@@ -91,7 +190,12 @@ Required before live traffic:
 
 The Resend API key value starts with `re_`; create a restricted sending key for this project. Verify the selected sending domain and configure SPF, DKIM and DMARC before production. The app stores email locale, template version and provider event history so transactional messages can be audited without storing API keys.
 
-The `/backoffice` base path is compiled into the Next.js client bundles. Deploy this directory as the admin application, then configure the production router to send both `/backoffice` and `/backoffice/:path*` to that deployment. Deploying this app alone does not add a path route to the separate Expo buyer deployment.
+The `/backoffice` base path is compiled into the Next.js client bundles. Deploy
+this directory as the admin application on an origin isolated from the buyer
+site. The public `www.pixbrik.com/backoffice` entry must **redirect** (not
+reverse-proxy) to that isolated deployment. This separation prevents a buyer
+site script from inheriting the admin cookie or origin. Deploying this app alone
+does not add the entry route to the separate Expo buyer deployment.
 
 ## Money and FX rules
 

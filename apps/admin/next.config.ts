@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   basePath: "/backoffice",
   poweredByHeader: false,
   reactStrictMode: true,
+  serverExternalPackages: ["@node-rs/argon2"],
   async headers() {
     return [
       {

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { PasswordSignInForm } from "@/components/auth/password-sign-in-form";
 import { getOptionalPrincipal } from "@/lib/auth";
 import { authMode } from "@/lib/env";
 import { APP_ROUTES, PUBLIC_ROUTES } from "@/lib/routes";
@@ -11,6 +12,29 @@ export const dynamic = "force-dynamic";
 
 export default async function SignInPage() {
   const mode = authMode();
+
+  if (mode === "password") {
+    const principal = await getOptionalPrincipal();
+    if (principal) {
+      redirect(principal.mustChangePassword ? APP_ROUTES.changePassword : APP_ROUTES.dashboard);
+    }
+
+    return (
+      <main className="public-page">
+        <section className="sign-in-card" aria-labelledby="staff-sign-in-title">
+          <div className="sign-in-copy">
+            <span className="eyebrow">PixBrik backoffice</span>
+            <h1 id="staff-sign-in-title">Staff sign in.</h1>
+            <p>
+              Use your PixBrik admin email and password. A temporary password must be replaced
+              the first time you sign in.
+            </p>
+          </div>
+          <PasswordSignInForm />
+        </section>
+      </main>
+    );
+  }
 
   if (mode === "clerk") {
     const session = await auth({ treatPendingAsSignedOut: true });

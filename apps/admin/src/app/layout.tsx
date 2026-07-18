@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import "./globals.css";
+import "./auth.css";
 
 import { AuthProvider } from "@/components/auth-provider";
 import { localeDirection, normalizeLocale } from "@/lib/i18n";

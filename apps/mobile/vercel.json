@@ -26,15 +26,19 @@
       ]
     }
   ],
-  "rewrites": [
+  "redirects": [
     {
       "source": "/backoffice",
-      "destination": "https://pixbrik-backoffice.vercel.app/backoffice"
+      "destination": "https://pixbrik-backoffice.vercel.app/backoffice",
+      "permanent": false
     },
     {
       "source": "/backoffice/:path*",
-      "destination": "https://pixbrik-backoffice.vercel.app/backoffice/:path*"
-    },
+      "destination": "https://pixbrik-backoffice.vercel.app/backoffice/:path*",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

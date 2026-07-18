@@ -6,7 +6,7 @@ export type EnvironmentCheck = {
   group: "core" | "identity" | "payments" | "email" | "storage" | "fx" | "jobs";
 };
 
-export const AUTH_MODES = ["disabled", "development", "trusted-gateway", "clerk"] as const;
+export const AUTH_MODES = ["disabled", "development", "trusted-gateway", "clerk", "password"] as const;
 export type AuthMode = (typeof AUTH_MODES)[number];
 
 const nonEmpty = (value: string | undefined): boolean => Boolean(value?.trim());
@@ -45,6 +45,56 @@ function hasSafeAppOrigin(source: NodeJS.ProcessEnv): boolean {
   } catch {
     return false;
   }
+}
+
+type VersionedSecretMetadata = Readonly<{ version: number; key: Buffer }>;
+
+function versionedSecretMetadata(value: string | undefined): VersionedSecretMetadata | undefined {
+  const match = value?.match(/^v([1-9][0-9]*):([A-Za-z0-9_-]+)$/);
+  if (!match) return undefined;
+  const encoded = match[2];
+  try {
+    const decoded = Buffer.from(encoded, "base64url");
+    if (decoded.byteLength !== 32 || decoded.toString("base64url") !== encoded) return undefined;
+    const version = Number(match[1]);
+    if (!Number.isSafeInteger(version) || version < 1 || version > 2_147_483_647) return undefined;
+    return { version, key: decoded };
+  } catch {
+    return undefined;
+  }
+}
+
+function hasVersionedSecret(value: string | undefined): boolean {
+  return Boolean(versionedSecretMetadata(value));
+}
+
+function passwordPepperKeyringIsSafe(source: NodeJS.ProcessEnv): boolean {
+  const current = versionedSecretMetadata(source.AUTH_PASSWORD_PEPPER);
+  const session = versionedSecretMetadata(source.AUTH_SESSION_HMAC_KEY);
+  if (!current || !session || current.key.equals(session.key)) return false;
+
+  const configured = source.AUTH_PASSWORD_PEPPER_PREVIOUS;
+  if (!configured) return true;
+  if (configured !== configured.trim()) return false;
+  const entries = configured.split(",");
+  if (entries.length < 1 || entries.length > 4 || entries.some((entry) => !entry)) return false;
+
+  const seenVersions = new Set<number>([current.version]);
+  const seenKeys = [current.key, session.key];
+  for (const entry of entries) {
+    const previous = versionedSecretMetadata(entry);
+    if (
+      !previous
+      || previous.version >= current.version
+      || seenVersions.has(previous.version)
+      || seenKeys.some((key) => key.equals(previous.key))
+    ) {
+      return false;
+    }
+    seenVersions.add(previous.version);
+    seenKeys.push(previous.key);
+  }
+  return true;
 }
 
 export function authMode(source: NodeJS.ProcessEnv = process.env): AuthMode {
@@ -94,6 +144,12 @@ export function inspectEnvironment(source: NodeJS.ProcessEnv = process.env): Env
         || (mode === "clerk"
           && nonEmpty(source.CLERK_SECRET_KEY)
           && nonEmpty(source.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
+          && hasSafeAppOrigin(source))
+        || (mode === "password"
+          && nonEmpty(source.IDENTITY_DATABASE_URL)
+          && hasVersionedSecret(source.AUTH_PASSWORD_PEPPER)
+          && hasVersionedSecret(source.AUTH_SESSION_HMAC_KEY)
+          && passwordPepperKeyringIsSafe(source)
           && hasSafeAppOrigin(source)),
       requiredForLaunch: true,
       group: "identity"
@@ -168,5 +224,26 @@ export function assertSafeAuthEnvironment(source: NodeJS.ProcessEnv = process.en
   }
   if (mode === "trusted-gateway" && !nonEmpty(source.AUTH_GATEWAY_SECRET)) {
     throw new Error("AUTH_MODE=trusted-gateway requires AUTH_GATEWAY_SECRET");
+  }
+  if (mode === "password") {
+    if (!nonEmpty(source.IDENTITY_DATABASE_URL)) {
+      throw new Error("AUTH_MODE=password requires IDENTITY_DATABASE_URL");
+    }
+    if (!hasVersionedSecret(source.AUTH_PASSWORD_PEPPER)) {
+      throw new Error("AUTH_MODE=password requires a versioned, canonical 32-byte base64url AUTH_PASSWORD_PEPPER");
+    }
+    if (!hasVersionedSecret(source.AUTH_SESSION_HMAC_KEY)) {
+      throw new Error("AUTH_MODE=password requires a versioned, canonical 32-byte base64url AUTH_SESSION_HMAC_KEY");
+    }
+    if (!passwordPepperKeyringIsSafe(source)) {
+      throw new Error(
+        "Password pepper and session HMAC key material must be different; previous peppers must use unique lower versions (maximum four)"
+      );
+    }
+    const origin = appOrigin(source);
+    if (!origin) throw new Error("AUTH_MODE=password requires APP_URL");
+    if (source.NODE_ENV === "production" && !origin.startsWith("https://")) {
+      throw new Error("AUTH_MODE=password requires an HTTPS APP_URL in production");
+    }
   }
 }
