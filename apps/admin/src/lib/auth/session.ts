@@ -10,6 +10,7 @@ import { withDatabaseRole } from "@/lib/db";
 import { assertSafeAuthEnvironment, authMode, readEnv } from "@/lib/env";
 import type { Permission } from "@/lib/permissions";
 import type { Principal, VerifiedIdentity } from "@/lib/auth/types";
+import { APP_ROUTES } from "@/lib/routes";
 
 type DatabasePrincipal = {
   user_id: string;
@@ -186,12 +187,12 @@ export function hasPermission(principal: Principal, permission: Permission): boo
 
 export async function requirePrincipal(): Promise<Principal> {
   const principal = await getOptionalPrincipal();
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect(APP_ROUTES.signIn);
   return principal;
 }
 
 export async function requirePermission(permission: Permission): Promise<Principal> {
   const principal = await requirePrincipal();
-  if (!hasPermission(principal, permission)) redirect("/forbidden");
+  if (!hasPermission(principal, permission)) redirect(APP_ROUTES.forbidden);
   return principal;
 }

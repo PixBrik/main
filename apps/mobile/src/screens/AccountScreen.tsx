@@ -56,10 +56,10 @@ export function AccountScreen({
     >
       {!auth.configured ? (
         <View accessibilityRole="alert" style={styles.authUnavailable}>
-          <Text style={styles.authKicker}>SIGN-IN UNAVAILABLE</Text>
+          <Text style={styles.authKicker}>ACCOUNT SIGN-IN TEMPORARILY UNAVAILABLE</Text>
           <Text style={styles.authBody}>
-            Clerk is not configured on this deployment. You are not signed in; everything listed
-            below is stored only on this device.
+            Secure account sign-in has not been connected to this site yet. Your builds remain
+            stored on this device; please try again later or contact hello@pixbrik.com.
           </Text>
         </View>
       ) : !auth.loaded ? (

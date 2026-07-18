@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { requirePrincipal } from "@/lib/auth";
+import { APP_ROUTES } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +16,7 @@ export default async function CustomerPortalPage() {
         <p>
           This protected surface will contain design approvals, retakes, orders, invoices, delivery tracking and localized assembly guides. Order records will come from PostgreSQL rather than browser storage.
         </p>
-        <a className="primary-link" href="/admin">Return to operations</a>
+        <Link className="primary-link" href={APP_ROUTES.dashboard}>Return to operations</Link>
       </section>
     </main>
   );

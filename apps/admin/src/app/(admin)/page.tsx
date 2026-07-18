@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
 import { inspectEnvironment } from "@/lib/env";
 import { ADMIN_SECTIONS, COMPLIANCE_GATES, LAUNCH_CONFIG } from "@/lib/launch-config";
+import { adminSectionRoute } from "@/lib/routes";
 
 export default function LaunchControlPage() {
   const environment = inspectEnvironment();
@@ -123,7 +124,7 @@ export default function LaunchControlPage() {
         </div>
         <div className="module-grid">
           {ADMIN_SECTIONS.map((section) => (
-            <Link className="module-card" href={`/admin/${section.key}`} key={section.key}>
+            <Link className="module-card" href={adminSectionRoute(section.key)} key={section.key}>
               <h2>{section.label}</h2>
               <p>{section.description}</p>
               <span className="arrow" aria-hidden="true">→</span>

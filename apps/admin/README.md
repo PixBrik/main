@@ -1,6 +1,6 @@
 # PixBrik commerce and operations console
 
-This application is the isolated foundation for PixBrik's desktop admin and secure customer portal. It intentionally does not modify or replace the Expo buyer application.
+This application is the isolated foundation for PixBrik's desktop admin and secure customer portal. Its complete public surface is mounted at `/backoffice`; it intentionally does not modify or replace the Expo buyer application.
 
 ## Included in this scaffold
 
@@ -37,13 +37,15 @@ AUTH_MODE=development
 DEV_ADMIN_EMAIL=sam@benisty.ca
 ```
 
-`AUTH_MODE=development` is rejected when `NODE_ENV=production`. With authentication disabled, protected routes redirect to `/sign-in`; they never become public by accident.
+`AUTH_MODE=development` is rejected when `NODE_ENV=production`. With authentication disabled, protected routes redirect to `/backoffice/sign-in`; they never become public by accident.
 
 Then run:
 
 ```powershell
 npm run dev -- --port 3001
 ```
+
+Open `http://localhost:3001/backoffice`. The authenticated dashboard uses that exact canonical path; staff sign-in is at `http://localhost:3001/backoffice/sign-in`.
 
 ## Staff authentication and authorization
 
@@ -55,10 +57,12 @@ Set these runtime variables only after that dedicated instance is configured:
 AUTH_MODE=clerk
 CLERK_SECRET_KEY=<staff-instance-secret-key>
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<staff-instance-publishable-key>
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/backoffice/sign-in
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/backoffice
+NEXT_PUBLIC_CLERK_PROXY_URL=/backoffice/__clerk
 ```
 
-The Next.js 16 request proxy installs Clerk request context only in Clerk mode. It does not grant access. Protected server layouts still load the immutable namespaced subject (`clerk:<userId>`) from PostgreSQL and re-evaluate active, non-expired RBAC permissions on every authorization-sensitive request.
+The Next.js 16 request proxy installs Clerk request context only in Clerk mode. It proxies Clerk's Frontend API through `/backoffice/__clerk` and restricts token authorized-party validation to the origin derived from `APP_URL`; `APP_URL` must therefore be the absolute public admin URL, including `/backoffice`. The request proxy does not grant access. Protected server layouts still load the immutable namespaced subject (`clerk:<userId>`) from PostgreSQL and re-evaluate active, non-expired RBAC permissions on every authorization-sensitive request.
 
 The seeded owner row for `sam@benisty.ca` starts as an unbound invitation. On the first MFA-complete Clerk session, the server requires the Clerk primary email object to be verified and calls the migrator-owned `pixbrik.claim_seeded_clerk_owner` function through the isolated `pixbrik_identity_runtime` login. That function accepts only the exact seeded invitation, takes a row lock, verifies an existing non-expired owner assignment, binds the immutable Clerk user ID, and writes an append-only audit event. It never creates authority and email matching alone is never authorization. Other staff identities must be provisioned through a separately reviewed, audited invitation workflow before launch.
 
@@ -75,7 +79,8 @@ Required before live traffic:
 - `IDENTITY_DATABASE_URL` (dedicated `pixbrik_identity_runtime` login; execute-only owner invitation claim)
 - `SERVICE_DATABASE_URL` (dedicated `pixbrik_service_runtime` login; jobs/webhooks only)
 - `MIGRATION_DATABASE_URL` using the provider's direct (non-pooler) endpoint, only in the controlled migration/deployment environment; never expose it to runtime functions
-- `AUTH_MODE=clerk`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` from the dedicated invite-only staff Clerk instance
+- `APP_URL=https://www.pixbrik.com/backoffice`
+- `AUTH_MODE=clerk`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/backoffice/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/backoffice`, and `NEXT_PUBLIC_CLERK_PROXY_URL=/backoffice/__clerk` from the dedicated invite-only staff Clerk instance
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`
 - `RESEND_FROM_EMAIL=PixBrik <hello@pixbrik.com>`
@@ -85,6 +90,8 @@ Required before live traffic:
 - `CRON_SECRET`
 
 The Resend API key value starts with `re_`; create a restricted sending key for this project. Verify the selected sending domain and configure SPF, DKIM and DMARC before production. The app stores email locale, template version and provider event history so transactional messages can be audited without storing API keys.
+
+The `/backoffice` base path is compiled into the Next.js client bundles. Deploy this directory as the admin application, then configure the production router to send both `/backoffice` and `/backoffice/:path*` to that deployment. Deploying this app alone does not add a path route to the separate Expo buyer deployment.
 
 ## Money and FX rules
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertSafeAuthEnvironment, authMode, inspectEnvironment } from "../src/lib/env.ts";
+import { appOrigin, assertSafeAuthEnvironment, authMode, inspectEnvironment } from "../src/lib/env.ts";
 
 test("environment inspection reports presence without returning values", () => {
   const secret = "do-not-render-this-value";
@@ -24,6 +24,7 @@ test("environment inspection reports presence without returning values", () => {
 
 test("Clerk mode is launch-ready only when both dedicated instance keys exist", () => {
   const checks = inspectEnvironment({
+    APP_URL: "https://www.pixbrik.com/backoffice",
     AUTH_MODE: "clerk",
     CLERK_SECRET_KEY: "staff-secret",
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "staff-publishable"
@@ -33,14 +34,34 @@ test("Clerk mode is launch-ready only when both dedicated instance keys exist", 
   assert.equal(JSON.stringify(checks).includes("staff-secret"), false);
   assert.equal(JSON.stringify(checks).includes("staff-publishable"), false);
   assert.doesNotThrow(() => assertSafeAuthEnvironment({
+    APP_URL: "https://www.pixbrik.com/backoffice",
     AUTH_MODE: "clerk",
     CLERK_SECRET_KEY: "staff-secret",
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "staff-publishable"
   }));
   assert.throws(
-    () => assertSafeAuthEnvironment({ AUTH_MODE: "clerk", CLERK_SECRET_KEY: "staff-secret" }),
+    () => assertSafeAuthEnvironment({
+      APP_URL: "https://www.pixbrik.com/backoffice",
+      AUTH_MODE: "clerk",
+      CLERK_SECRET_KEY: "staff-secret"
+    }),
     /requires CLERK_SECRET_KEY and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/
   );
+  assert.throws(
+    () => assertSafeAuthEnvironment({
+      AUTH_MODE: "clerk",
+      CLERK_SECRET_KEY: "staff-secret",
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "staff-publishable"
+    }),
+    /requires APP_URL/
+  );
+});
+
+test("APP_URL supplies one credential-free authorized-party origin", () => {
+  assert.equal(appOrigin({ APP_URL: "https://www.pixbrik.com/backoffice" }), "https://www.pixbrik.com");
+  assert.equal(appOrigin({ APP_URL: "http://localhost:3001/backoffice" }), "http://localhost:3001");
+  assert.throws(() => appOrigin({ APP_URL: "javascript:alert(1)" }), /absolute HTTP\(S\)/);
+  assert.throws(() => appOrigin({ APP_URL: "https://user:pass@example.com/backoffice" }), /without credentials/);
 });
 
 test("development authentication is rejected in production", () => {

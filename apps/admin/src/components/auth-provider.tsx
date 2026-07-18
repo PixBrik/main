@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 
 import { assertSafeAuthEnvironment, authMode } from "@/lib/env";
+import { PUBLIC_ROUTES } from "@/lib/routes";
 
 type AuthProviderProps = Readonly<{
   children: React.ReactNode;
@@ -17,7 +18,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   if (authMode() !== "clerk") return <>{children}</>;
 
   return (
-    <ClerkProvider dynamic signInUrl="/sign-in">
+    <ClerkProvider
+      dynamic
+      proxyUrl={PUBLIC_ROUTES.clerkProxy}
+      signInUrl={PUBLIC_ROUTES.signIn}
+    >
       {children}
     </ClerkProvider>
   );

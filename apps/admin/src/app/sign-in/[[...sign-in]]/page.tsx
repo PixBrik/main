@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { getOptionalPrincipal } from "@/lib/auth";
 import { authMode } from "@/lib/env";
+import { APP_ROUTES, PUBLIC_ROUTES } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function SignInPage() {
     const session = await auth({ treatPendingAsSignedOut: true });
     if (session.isAuthenticated) {
       const principal = await getOptionalPrincipal();
-      if (principal) redirect("/admin");
+      if (principal) redirect(APP_ROUTES.dashboard);
 
       return (
         <main className="public-page">
@@ -26,7 +27,7 @@ export default async function SignInPage() {
               PixBrik staff access requires a verified primary email, completed multi-factor setup,
               and an active PostgreSQL role assignment. Email alone never grants access.
             </p>
-            <SignOutButton redirectUrl="/sign-in">
+            <SignOutButton redirectUrl={PUBLIC_ROUTES.signIn}>
               <button className="primary-link" type="button">Sign out and use another account</button>
             </SignOutButton>
           </section>
@@ -47,8 +48,8 @@ export default async function SignInPage() {
           </div>
           <SignIn
             routing="path"
-            path="/sign-in"
-            fallbackRedirectUrl="/admin"
+            path={PUBLIC_ROUTES.signIn}
+            fallbackRedirectUrl={PUBLIC_ROUTES.dashboard}
             withSignUp={false}
           />
         </section>
@@ -65,7 +66,7 @@ export default async function SignInPage() {
         {local ? (
           <>
             <p>Local development identity is enabled. This mode is rejected in production.</p>
-            <Link className="primary-link" href="/admin">Continue locally</Link>
+            <Link className="primary-link" href={APP_ROUTES.dashboard}>Continue locally</Link>
           </>
         ) : (
           <>

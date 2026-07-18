@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  basePath: "/backoffice",
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

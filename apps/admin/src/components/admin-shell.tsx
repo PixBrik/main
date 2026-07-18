@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BricklingAvatar } from "@/components/brickling-avatar";
 import type { Principal } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/lib/launch-config";
+import { adminSectionRoute, APP_ROUTES, PUBLIC_ROUTES } from "@/lib/routes";
 
 type AdminShellProps = {
   principal: Principal;
@@ -14,18 +15,18 @@ export function AdminShell({ principal, children }: AdminShellProps) {
   return (
     <div className="admin-frame">
       <aside className="sidebar">
-        <Link className="brand" href="/admin" aria-label="PixBrik operations home">
+        <Link className="brand" href={APP_ROUTES.dashboard} aria-label="PixBrik operations home">
           <span>PIXBRIK</span>
           <small>OPERATIONS</small>
         </Link>
 
         <nav className="nav-stack" aria-label="Administration">
-          <Link className="nav-link" href="/admin">
+          <Link className="nav-link" href={APP_ROUTES.dashboard}>
             <span className="nav-dot" />
             Launch control
           </Link>
           {ADMIN_SECTIONS.map((section) => (
-            <Link className="nav-link" href={`/admin/${section.key}`} key={section.key}>
+            <Link className="nav-link" href={adminSectionRoute(section.key)} key={section.key}>
               <span className="nav-dot" />
               {section.label}
             </Link>
@@ -52,11 +53,11 @@ export function AdminShell({ principal, children }: AdminShellProps) {
             <strong>Commerce, builds and fulfilment</strong>
           </div>
           <div className="topbar-actions">
-            <Link className="quiet-button" href="/portal">
+            <Link className="quiet-button" href={APP_ROUTES.portal}>
               Customer portal
             </Link>
             {principal.provider === "clerk" ? (
-              <SignOutButton redirectUrl="/sign-in">
+              <SignOutButton redirectUrl={PUBLIC_ROUTES.signIn}>
                 <button className="quiet-button" type="button">Sign out</button>
               </SignOutButton>
             ) : null}

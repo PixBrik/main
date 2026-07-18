@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const auth = await readFile(new URL("../src/lib/auth/session.ts", import.meta.url), "utf8");
-const layout = await readFile(new URL("../src/app/(admin)/admin/layout.tsx", import.meta.url), "utf8");
+const layout = await readFile(new URL("../src/app/(admin)/layout.tsx", import.meta.url), "utf8");
 const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 const migrationScript = await readFile(new URL("../scripts/migrate.mjs", import.meta.url), "utf8");
 const rowSecurity = await readFile(new URL("../migrations/0003_security_boundaries.sql", import.meta.url), "utf8");
@@ -23,7 +23,7 @@ test("admin access is revalidated inside the server layout", () => {
   assert.match(auth, /u\.status = 'active'/);
   assert.match(auth, /role_permission/);
   assert.match(auth, /ur\.expires_at IS NULL OR ur\.expires_at > now\(\)/);
-  assert.match(auth, /redirect\("\/sign-in"\)/);
+  assert.match(auth, /redirect\(APP_ROUTES\.signIn\)/);
 });
 
 test("trusted gateway identity requires a secret and constant-time comparison", () => {
@@ -33,13 +33,14 @@ test("trusted gateway identity requires a secret and constant-time comparison", 
 });
 
 test("Next 16 proxy installs Clerk context conditionally while server layouts authorize", () => {
-  assert.match(proxy, /clerkMiddleware\(\)/);
+  assert.match(proxy, /clerkMiddleware\(\{/);
   assert.match(proxy, /authMode\(\) !== "clerk"/);
   assert.match(proxy, /NextResponse\.next\(\)/);
+  assert.match(proxy, /assertSafeAuthEnvironment\(\);\s*return clerkProxy/);
   assert.doesNotMatch(proxy, /\.protect\(/);
   assert.match(layout, /requirePermission\("dashboard\.read"\)/);
   assert.match(authProvider, /authMode\(\) !== "clerk"/);
-  assert.match(authProvider, /<ClerkProvider dynamic signInUrl="\/sign-in">/);
+  assert.match(authProvider, /<ClerkProvider[\s\S]*proxyUrl=\{PUBLIC_ROUTES\.clerkProxy\}[\s\S]*signInUrl=\{PUBLIC_ROUTES\.signIn\}/);
   assert.match(authProvider, /assertSafeAuthEnvironment\(\)/);
 });
 
@@ -57,11 +58,11 @@ test("Clerk identity requires an MFA-complete verified primary email and immutab
 test("staff sign-in is catch-all, invite-only, and offers explicit sign-out", () => {
   assert.match(signIn, /<SignIn/);
   assert.match(signIn, /routing="path"/);
-  assert.match(signIn, /path="\/sign-in"/);
+  assert.match(signIn, /path=\{PUBLIC_ROUTES\.signIn\}/);
   assert.match(signIn, /withSignUp=\{false\}/);
   assert.match(signIn, /treatPendingAsSignedOut: true/);
-  assert.match(signIn, /<SignOutButton redirectUrl="\/sign-in">/);
-  assert.match(adminShell, /<SignOutButton redirectUrl="\/sign-in">/);
+  assert.match(signIn, /<SignOutButton redirectUrl=\{PUBLIC_ROUTES\.signIn\}>/);
+  assert.match(adminShell, /<SignOutButton redirectUrl=\{PUBLIC_ROUTES\.signIn\}>/);
   assert.doesNotMatch(adminShell, /UserButton|UserAvatar/);
   assert.match(avatar, /hashSeed\(seed\)/);
   assert.match(avatar, /role="img"/);

@@ -22,6 +22,31 @@ export function requireEnv(name: string, source: NodeJS.ProcessEnv = process.env
   return value;
 }
 
+export function appOrigin(source: NodeJS.ProcessEnv = process.env): string | undefined {
+  const value = readEnv("APP_URL", source);
+  if (!value) return undefined;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("APP_URL must be an absolute HTTP(S) URL");
+  }
+
+  if (!(["http:", "https:"] as string[]).includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw new Error("APP_URL must be an absolute HTTP(S) URL without credentials");
+  }
+  return parsed.origin;
+}
+
+function hasSafeAppOrigin(source: NodeJS.ProcessEnv): boolean {
+  try {
+    return Boolean(appOrigin(source));
+  } catch {
+    return false;
+  }
+}
+
 export function authMode(source: NodeJS.ProcessEnv = process.env): AuthMode {
   const mode = readEnv("AUTH_MODE", source) ?? "disabled";
   if (!AUTH_MODES.includes(mode as AuthMode)) {
@@ -68,7 +93,8 @@ export function inspectEnvironment(source: NodeJS.ProcessEnv = process.env): Env
         (mode === "trusted-gateway" && nonEmpty(source.AUTH_GATEWAY_SECRET))
         || (mode === "clerk"
           && nonEmpty(source.CLERK_SECRET_KEY)
-          && nonEmpty(source.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)),
+          && nonEmpty(source.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
+          && hasSafeAppOrigin(source)),
       requiredForLaunch: true,
       group: "identity"
     },
@@ -136,6 +162,9 @@ export function assertSafeAuthEnvironment(source: NodeJS.ProcessEnv = process.en
     throw new Error(
       "AUTH_MODE=clerk requires CLERK_SECRET_KEY and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
     );
+  }
+  if (mode === "clerk" && !appOrigin(source)) {
+    throw new Error("AUTH_MODE=clerk requires APP_URL with the trusted admin origin");
   }
   if (mode === "trusted-gateway" && !nonEmpty(source.AUTH_GATEWAY_SECRET)) {
     throw new Error("AUTH_MODE=trusted-gateway requires AUTH_GATEWAY_SECRET");

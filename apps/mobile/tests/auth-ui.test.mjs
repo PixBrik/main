@@ -60,7 +60,8 @@ test('account distinguishes Clerk identity from local data and performs real sig
   assert.match(account, /await auth\.signOut\(\)/);
   assert.match(account, /SIGNED IN WITH CLERK/);
   assert.match(account, /SAVED ON THIS DEVICE · NOT ACCOUNT-SYNCED/);
-  assert.match(account, /Clerk is not configured on this deployment/);
+  assert.match(account, /Secure account sign-in has not been connected to this site yet/);
+  assert.doesNotMatch(account, /Clerk is not configured on this deployment/);
   assert.match(account, /It will not be added to your Clerk account/);
   assert.match(webPanel, /from '@clerk\/expo\/web'/);
   assert.match(webPanel, /path="\/account"/);
