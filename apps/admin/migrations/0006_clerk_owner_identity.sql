@@ -38,13 +38,22 @@ BEGIN
     RAISE EXCEPTION 'pixbrik_identity_runtime has unsafe role attributes';
   END IF;
 
+  -- The identity login must never inherit another role. Neon automatically
+  -- grants newly created roles to its provider-owned neondb_owner role so the
+  -- database owner can continue administering them; that reverse grant does
+  -- not add privileges to the identity login and is the only permitted member.
   IF EXISTS (
     SELECT 1
     FROM pg_catalog.pg_auth_members membership
+    LEFT JOIN pg_catalog.pg_roles member_role
+      ON member_role.oid = membership.member
     WHERE membership.member = identity_oid
-       OR membership.roleid = identity_oid
+       OR (
+         membership.roleid = identity_oid
+         AND member_role.rolname IS DISTINCT FROM 'neondb_owner'
+       )
   ) THEN
-    RAISE EXCEPTION 'pixbrik_identity_runtime must have no role memberships';
+    RAISE EXCEPTION 'pixbrik_identity_runtime has unsafe role memberships';
   END IF;
 END;
 $migration$;

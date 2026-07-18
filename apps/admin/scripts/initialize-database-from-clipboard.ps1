@@ -173,6 +173,9 @@ try {
 
 if ($succeeded) {
   Remove-Item -LiteralPath $RecoveryFile -Force
-  Set-Clipboard -Value ''
+  # Windows PowerShell's Set-Clipboard rejects an empty string as null. A
+  # single whitespace character reliably replaces the secret bundle and is
+  # still treated as empty by every provisioning guard.
+  Set-Clipboard -Value ' '
   Write-Output 'PixBrik database initialized. Temporary process variables, clipboard contents, and encrypted recovery material were removed.'
 }

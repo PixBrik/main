@@ -75,7 +75,9 @@ test("seeded Clerk owner claim is isolated, exact, row-locked, and audited", () 
   assert.match(databaseClient, /identity: "IDENTITY_DATABASE_URL"/);
   assert.match(databaseClient, /identity: "pixbrik_identity_runtime"/);
   assert.match(clerkIdentity, /migration 0006 must run directly as pixbrik_migrator/);
-  assert.match(clerkIdentity, /pixbrik_identity_runtime must have no role memberships/);
+  assert.match(clerkIdentity, /membership\.member = identity_oid/);
+  assert.match(clerkIdentity, /member_role\.rolname IS DISTINCT FROM 'neondb_owner'/);
+  assert.match(clerkIdentity, /pixbrik_identity_runtime has unsafe role memberships/);
   assert.match(clerkIdentity, /constant_owner_email constant text := 'sam@benisty\.ca'/);
   assert.match(clerkIdentity, /namespaced_subject := 'clerk:' \|\| clerk_user_id/);
   assert.match(clerkIdentity, /FOR UPDATE/);

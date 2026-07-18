@@ -32,7 +32,7 @@ test("clipboard initialization verifies pooled roles, one Neon branch, and encry
 test("clipboard initialization migrates, bootstraps exact owner, then clears secrets", () => {
   const migrationIndex = source.indexOf("npm run db:migrate");
   const bootstrapIndex = source.indexOf("npm run auth:bootstrap-owner");
-  const clearIndex = source.indexOf("Set-Clipboard -Value ''");
+  const clearIndex = source.indexOf("Set-Clipboard -Value ' '");
   assert.ok(migrationIndex >= 0 && migrationIndex < bootstrapIndex);
   assert.ok(bootstrapIndex < clearIndex);
   assert.match(source, /CONFIRM_OWNER_BOOTSTRAP = 'sam@benisty\.ca'/);
