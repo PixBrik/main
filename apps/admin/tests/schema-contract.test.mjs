@@ -6,6 +6,7 @@ const core = await readFile(new URL("../migrations/0001_commerce_core.sql", impo
 const seed = await readFile(new URL("../migrations/0002_launch_configuration.sql", import.meta.url), "utf8");
 const operations = await readFile(new URL("../migrations/0004_operations_domains.sql", import.meta.url), "utf8");
 const hardening = await readFile(new URL("../migrations/0005_security_hardening.sql", import.meta.url), "utf8");
+const clerkIdentity = await readFile(new URL("../migrations/0006_clerk_owner_identity.sql", import.meta.url), "utf8");
 
 test("commerce schema contains the required versioned domains", () => {
   for (const table of [
@@ -88,6 +89,18 @@ test("Arabic, requested currencies and invited owner are seeded", () => {
   for (const currency of ["EUR", "GBP", "USD", "CAD", "AUD"]) assert.ok(seed.includes(`'${currency}'`));
   assert.ok(seed.includes("sam@benisty.ca"));
   assert.match(seed, /'staff', 'invited'/);
+});
+
+test("the invited owner can only be bound, never created or granted authority, by the Clerk claim", () => {
+  assert.match(clerkIdentity, /CREATE FUNCTION claim_seeded_clerk_owner/);
+  assert.match(clerkIdentity, /before_user\.status <> 'invited'/);
+  assert.match(clerkIdentity, /before_user\.external_subject IS NOT NULL/);
+  assert.match(clerkIdentity, /before_user\.email_verified_at IS NOT NULL/);
+  assert.match(clerkIdentity, /assignment\.expires_at IS NULL OR assignment\.expires_at > claimed_at/);
+  assert.match(clerkIdentity, /external_subject = namespaced_subject/);
+  assert.match(clerkIdentity, /status = 'active'/);
+  assert.match(clerkIdentity, /audit_event_owner_claim_request_once/);
+  assert.doesNotMatch(clerkIdentity, /INSERT INTO pixbrik\.(?:app_user|user_role|role)/);
 });
 
 test("inventory, affiliates, page views and export jobs have first-class schemas", () => {

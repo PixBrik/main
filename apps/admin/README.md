@@ -5,7 +5,7 @@ This application is the isolated foundation for PixBrik's desktop admin and secu
 ## Included in this scaffold
 
 - A desktop-first operations shell with launch-readiness and module views.
-- A fail-closed, provider-neutral authentication/authorization boundary.
+- Fail-closed Clerk staff authentication with PostgreSQL authorization and a provider-neutral fallback boundary.
 - Server-side permission checks for every protected layout.
 - PostgreSQL migrations for identity, RBAC, markets, shipping, EUR-based FX, builds and immutable build versions, orders, payments, invoices, coupons, checkout recovery, contact requests, localized messaging, analytics and audit events.
 - Append-only inventory movements and reservations, affiliate attribution/commissions/payouts, consent-aware visitor/session/page-view facts, and auditable private export jobs.
@@ -24,7 +24,7 @@ Copy-Item .env.example .env.local
 npm install
 ```
 
-Provision the four separate database roles described in `docs/database-security.md`. Set `ADMIN_DATABASE_URL`, `CUSTOMER_DATABASE_URL`, `SERVICE_DATABASE_URL`, and deployment-only `MIGRATION_DATABASE_URL`, then apply migrations:
+Provision the five separate database roles described in `docs/database-security.md`. Set `ADMIN_DATABASE_URL`, `CUSTOMER_DATABASE_URL`, `IDENTITY_DATABASE_URL`, `SERVICE_DATABASE_URL`, and deployment-only `MIGRATION_DATABASE_URL`, then apply migrations:
 
 ```powershell
 npm run db:migrate
@@ -45,11 +45,24 @@ Then run:
 npm run dev -- --port 3001
 ```
 
-## Authentication integration boundary
+## Staff authentication and authorization
 
-`src/lib/auth` separates identity verification from PixBrik authorization. Production identity must be supplied by a reviewed adapter (recommended candidates are Clerk or Auth0), while roles and permissions remain in PostgreSQL. Never make provider metadata or a route proxy the only authorization gate.
+`AUTH_MODE=clerk` uses the current `@clerk/nextjs` adapter for staff authentication. Create a **separate Clerk application/instance for the admin**; do not reuse the public buyer application's publishable or secret keys. Disable public sign-up, invite only approved staff, require primary-email verification, and configure the `setup-mfa` session task as mandatory. Pending Clerk sessions are treated as signed out, and the server also rejects an active identity that has not enabled two-factor authentication.
 
-The owner row is seeded as an invitation with no external identity. After choosing the provider, link its immutable subject identifier to `pixbrik.app_user.external_subject`. The application then loads roles and permissions from the database on every authorization-sensitive request.
+Set these runtime variables only after that dedicated instance is configured:
+
+```env
+AUTH_MODE=clerk
+CLERK_SECRET_KEY=<staff-instance-secret-key>
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<staff-instance-publishable-key>
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+```
+
+The Next.js 16 request proxy installs Clerk request context only in Clerk mode. It does not grant access. Protected server layouts still load the immutable namespaced subject (`clerk:<userId>`) from PostgreSQL and re-evaluate active, non-expired RBAC permissions on every authorization-sensitive request.
+
+The seeded owner row for `sam@benisty.ca` starts as an unbound invitation. On the first MFA-complete Clerk session, the server requires the Clerk primary email object to be verified and calls the migrator-owned `pixbrik.claim_seeded_clerk_owner` function through the isolated `pixbrik_identity_runtime` login. That function accepts only the exact seeded invitation, takes a row lock, verifies an existing non-expired owner assignment, binds the immutable Clerk user ID, and writes an append-only audit event. It never creates authority and email matching alone is never authorization. Other staff identities must be provisioned through a separately reviewed, audited invitation workflow before launch.
+
+`AUTH_MODE=development` remains local-only and is rejected in production. `disabled` remains fail-closed. The trusted-gateway adapter remains available for controlled migrations but is not the recommended production admin mode.
 
 ## Vercel environment variables
 
@@ -59,9 +72,10 @@ Required before live traffic:
 
 - `ADMIN_DATABASE_URL` (dedicated `pixbrik_admin_runtime` login)
 - `CUSTOMER_DATABASE_URL` (dedicated `pixbrik_customer_runtime` login; buyer handlers only)
+- `IDENTITY_DATABASE_URL` (dedicated `pixbrik_identity_runtime` login; execute-only owner invitation claim)
 - `SERVICE_DATABASE_URL` (dedicated `pixbrik_service_runtime` login; jobs/webhooks only)
 - `MIGRATION_DATABASE_URL` using the provider's direct (non-pooler) endpoint, only in the controlled migration/deployment environment; never expose it to runtime functions
-- the variables required by the selected identity provider
+- `AUTH_MODE=clerk`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` from the dedicated invite-only staff Clerk instance
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`
 - `RESEND_FROM_EMAIL=PixBrik <hello@pixbrik.com>`
@@ -90,4 +104,4 @@ The brand/trademark review should also ensure PixBrik does not suggest sponsorsh
 
 `scripts/migrate.mjs` records an LF-normalized SHA-256 checksum for every applied migration. It refuses to continue if an already-applied migration has changed, while accepting the legacy CRLF checksum produced by the earlier Windows runner. Add a new numbered migration instead of editing an applied file.
 
-The migrator applies the complete pending batch under one transaction-scoped PostgreSQL advisory lock, preventing concurrent deployments from racing the same DDL even when infrastructure uses transaction pooling. Configure the privileged migration credential with the provider's direct endpoint anyway: migration DDL must not depend on a runtime pooler's statement support, timeouts or routing. Migration files must remain transaction-safe (for example, do not use `CREATE INDEX CONCURRENTLY`). The runtime logins are separate from the schema owner and receive no schema-change or delete grant; customer-owned records additionally use forced row-level security. See `docs/database-security.md` before connecting application queries.
+The migrator applies the complete pending batch under one transaction-scoped PostgreSQL advisory lock, preventing concurrent deployments from racing the same DDL even when infrastructure uses transaction pooling. Configure the privileged migration credential with the provider's direct endpoint anyway: migration DDL must not depend on a runtime pooler's statement support, timeouts or routing. Migration files must remain transaction-safe (for example, do not use `CREATE INDEX CONCURRENTLY`). The runtime logins are separate from the schema owner and receive no schema-change or delete grant; customer-owned records additionally use forced row-level security. The identity login has no table or sequence privileges and can execute only the audited owner-claim function. See `docs/database-security.md` before connecting application queries.

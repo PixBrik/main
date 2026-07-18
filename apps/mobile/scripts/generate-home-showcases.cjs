@@ -58,22 +58,26 @@ const SOURCES = [
     floorLimit: 0.77,
     floorShadow: {
       startY: 0.67,
-      hardCutY: 0.735,
+      // Keep the tyres' true lower contour; the studio sweep continues below
+      // them, so the global cutoff can sit safely beneath the wheels.
+      hardCutY: 0.77,
       maximumDelta: 50,
       maximumChroma: 28,
       minimumPaleLuma: 130,
-      // Below the front bumper/hood, the source contains only its cast shadow.
-      // Keep both reviewed grid rows of the real lower bumper: at 72x72 the
-      // centre of row 50 is 0.7014, while row 51 starts the shadow-only field.
-      // A 0.70 boundary silently deleted row 50 and made the nose look broken.
-      dropRegions: [
-        { minX: 0, maxX: 0.52, minY: 51 / 72, maxY: 1 },
-      ],
       // The two wheel regions are semantic foreground, even where polished
       // rims approach the neutral studio sweep in colour.
       protectedRegions: [
+        // Preserve the complete black lower valance. Its last antialiased row
+        // is darker than the warm sweep and touches the cast shadow, so a
+        // rectangular shadow cut makes the front bumper look broken.
+        { minX: 0.055, maxX: 0.52, minY: 0.665, maxY: 51 / 72 },
         { minX: 0.52, maxX: 0.72, minY: 0.53, maxY: 0.76 },
         { minX: 0.8, maxX: 0.96, minY: 0.48, maxY: 0.72 },
+      ],
+      // The left field below the valance is genuinely only cast shadow. Keep
+      // it empty without applying that rectangular rule to either wheel.
+      dropRegions: [
+        { minX: 0, maxX: 0.52, minY: 51 / 72, maxY: 1 },
       ],
     },
     // One conservative pass may drop only pale neutral antialias cells. The

@@ -1,12 +1,13 @@
 import "server-only";
 
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { withDatabaseRole } from "@/lib/db";
-import { assertSafeAuthEnvironment, readEnv } from "@/lib/env";
+import { assertSafeAuthEnvironment, authMode, readEnv } from "@/lib/env";
 import type { Permission } from "@/lib/permissions";
 import type { Principal, VerifiedIdentity } from "@/lib/auth/types";
 
@@ -36,21 +37,91 @@ async function readTrustedGatewayIdentity(): Promise<VerifiedIdentity | null> {
   const subject = requestHeaders.get("x-pixbrik-user-subject")?.trim();
   const email = requestHeaders.get("x-pixbrik-user-email")?.trim().toLowerCase();
   if (!subject || !email || !email.includes("@")) return null;
-  return { subject, email, displayName: requestHeaders.get("x-pixbrik-user-name") ?? undefined };
+  return {
+    subject,
+    email,
+    displayName: requestHeaders.get("x-pixbrik-user-name") ?? undefined,
+    provider: "trusted-gateway"
+  };
+}
+
+function clerkSubject(userId: string): string {
+  return `clerk:${userId}`;
+}
+
+/**
+ * Clerk is authentication only. A verified, active session supplies an
+ * immutable subject; PostgreSQL remains the authorization boundary.
+ * Pending sessions (including setup-mfa) are deliberately treated as signed out.
+ */
+async function readClerkIdentity(): Promise<VerifiedIdentity | null> {
+  const session = await auth({ treatPendingAsSignedOut: true });
+  if (!session.isAuthenticated || !session.userId) return null;
+
+  const user = await currentUser({ treatPendingAsSignedOut: true });
+  if (!user || user.id !== session.userId || !user.twoFactorEnabled) return null;
+
+  const primaryEmail = user.primaryEmailAddress;
+  if (
+    !primaryEmail
+    || primaryEmail.id !== user.primaryEmailAddressId
+    || primaryEmail.verification?.status !== "verified"
+  ) {
+    return null;
+  }
+
+  const email = primaryEmail.emailAddress.trim().toLowerCase();
+  if (!email || !email.includes("@")) return null;
+
+  return {
+    subject: clerkSubject(user.id),
+    email,
+    displayName: user.fullName ?? undefined,
+    provider: "clerk",
+    providerEmailId: primaryEmail.id
+  };
 }
 
 async function resolveVerifiedIdentity(): Promise<VerifiedIdentity | null> {
   assertSafeAuthEnvironment();
-  const mode = readEnv("AUTH_MODE") ?? "disabled";
+  const mode = authMode();
 
   if (mode === "disabled") return null;
   if (mode === "development") {
     const email = readEnv("DEV_ADMIN_EMAIL") ?? "sam@benisty.ca";
-    return { subject: `development:${email}`, email, displayName: "Local owner" };
+    return {
+      subject: `development:${email}`,
+      email,
+      displayName: "Local owner",
+      provider: "development"
+    };
   }
   if (mode === "trusted-gateway") return readTrustedGatewayIdentity();
+  if (mode === "clerk") return readClerkIdentity();
 
-  throw new Error(`Unsupported AUTH_MODE: ${mode}`);
+  return null;
+}
+
+async function claimSeededClerkOwner(identity: VerifiedIdentity): Promise<boolean> {
+  if (identity.provider !== "clerk" || !identity.providerEmailId) return false;
+  const clerkEmailId = identity.providerEmailId;
+  try {
+    const rows = await withDatabaseRole("identity", async (sql) => {
+      return sql<{ user_id: string }[]>`
+        SELECT pixbrik.claim_seeded_clerk_owner(
+          ${identity.subject.slice("clerk:".length)},
+          ${identity.email},
+          ${clerkEmailId},
+          ${randomUUID()}::uuid
+        )::text AS user_id
+      `;
+    });
+    return Boolean(rows[0]?.user_id);
+  } catch {
+    // Invitation state and database errors are intentionally indistinguishable
+    // to an authenticated but unauthorized identity.
+    return false;
+  }
 }
 
 async function loadDatabasePrincipal(identity: VerifiedIdentity): Promise<Principal | null> {
@@ -77,6 +148,7 @@ async function loadDatabasePrincipal(identity: VerifiedIdentity): Promise<Princi
   if (!row) return null;
 
   return {
+    ...identity,
     subject: identity.subject,
     userId: row.user_id,
     email: row.email,
@@ -91,7 +163,7 @@ export async function getOptionalPrincipal(): Promise<Principal | null> {
   const identity = await resolveVerifiedIdentity();
   if (!identity) return null;
 
-  if ((readEnv("AUTH_MODE") ?? "disabled") === "development") {
+  if (identity.provider === "development") {
     return {
       ...identity,
       userId: "development-owner",
@@ -101,7 +173,11 @@ export async function getOptionalPrincipal(): Promise<Principal | null> {
     };
   }
 
-  return loadDatabasePrincipal(identity);
+  const existing = await loadDatabasePrincipal(identity);
+  if (existing || identity.provider !== "clerk") return existing;
+
+  const claimed = await claimSeededClerkOwner(identity);
+  return claimed ? loadDatabasePrincipal(identity) : null;
 }
 
 export function hasPermission(principal: Principal, permission: Permission): boolean {

@@ -1,5 +1,7 @@
+import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 
+import { BricklingAvatar } from "@/components/brickling-avatar";
 import type { Principal } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/lib/launch-config";
 
@@ -31,9 +33,15 @@ export function AdminShell({ principal, children }: AdminShellProps) {
         </nav>
 
         <div className="sidebar-footer">
-          <span className="eyebrow">Signed in</span>
-          <strong>{principal.displayName ?? principal.email}</strong>
-          <span>{principal.roles.join(", ")}</span>
+          <BricklingAvatar
+            seed={`${principal.provider}:${principal.subject}`}
+            label={principal.displayName ?? principal.email}
+          />
+          <div className="sidebar-identity">
+            <span className="eyebrow">Signed in</span>
+            <strong>{principal.displayName ?? principal.email}</strong>
+            <span>{principal.roles.join(", ")}</span>
+          </div>
         </div>
       </aside>
 
@@ -47,6 +55,11 @@ export function AdminShell({ principal, children }: AdminShellProps) {
             <Link className="quiet-button" href="/portal">
               Customer portal
             </Link>
+            {principal.provider === "clerk" ? (
+              <SignOutButton redirectUrl="/sign-in">
+                <button className="quiet-button" type="button">Sign out</button>
+              </SignOutButton>
+            ) : null}
             <span className="environment-pill">Foundation</span>
           </div>
         </header>

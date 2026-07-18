@@ -64,7 +64,7 @@ test('account exposes persisted order details and the exact order guide', async 
   assert.match(account, /order\.paletteMode/);
   assert.match(account, /order\.parts\.toLocaleString/);
   assert.match(account, /Open this build's instructions/);
-  assert.match(account, /My builds \(\$\{buildCount\}\)/);
+  assert.match(account, /Device builds \(\$\{buildCount\}\)/);
 
   assert.match(app, /model=\{loadOrderModel\(selectedOrder\.model\)\}/);
   assert.match(app, /bomOverride=\{selectedOrder\.bom\}/);

@@ -15,7 +15,6 @@ export type DemoScreen =
   | 'stores'
   | 'checkout'
   | 'library'
-  | 'admin'
   | 'lab'
   | 'instructions';
 

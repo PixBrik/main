@@ -1,6 +1,6 @@
 # Fotobrik mobile foundation
 
-An original, local-only Expo prototype for the Fotobrik object-to-build journey. It runs on iOS, Android, and the web without a backend, account, camera permission, marketplace connection, or branded assets.
+An Expo prototype for the PixBrik object-to-build journey. Clerk identity is optional; builds and demo orders remain device-local until the PostgreSQL buyer APIs are connected.
 
 ## Run it
 
@@ -24,6 +24,18 @@ From this folder, verify the prototype with:
 ```bash
 npm run check
 ```
+
+## Optional Clerk identity
+
+Add the public key from the Clerk dashboard to the Expo/Vercel environment:
+
+```env
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_or_live_value
+```
+
+Do not add a Clerk secret key to the Expo bundle. If the publishable key is absent, the app starts normally and clearly labels account authentication as unavailable and all data as device-only.
+
+Expo web renders Clerk's official sign-in-or-up component on the dedicated `/account` path so its verification steps cannot collide with PixBrik's public-page hashes. iOS and Android keep a safe explanatory fallback in the current build because Clerk's prebuilt native UI requires a new Expo development build. Session tokens use Clerk's Expo token cache backed by `expo-secure-store`; signing in does not yet upload or claim existing local builds or demo orders, and local demo orders store no Clerk name, email, or subject.
 
 ## Demo path
 

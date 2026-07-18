@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { BricklingAvatar } from '../components/BricklingAvatar';
+import { ClerkAuthPanel } from '../components/ClerkAuthPanel';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { listBuilds } from '../lib/buildGallery';
 import { listOrders, type OrderRecord } from '../lib/orderStore';
+import { usePixBrikAuth } from '../lib/pixbrikAuth';
 import { colors, radius, spacing, type } from '../theme/tokens';
 
 interface AccountScreenProps {
@@ -24,24 +27,93 @@ export function AccountScreen({
   onOpenInstructions,
   selectedOrderId = null,
 }: AccountScreenProps) {
+  const auth = usePixBrikAuth();
   const [orders] = useState<OrderRecord[]>(listOrders);
   const [expandedId, setExpandedId] = useState<string | null>(selectedOrderId ?? orders[0]?.id ?? null);
   const [buildCount] = useState(() => listBuilds().length);
+  const [signOutState, setSignOutState] = useState<'idle' | 'working' | 'failed'>('idle');
+  const currentUser = auth.loaded && auth.isSignedIn ? auth.user : null;
+
+  const signOut = async () => {
+    if (!currentUser || signOutState === 'working') return;
+    setSignOutState('working');
+    try {
+      await auth.signOut();
+      setSignOutState('idle');
+    } catch {
+      setSignOutState('failed');
+    }
+  };
 
   return (
     <ScreenFrame
       accent="mint"
-      eyebrow="My account"
-      footer={<PrimaryButton label={`My builds (${buildCount})`} onPress={onOpenBuilds} />}
+      eyebrow={currentUser ? 'Account / Signed in' : 'Account / Device only'}
+      footer={<PrimaryButton label={`Device builds (${buildCount})`} onPress={onOpenBuilds} />}
       onBack={onBack}
-      subtitle="Orders and build guides are saved on this device while account sign-in is being prepared."
-      title="Your PixBrik orders."
+      subtitle="Identity and local project storage are separate. Signing in does not upload the builds or demo orders saved in this browser."
+      title={currentUser ? `Hi, ${currentUser.displayName.split(/\s+/)[0]}.` : 'Your PixBrik space.'}
     >
+      {!auth.configured ? (
+        <View accessibilityRole="alert" style={styles.authUnavailable}>
+          <Text style={styles.authKicker}>SIGN-IN UNAVAILABLE</Text>
+          <Text style={styles.authBody}>
+            Clerk is not configured on this deployment. You are not signed in; everything listed
+            below is stored only on this device.
+          </Text>
+        </View>
+      ) : !auth.loaded ? (
+        <View accessibilityLiveRegion="polite" style={styles.authUnavailable}>
+          <Text style={styles.authKicker}>CHECKING SECURE SIGN-IN…</Text>
+          <Text style={styles.authBody}>Your local builds remain available while account status loads.</Text>
+        </View>
+      ) : currentUser ? (
+        <View style={styles.identityCard}>
+          <BricklingAvatar
+            label={currentUser.displayName}
+            seed={currentUser.id}
+            size={58}
+          />
+          <View style={styles.identityCopy}>
+            <Text style={styles.authKicker}>SIGNED IN WITH CLERK</Text>
+            <Text style={styles.identityName}>{currentUser.displayName}</Text>
+            {currentUser.email ? <Text style={styles.identityEmail}>{currentUser.email}</Text> : null}
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: signOutState === 'working' }}
+            disabled={signOutState === 'working'}
+            onPress={() => void signOut()}
+            style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}
+          >
+            <Text style={styles.signOutText}>{signOutState === 'working' ? 'SIGNING OUT…' : 'SIGN OUT'}</Text>
+          </Pressable>
+          {signOutState === 'failed' ? (
+            <Text accessibilityRole="alert" style={styles.authError}>
+              Sign-out did not complete. Check your connection and try again.
+            </Text>
+          ) : null}
+          <Text style={styles.identityBoundary}>
+            Signing out ends the Clerk session. It does not delete or transfer this device's local data.
+          </Text>
+        </View>
+      ) : (
+        <ClerkAuthPanel />
+      )}
+
+      <View style={styles.deviceBoundary}>
+        <Text style={styles.deviceBoundaryTitle}>SAVED ON THIS DEVICE · NOT ACCOUNT-SYNCED</Text>
+        <Text style={styles.deviceBoundaryBody}>
+          {buildCount} build{buildCount === 1 ? '' : 's'} and {orders.length} demo order{orders.length === 1 ? '' : 's'} are visible only in this browser or app installation.
+        </Text>
+      </View>
+
+      <Text style={styles.sectionLabel}>DEVICE-LOCAL DEMO ORDERS</Text>
       {orders.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>NO ORDERS YET</Text>
           <Text style={styles.emptyBody}>
-            Complete the demo checkout and the exact kit, price, colours and generated guide will appear here.
+            Complete the demo checkout and the exact kit, price, colours and generated guide will appear on this device. It will not be added to your Clerk account.
           </Text>
         </View>
       ) : (
@@ -67,7 +139,7 @@ export function AccountScreen({
                     <Text style={styles.orderDate}>{date}</Text>
                   </View>
                   <View style={styles.orderHeadPrice}>
-                    <Text style={styles.status}>RESERVED · DEMO</Text>
+                    <Text style={styles.status}>SAVED · DEMO</Text>
                     <Text style={styles.total}>{money(order, order.totalPrice)}</Text>
                     <Text style={styles.chevron}>{expanded ? '−' : '+'}</Text>
                   </View>
@@ -146,6 +218,51 @@ export function AccountScreen({
 
 const styles = StyleSheet.create({
   orders: { gap: spacing.md },
+  authUnavailable: {
+    backgroundColor: colors.white,
+    borderColor: colors.ink,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  authKicker: { ...type.label, color: colors.ink },
+  authBody: { ...type.body, color: colors.inkSoft, fontSize: 13, marginTop: spacing.sm },
+  identityCard: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.ink,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  identityCopy: { flex: 1, minWidth: 150 },
+  identityName: { ...type.heading, color: colors.ink, fontSize: 18, marginTop: 2 },
+  identityEmail: { ...type.body, color: colors.inkSoft, fontSize: 12 },
+  signOut: {
+    borderColor: colors.ink,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: spacing.lg,
+  },
+  signOutText: { ...type.label, color: colors.ink },
+  authError: { ...type.body, color: colors.danger, flexBasis: '100%', fontSize: 12 },
+  identityBoundary: { ...type.body, color: colors.inkSoft, flexBasis: '100%', fontSize: 11 },
+  deviceBoundary: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  deviceBoundaryTitle: { ...type.label, color: colors.saffron },
+  deviceBoundaryBody: { ...type.body, color: colors.white, fontSize: 12, marginTop: spacing.xs },
+  sectionLabel: { ...type.label, color: colors.inkSoft, marginBottom: spacing.sm },
   emptyCard: {
     backgroundColor: colors.white,
     borderColor: colors.line,

@@ -111,7 +111,7 @@ test('all homepage samples are detailed, subject-only silhouettes', () => {
   const expected = {
     portrait: { borderOccupancy: 66, occupiedCells: 3088, paletteSize: 20 },
     pet: { borderOccupancy: 46, occupiedCells: 2672, paletteSize: 18 },
-    car: { borderOccupancy: 0, occupiedCells: 1423, paletteSize: 11 },
+    car: { borderOccupancy: 0, occupiedCells: 1435, paletteSize: 11 },
   };
 
   for (const [id, data] of Object.entries(generated)) {
@@ -151,7 +151,8 @@ test('semantic foreground guards preserve clothing and car parts without keeping
   const carRearWheel = { minX: 58, maxX: 66, minY: 35, maxY: 48 };
   const carLowerFrontBody = { minX: 8, maxX: 36, minY: 49, maxY: 50 };
   const carFloorShadow = { minX: 0, maxX: 36, minY: 51, maxY: 71 };
-  const belowCar = { minX: 0, maxX: 71, minY: 53, maxY: 71 };
+  const carMainWheelLowerArc = { minX: 37, maxX: 49, minY: 51, maxY: 54 };
+  const belowCar = { minX: 0, maxX: 71, minY: 55, maxY: 71 };
 
   assert.ok(regionOccupancy(portrait, shirt) >= 0.95, 'portrait shirt must not become transparent');
   assert.ok(
@@ -170,6 +171,10 @@ test('semantic foreground guards preserve clothing and car parts without keeping
     'the Porsche lower front contour must not be cut off with its floor shadow',
   );
   assert.equal(regionOccupancy(car, carFloorShadow), 0, 'studio floor shadow must be transparent');
+  assert.ok(
+    regionOccupancy(car, carMainWheelLowerArc) >= 0.6,
+    'the main wheel lower arc must survive floor-shadow removal',
+  );
   assert.equal(regionOccupancy(car, belowCar), 0, 'nothing may float below the car silhouette');
 
   const falseNeutralCarColours = new Set([

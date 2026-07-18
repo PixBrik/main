@@ -9,8 +9,14 @@ const migrationScript = await readFile(new URL("../scripts/migrate.mjs", import.
 const rowSecurity = await readFile(new URL("../migrations/0003_security_boundaries.sql", import.meta.url), "utf8");
 const operations = await readFile(new URL("../migrations/0004_operations_domains.sql", import.meta.url), "utf8");
 const hardening = await readFile(new URL("../migrations/0005_security_hardening.sql", import.meta.url), "utf8");
+const clerkIdentity = await readFile(new URL("../migrations/0006_clerk_owner_identity.sql", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const databaseClient = await readFile(new URL("../src/lib/db.ts", import.meta.url), "utf8");
+const proxy = await readFile(new URL("../src/proxy.ts", import.meta.url), "utf8");
+const authProvider = await readFile(new URL("../src/components/auth-provider.tsx", import.meta.url), "utf8");
+const signIn = await readFile(new URL("../src/app/sign-in/[[...sign-in]]/page.tsx", import.meta.url), "utf8");
+const adminShell = await readFile(new URL("../src/components/admin-shell.tsx", import.meta.url), "utf8");
+const avatar = await readFile(new URL("../src/components/brickling-avatar.tsx", import.meta.url), "utf8");
 
 test("admin access is revalidated inside the server layout", () => {
   assert.match(layout, /requirePermission\("dashboard\.read"\)/);
@@ -26,21 +32,80 @@ test("trusted gateway identity requires a secret and constant-time comparison", 
   assert.match(auth, /x-pixbrik-user-subject/);
 });
 
+test("Next 16 proxy installs Clerk context conditionally while server layouts authorize", () => {
+  assert.match(proxy, /clerkMiddleware\(\)/);
+  assert.match(proxy, /authMode\(\) !== "clerk"/);
+  assert.match(proxy, /NextResponse\.next\(\)/);
+  assert.doesNotMatch(proxy, /\.protect\(/);
+  assert.match(layout, /requirePermission\("dashboard\.read"\)/);
+  assert.match(authProvider, /authMode\(\) !== "clerk"/);
+  assert.match(authProvider, /<ClerkProvider dynamic signInUrl="\/sign-in">/);
+  assert.match(authProvider, /assertSafeAuthEnvironment\(\)/);
+});
+
+test("Clerk identity requires an MFA-complete verified primary email and immutable subject", () => {
+  assert.match(auth, /auth\(\{ treatPendingAsSignedOut: true \}\)/);
+  assert.match(auth, /currentUser\(\{ treatPendingAsSignedOut: true \}\)/);
+  assert.match(auth, /user\.twoFactorEnabled/);
+  assert.match(auth, /user\.primaryEmailAddress/);
+  assert.match(auth, /primaryEmail\.verification\?\.status !== "verified"/);
+  assert.match(auth, /`clerk:\$\{userId\}`/);
+  assert.match(auth, /WHERE u\.external_subject = \$\{identity\.subject\} AND u\.status = 'active'/);
+  assert.doesNotMatch(auth, /WHERE u\.email = \$\{identity\.email\}/);
+});
+
+test("staff sign-in is catch-all, invite-only, and offers explicit sign-out", () => {
+  assert.match(signIn, /<SignIn/);
+  assert.match(signIn, /routing="path"/);
+  assert.match(signIn, /path="\/sign-in"/);
+  assert.match(signIn, /withSignUp=\{false\}/);
+  assert.match(signIn, /treatPendingAsSignedOut: true/);
+  assert.match(signIn, /<SignOutButton redirectUrl="\/sign-in">/);
+  assert.match(adminShell, /<SignOutButton redirectUrl="\/sign-in">/);
+  assert.doesNotMatch(adminShell, /UserButton|UserAvatar/);
+  assert.match(avatar, /hashSeed\(seed\)/);
+  assert.match(avatar, /role="img"/);
+  assert.match(avatar, /aria-label=/);
+});
+
+test("seeded Clerk owner claim is isolated, exact, row-locked, and audited", () => {
+  assert.match(auth, /withDatabaseRole\("identity"/);
+  assert.match(auth, /claim_seeded_clerk_owner/);
+  assert.match(databaseClient, /identity: "IDENTITY_DATABASE_URL"/);
+  assert.match(databaseClient, /identity: "pixbrik_identity_runtime"/);
+  assert.match(clerkIdentity, /migration 0006 must run directly as pixbrik_migrator/);
+  assert.match(clerkIdentity, /pixbrik_identity_runtime must have no role memberships/);
+  assert.match(clerkIdentity, /constant_owner_email constant text := 'sam@benisty\.ca'/);
+  assert.match(clerkIdentity, /namespaced_subject := 'clerk:' \|\| clerk_user_id/);
+  assert.match(clerkIdentity, /FOR UPDATE/);
+  assert.match(clerkIdentity, /assigned_role\.key = 'owner'/);
+  assert.match(clerkIdentity, /INSERT INTO pixbrik\.audit_event/);
+  assert.match(clerkIdentity, /'identity\.owner_claimed'/);
+  assert.match(clerkIdentity, /SECURITY DEFINER[\s\S]*SET search_path = pg_catalog, pixbrik, pg_temp/);
+  assert.match(clerkIdentity, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA pixbrik FROM pixbrik_identity_runtime/);
+  assert.match(clerkIdentity, /GRANT EXECUTE ON FUNCTION claim_seeded_clerk_owner[\s\S]*TO pixbrik_identity_runtime/);
+  assert.doesNotMatch(clerkIdentity, /INSERT INTO pixbrik\.(?:app_user|user_role|role)/);
+});
+
 test("example environment contains placeholders, not live provider keys", () => {
   assert.match(envExample, /RESEND_API_KEY=\r?\n/);
   assert.match(envExample, /STRIPE_SECRET_KEY=\r?\n/);
+  assert.match(envExample, /CLERK_SECRET_KEY=\r?\n/);
+  assert.match(envExample, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=\r?\n/);
   assert.doesNotMatch(envExample, /(?:sk|rk|re)_(?:live|test)_[A-Za-z0-9]{12,}/);
 });
 
 test("migration and runtime credentials are separate and migrations serialize", () => {
   assert.match(envExample, /ADMIN_DATABASE_URL=/);
   assert.match(envExample, /CUSTOMER_DATABASE_URL=/);
+  assert.match(envExample, /IDENTITY_DATABASE_URL=/);
   assert.match(envExample, /SERVICE_DATABASE_URL=/);
   assert.match(envExample, /MIGRATION_DATABASE_URL=/);
   assert.match(migrationScript, /process\.env\.MIGRATION_DATABASE_URL/);
   assert.doesNotMatch(migrationScript, /process\.env\.DATABASE_URL/);
   assert.match(databaseClient, /admin: "ADMIN_DATABASE_URL"/);
   assert.match(databaseClient, /customer: "CUSTOMER_DATABASE_URL"/);
+  assert.match(databaseClient, /identity: "IDENTITY_DATABASE_URL"/);
   assert.match(databaseClient, /service: "SERVICE_DATABASE_URL"/);
   assert.match(migrationScript, /pg_advisory_xact_lock/);
   assert.doesNotMatch(migrationScript, /pg_advisory_unlock/);
@@ -96,6 +161,7 @@ test("all domain tables are forced behind rebuilt fail-closed policies", () => {
 });
 
 test("package dependency names are valid npm names", () => {
+  assert.ok(packageJson.dependencies["@clerk/nextjs"]);
   assert.ok(packageJson.devDependencies["@types/node"]);
   assert.ok(packageJson.devDependencies["@types/react"]);
   assert.ok(packageJson.devDependencies["@types/react-dom"]);

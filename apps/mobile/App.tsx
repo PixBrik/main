@@ -23,7 +23,6 @@ import { PreferencesScreen, variantForPreferences } from './src/screens/Preferen
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { PurchaseScreen } from './src/screens/PurchaseScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
-import { AdminScreen } from './src/screens/AdminScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
 import { LabScreen } from './src/screens/LabScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
@@ -39,6 +38,7 @@ import { accentForVariant, profileForVariant, resolveActiveModel } from './src/l
 import { hollowBuildModel } from './src/lib/brickify';
 import { clear360Capture, clear360ProviderRuns } from './src/lib/capture360Store';
 import { NavigationContext } from './src/lib/navigationContext';
+import { PixBrikAuthProvider } from './src/lib/pixbrikAuth';
 import { LEGAL_CONTENT_AVAILABLE } from './src/lib/legalAvailability';
 import { loadOrderModel, type OrderRecord } from './src/lib/orderStore';
 import {
@@ -69,6 +69,10 @@ const PUBLIC_INFORMATION_SCREENS = new Set<DemoScreen>([
   ...LEGAL_DOCUMENT_SCREENS,
   'contact',
 ]);
+const ADDRESSABLE_SCREENS = new Set<DemoScreen>([
+  ...PUBLIC_INFORMATION_SCREENS,
+  'account',
+]);
 const LEGAL_LOCALES = new Set<LegalLocale>(['en', 'fr', 'es', 'it', 'ar']);
 const LEGAL_LOCALE_STORAGE_KEY = 'pixbrik.legal-locale';
 
@@ -77,6 +81,19 @@ function legalScreenFromLocation(): DemoScreen | null {
   const candidate = window.location.hash.replace(/^#/, '') as DemoScreen;
   if (candidate === 'contact') return candidate;
   return LEGAL_CONTENT_AVAILABLE && LEGAL_DOCUMENT_SCREENS.has(candidate) ? candidate : null;
+}
+
+function accountScreenFromLocation(): DemoScreen | null {
+  if (typeof window === 'undefined') return null;
+  return /^\/account(?:\/|$)/.test(window.location.pathname) ? 'account' : null;
+}
+
+function locationForScreen(screen: DemoScreen): string {
+  if (typeof window === 'undefined') return '/';
+  const search = window.location.search;
+  if (screen === 'account') return `/account${search}`;
+  if (PUBLIC_INFORMATION_SCREENS.has(screen)) return `/${search}#${screen}`;
+  return `/${search}`;
 }
 
 function initialLegalLocale(): LegalLocale {
@@ -99,6 +116,8 @@ function initialScreen(): DemoScreen {
   if (typeof window !== 'undefined' && readGuideShareId(window.location.href)) {
     return 'instructions';
   }
+  const accountScreen = accountScreenFromLocation();
+  if (accountScreen) return accountScreen;
   const legalScreen = legalScreenFromLocation();
   if (legalScreen) return legalScreen;
   if (typeof window !== 'undefined' && /[#?&]lab\b/.test(window.location.hash + window.location.search)) {
@@ -134,7 +153,7 @@ interface Approved3DRecord {
   stills: string[];
 }
 
-export default function App() {
+function PixBrikApp() {
   const live3DAvailable =
     Platform.OS === 'web' && (process.env.EXPO_PUBLIC_TRIPO_ENABLED ?? '') === '1';
   const [fontsLoaded] = useFonts({
@@ -243,11 +262,11 @@ export default function App() {
       const stateScreen = (event.state as { pixbrikScreen?: unknown } | null)?.pixbrikScreen;
       const destination =
         typeof stateScreen === 'string' &&
-        (PUBLIC_INFORMATION_SCREENS.has(stateScreen as DemoScreen) ||
+        (ADDRESSABLE_SCREENS.has(stateScreen as DemoScreen) ||
           stateScreen === 'home' ||
           stateScreen === 'instructions')
           ? (stateScreen as DemoScreen)
-          : legalScreenFromLocation() ?? 'home';
+          : accountScreenFromLocation() ?? legalScreenFromLocation() ?? 'home';
       setHistory((current) => current.slice(0, -1));
       setScreen(destination);
     };
@@ -539,7 +558,10 @@ export default function App() {
       setSelectedOrder(null);
     }
 
-    if (typeof window !== 'undefined' && PUBLIC_INFORMATION_SCREENS.has(destination)) {
+    if (
+      typeof window !== 'undefined' &&
+      (ADDRESSABLE_SCREENS.has(destination) || ADDRESSABLE_SCREENS.has(screen))
+    ) {
       window.history.replaceState(
         { ...(window.history.state ?? {}), pixbrikScreen: screen },
         '',
@@ -548,7 +570,7 @@ export default function App() {
       window.history.pushState(
         { pixbrikScreen: destination },
         '',
-        `${window.location.pathname}${window.location.search}#${destination}`,
+        locationForScreen(destination),
       );
     }
 
@@ -559,8 +581,10 @@ export default function App() {
   const goBack = () => {
     if (
       typeof window !== 'undefined' &&
-      PUBLIC_INFORMATION_SCREENS.has(screen) &&
-      window.location.hash === `#${screen}`
+      ADDRESSABLE_SCREENS.has(screen) &&
+      (screen === 'account'
+        ? /^\/account(?:\/|$)/.test(window.location.pathname)
+        : window.location.hash === `#${screen}`)
     ) {
       setHistory((current) => current.slice(0, -1));
       window.history.back();
@@ -938,7 +962,6 @@ export default function App() {
             generating={libraryGenerating}
             onBack={goBack}
             onGenerate={generateFromLibrary}
-            onNavigate={navigate}
           />
         );
       case 'lab':
@@ -955,8 +978,6 @@ export default function App() {
             segmentation={photoSegmentation}
           />
         );
-      case 'admin':
-        return <AdminScreen onBack={goBack} />;
       case 'checkout':
         return (
           <CheckoutScreen
@@ -1064,6 +1085,14 @@ export default function App() {
         </SafeAreaView>
       </PaperCanvas>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <PixBrikAuthProvider>
+      <PixBrikApp />
+    </PixBrikAuthProvider>
   );
 }
 

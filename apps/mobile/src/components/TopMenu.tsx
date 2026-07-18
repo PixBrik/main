@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { BricklingAvatar } from './BricklingAvatar';
 import { useAppNavigation } from '../lib/navigationContext';
 import { LEGAL_CONTENT_AVAILABLE } from '../lib/legalAvailability';
+import { usePixBrikAuth } from '../lib/pixbrikAuth';
 import { colors, fonts, radius, shadow, spacing } from '../theme/tokens';
 import type { DemoScreen } from '../types/navigation';
 
@@ -18,12 +20,17 @@ const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
 ];
 
 /**
- * Global top-right chrome: account icon + hamburger. The menu is an ink
- * dropdown; the profile icon opens the persistent orders/account screen.
+ * Global top-right chrome: explicit sign-in or Brickling identity + menu.
+ * The identity control opens the account and device-local order screen.
  */
 export function TopMenu() {
   const navigate = useAppNavigation();
+  const auth = usePixBrikAuth();
   const [open, setOpen] = useState(false);
+  const shortName =
+    auth.user?.displayName.trim().split(/\s+/)[0] ||
+    auth.user?.email?.split('@')[0] ||
+    'Builder';
 
   const closeAll = () => {
     setOpen(false);
@@ -33,17 +40,37 @@ export function TopMenu() {
     <View style={styles.wrap}>
       <View style={styles.row}>
         <Pressable
-          accessibilityLabel="My account"
+          accessibilityLabel={
+            !auth.configured
+              ? 'Account; sign-in is unavailable on this deployment'
+              : !auth.loaded
+              ? 'Loading account status'
+              : auth.isSignedIn
+                ? `Account for ${auth.user?.displayName ?? 'PixBrik builder'}`
+                : 'Sign in to PixBrik'
+          }
           accessibilityRole="button"
           onPress={() => {
             setOpen(false);
             navigate('account');
           }}
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.accountButton, auth.isSignedIn && styles.accountButtonSignedIn, pressed && styles.pressed]}
         >
-          {/* Head + shoulders glyph, pure Views. */}
-          <View style={styles.accountHead} />
-          <View style={styles.accountBody} />
+          {auth.loaded && auth.isSignedIn && auth.user ? (
+            <>
+              <BricklingAvatar
+                decorative
+                label={auth.user.displayName}
+                seed={auth.user.id}
+                size={28}
+              />
+              <Text numberOfLines={1} style={styles.accountName}>{shortName}</Text>
+            </>
+          ) : (
+            <Text style={styles.signInText}>
+              {!auth.configured ? 'ACCOUNT' : auth.loaded ? 'SIGN IN' : 'ACCOUNT…'}
+            </Text>
+          )}
         </Pressable>
         <Pressable
           accessibilityLabel="Menu"
@@ -51,7 +78,7 @@ export function TopMenu() {
           onPress={() => {
             setOpen((current) => !current);
           }}
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.menuButton, pressed && styles.pressed]}
         >
           <View style={styles.burgerBar} />
           <View style={styles.burgerBar} />
@@ -91,7 +118,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  iconButton: {
+  accountButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    height: 40,
+    justifyContent: 'center',
+    minWidth: 84,
+    paddingHorizontal: spacing.md,
+    ...shadow.card,
+  },
+  accountButtonSignedIn: {
+    justifyContent: 'flex-start',
+    maxWidth: 156,
+    paddingLeft: 5,
+  },
+  menuButton: {
     alignItems: 'center',
     backgroundColor: colors.white,
     borderRadius: radius.pill,
@@ -104,18 +148,17 @@ const styles = StyleSheet.create({
   pressed: {
     transform: [{ scale: 0.94 }],
   },
-  accountHead: {
-    backgroundColor: colors.ink,
-    borderRadius: 5,
-    height: 9,
-    width: 9,
+  signInText: {
+    color: colors.ink,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    letterSpacing: 0.3,
   },
-  accountBody: {
-    backgroundColor: colors.ink,
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-    height: 7,
-    width: 16,
+  accountName: {
+    color: colors.ink,
+    flexShrink: 1,
+    fontFamily: fonts.display,
+    fontSize: 11,
   },
   burgerBar: {
     backgroundColor: colors.ink,

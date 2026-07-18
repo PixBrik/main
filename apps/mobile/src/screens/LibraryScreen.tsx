@@ -6,11 +6,9 @@ import { ScreenFrame } from '../components/ScreenFrame';
 import { LIBRARY_COLORS, type LibraryEntry } from '../data/carLibrary';
 import { listLibrary } from '../lib/libraryStore';
 import { colors, radius, spacing, type } from '../theme/tokens';
-import type { DemoScreen } from '../types/navigation';
 
 interface LibraryScreenProps {
   onBack: () => void;
-  onNavigate: (screen: DemoScreen) => void;
   onGenerate: (entry: LibraryEntry, colorHex: string) => Promise<void>;
   generating: boolean;
   generationProgress?: number;
@@ -20,7 +18,6 @@ type EraFilter = 'all' | 'classic' | 'modern';
 
 export function LibraryScreen({
   onBack,
-  onNavigate,
   onGenerate,
   generating,
   generationProgress = 0,
@@ -132,14 +129,6 @@ export function LibraryScreen({
         </View>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => onNavigate('admin')}
-        style={({ pressed }) => [styles.adminLink, pressed && styles.pressed]}
-      >
-        <Text style={styles.adminLinkText}>Manage library (admin) →</Text>
-      </Pressable>
-
       <Text style={styles.disclaimer}>
         Model names are generic and not affiliated with, endorsed by, or licensed from any vehicle
         manufacturer. Prototype library.
@@ -249,16 +238,6 @@ const styles = StyleSheet.create({
   colorDotActive: {
     borderColor: colors.ink,
     borderWidth: 3,
-  },
-  adminLink: {
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  adminLinkText: {
-    ...type.body,
-    color: colors.blue,
-    fontSize: 13,
-    fontWeight: '800',
   },
   pressed: {
     opacity: 0.6,

@@ -4,19 +4,21 @@ import postgres, { type Sql, type TransactionSql } from "postgres";
 
 import { requireEnv } from "@/lib/env";
 
-export type RuntimeDatabaseRole = "admin" | "customer" | "service";
+export type RuntimeDatabaseRole = "admin" | "customer" | "identity" | "service";
 
 const clients: Partial<Record<RuntimeDatabaseRole, Sql>> = {};
 
 const databaseEnvironment: Record<RuntimeDatabaseRole, string> = {
   admin: "ADMIN_DATABASE_URL",
   customer: "CUSTOMER_DATABASE_URL",
+  identity: "IDENTITY_DATABASE_URL",
   service: "SERVICE_DATABASE_URL"
 };
 
 const expectedDatabaseUser: Record<RuntimeDatabaseRole, string> = {
   admin: "pixbrik_admin_runtime",
   customer: "pixbrik_customer_runtime",
+  identity: "pixbrik_identity_runtime",
   service: "pixbrik_service_runtime"
 };
 

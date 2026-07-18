@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
@@ -7,6 +7,7 @@ import { countries } from '../data/mockData';
 import { accentForVariant, profileForVariant, resolveActiveModel } from '../lib/activeBuild';
 import { estimateBuild, hollowBuildModel, isCatalogStockError } from '../lib/brickify';
 import { saveBuild } from '../lib/buildGallery';
+import { useAppNavigation } from '../lib/navigationContext';
 import {
   createOrder,
   inferOrderPaletteMode,
@@ -14,6 +15,7 @@ import {
   type OrderRecord,
 } from '../lib/orderStore';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
+import { usePixBrikAuth } from '../lib/pixbrikAuth';
 import { estimateDelivery } from '../lib/shippingEstimate';
 import { colors, radius, spacing, type } from '../theme/tokens';
 import type { BuildFill, BuildProduct } from '../types/navigation';
@@ -53,11 +55,14 @@ export function CheckoutScreen({
   source3DMeshUrl = null,
   source3DRetakesRemaining = 0,
 }: CheckoutScreenProps) {
-  const [guest, setGuest] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [placed, setPlaced] = useState<OrderRecord | null>(null);
   const [storageError, setStorageError] = useState('');
+  const auth = usePixBrikAuth();
+  const navigate = useAppNavigation();
+  const authLoading = auth.configured && !auth.loaded;
+  const signedIn = auth.loaded && auth.isSignedIn && !!auth.user;
+  const customerEmail = signedIn ? auth.user?.email ?? null : null;
+  const customerName = signedIn ? auth.user?.displayName ?? null : null;
 
   const country = countries.find((candidate) => candidate.code === countryCode) ?? countries[0];
   const currency = currencyMeta[country?.currency ?? 'EUR'] ?? { rate: 1, symbol: '€' };
@@ -95,9 +100,6 @@ export function CheckoutScreen({
   const side = buildFill === 'hollow' ? estimate.hollow : estimate.full;
   const total = side.bundleEur + delivery.costEur;
 
-  const identified = guest || (name.trim().length > 1 && /.+@.+\..+/.test(email));
-  const canPlace = identified;
-
   const placeOrder = () => {
     setStorageError('');
     const orderedModel = buildFill === 'hollow' ? hollowBuildModel(model) : model;
@@ -118,11 +120,11 @@ export function CheckoutScreen({
       countryCode,
       currency: country?.currency ?? 'EUR',
       currencySymbol: currency.symbol,
-      customerEmail: guest ? null : email,
-      customerName: guest ? null : name,
+      customerEmail: null,
+      customerName: null,
       deliveryRange: delivery.rangeLabel,
       fill: buildFill,
-      guest,
+      guest: true,
       kitPrice: Number((side.bundleEur * currency.rate).toFixed(2)),
       model: orderedModel,
       paletteMode: paletteMode ?? inferOrderPaletteMode(orderedModel),
@@ -144,14 +146,16 @@ export function CheckoutScreen({
 
   if (placed) {
     return (
-      <ScreenFrame accent="mint" eyebrow="Order / Confirmed" onBack={onBack} title="Kit reserved.">
+      <ScreenFrame accent="mint" eyebrow="Demo / Saved" onBack={onBack} title="Demo order saved.">
         <View style={styles.doneCard}>
           <Text style={styles.doneMark}>✓</Text>
-          <Text style={styles.doneTitle}>Thanks{name ? `, ${name.split(' ')[0]}` : ''}!</Text>
+          <Text style={styles.doneTitle}>
+            Thanks{customerName ? `, ${customerName.split(' ')[0]}` : ''}!
+          </Text>
           <Text style={styles.doneBody}>
-            Your {buildFill} {buildName} kit ({placed.parts} parts) is reserved under order {placed.id}.
-            Its exact model, colours, price and generated instructions are now saved in My Account on
-            this device. This is still a demo reservation — no payment was taken.
+            Your {buildFill} {buildName} kit ({placed.parts} parts) is saved as demo order {placed.id}.
+            Its exact model, colours, price and generated instructions are saved in the device section
+            of Account. This is a local demo record: it is not synced and no payment was taken.
           </Text>
         </View>
         <View style={styles.doneActions}>
@@ -175,8 +179,7 @@ export function CheckoutScreen({
       footer={
         <PrimaryButton
           accessibilityHint="Prototype checkout — no payment is processed"
-          disabled={!canPlace}
-          label={canPlace ? 'Place order (demo)' : 'Add your details to continue'}
+          label="Save demo order on this device"
           onPress={placeOrder}
         />
       }
@@ -207,55 +210,38 @@ export function CheckoutScreen({
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>YOUR DETAILS</Text>
-      <View style={styles.accountToggle}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setGuest(false)}
-          style={[styles.toggleChip, !guest && styles.toggleChipActive]}
-        >
-          <Text style={[styles.toggleText, !guest && styles.toggleTextActive]}>Create account</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setGuest(true)}
-          style={[styles.toggleChip, guest && styles.toggleChipActive]}
-        >
-          <Text style={[styles.toggleText, guest && styles.toggleTextActive]}>Continue as guest</Text>
-        </Pressable>
-      </View>
-
-      {!guest ? (
-        <View style={styles.form}>
-          <TextInput
-            accessibilityLabel="Full name"
-            autoCapitalize="words"
-            onChangeText={setName}
-            placeholder="Full name"
-            placeholderTextColor={colors.inkSoft}
-            style={styles.input}
-            value={name}
-          />
-          <TextInput
-            accessibilityLabel="Email address"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="Email address"
-            placeholderTextColor={colors.inkSoft}
-            style={styles.input}
-            value={email}
-          />
-          <Text style={styles.formNote}>
-            Prototype only — details are kept on this device to demo the flow and are never sent
-            anywhere. No password or card is collected.
-          </Text>
-        </View>
-      ) : (
-        <Text style={styles.formNote}>
-          You can check out without an account. Delivery details would be collected next in production.
+      <Text style={styles.sectionLabel}>ACCOUNT &amp; ORDER STORAGE</Text>
+      <View style={styles.identityNotice}>
+        <Text style={styles.identityTitle}>
+          {authLoading
+            ? 'CHECKING SECURE SIGN-IN…'
+            : signedIn
+            ? `SIGNED IN AS ${customerEmail ?? customerName ?? 'PIXBRIK BUILDER'}`
+            : 'NOT SIGNED IN · DEVICE-ONLY DEMO'}
         </Text>
-      )}
+        <Text style={styles.formNote}>
+          {authLoading
+            ? 'You can still save this local demo while account status loads. No account data is written into the saved order.'
+            : signedIn
+            ? 'Your Clerk session is active. This prototype order still stays on this device and stores no account name or email until the PostgreSQL order service is connected.'
+            : 'Saving this demo does not create an account. Production checkout will collect contact, delivery and payment details before placing a real order.'}
+        </Text>
+      </View>
+      {!signedIn && auth.configured && auth.loaded ? (
+        <Pressable
+          accessibilityHint="Opens the real Clerk sign-in and account creation screen"
+          accessibilityRole="button"
+          onPress={() => navigate('account')}
+          style={({ pressed }) => [styles.signInAction, pressed && styles.pressed]}
+        >
+          <Text style={styles.signInActionText}>SIGN IN OR CREATE ACCOUNT →</Text>
+        </Pressable>
+      ) : null}
+      {!signedIn && !auth.configured ? (
+        <Text accessibilityRole="alert" style={styles.authUnavailable}>
+          Sign-in will appear here after the production Clerk key is configured.
+        </Text>
+      ) : null}
       {storageError ? <Text accessibilityRole="alert" style={styles.storageError}>{storageError}</Text> : null}
     </ScreenFrame>
   );
@@ -326,47 +312,38 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     marginBottom: spacing.md,
   },
-  accountToggle: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  toggleChip: {
-    alignItems: 'center',
+  identityNotice: {
     backgroundColor: colors.white,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  toggleChipActive: {
-    backgroundColor: colors.blue,
     borderColor: colors.ink,
-  },
-  toggleText: {
-    ...type.body,
-    color: colors.ink,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  toggleTextActive: {
-    color: colors.white,
-  },
-  form: {
-    gap: spacing.sm,
-  },
-  input: {
-    ...type.body,
-    backgroundColor: colors.white,
-    borderColor: colors.line,
     borderRadius: radius.md,
     borderWidth: 1.5,
+    padding: spacing.md,
+  },
+  identityTitle: {
+    ...type.label,
     color: colors.ink,
-    fontSize: 15,
-    minHeight: 48,
+    fontSize: 11,
+  },
+  signInAction: {
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    minHeight: 46,
     paddingHorizontal: spacing.md,
+  },
+  signInActionText: {
+    ...type.label,
+    color: colors.saffron,
+    fontSize: 12,
+  },
+  authUnavailable: {
+    ...type.micro,
+    color: colors.alarm,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: spacing.sm,
   },
   formNote: {
     ...type.micro,
