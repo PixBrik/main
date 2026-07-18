@@ -7,6 +7,18 @@
   "functions": { "api/**/*.ts": { "maxDuration": 30 } },
   "headers": [
     {
+      "source": "/backoffice",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    },
+    {
+      "source": "/backoffice/:path*",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    },
+    {
       "source": "/g/(.*)",
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
@@ -14,5 +26,15 @@
       ]
     }
   ],
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/backoffice",
+      "destination": "https://pixbrik-backoffice.vercel.app/backoffice"
+    },
+    {
+      "source": "/backoffice/:path*",
+      "destination": "https://pixbrik-backoffice.vercel.app/backoffice/:path*"
+    },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }
