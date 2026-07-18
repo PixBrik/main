@@ -5,6 +5,7 @@ import { signOutPasswordAction } from "@/app/auth-actions";
 import { BricklingAvatar } from "@/components/brickling-avatar";
 import { hasPermission, type Principal } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/lib/launch-config";
+import { SECTION_PERMISSION } from "@/lib/permissions";
 import { adminSectionRoute, APP_ROUTES, PUBLIC_ROUTES } from "@/lib/routes";
 
 type AdminShellProps = {
@@ -26,12 +27,12 @@ export function AdminShell({ principal, children }: AdminShellProps) {
             <span className="nav-dot" />
             Launch control
           </Link>
-          {ADMIN_SECTIONS.map((section) => (
+          {ADMIN_SECTIONS.map((section) => hasPermission(principal, SECTION_PERMISSION[section.key]) ? (
             <Link className="nav-link" href={adminSectionRoute(section.key)} key={section.key}>
               <span className="nav-dot" />
               {section.label}
             </Link>
-          ))}
+          ) : null)}
           {principal.provider === "password" && hasPermission(principal, "staff.manage") ? (
             <Link className="nav-link" href={APP_ROUTES.users}>
               <span className="nav-dot" />

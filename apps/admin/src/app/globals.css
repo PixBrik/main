@@ -397,6 +397,54 @@ select {
   font-size: 22px;
 }
 
+.empty-state-compact {
+  min-height: 190px;
+  padding: 32px;
+}
+
+.record-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.records-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.records-table-wrap:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.records-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.records-table th,
+.records-table td {
+  padding: 13px 12px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.records-table th {
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.records-table tbody tr:hover {
+  background: #f7f1df;
+}
+
 .public-page {
   min-height: 100vh;
   display: grid;
@@ -982,3 +1030,444 @@ select {
   }
 }
 /* === End staff access management ========================================= */
+
+/* === Discount management ================================================= */
+.discount-policy-note,
+.discount-read-only-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 2px solid var(--ink);
+  background: var(--yellow-soft);
+}
+
+.discount-policy-note strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 16px;
+}
+
+.discount-policy-note p {
+  max-width: 800px;
+  margin: 5px 0 0;
+  color: #514d43;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.discount-read-only-note {
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.discount-create-form {
+  display: grid;
+  gap: 18px;
+}
+
+.discount-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.discount-form-grid-primary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.discount-create-form .staff-field input,
+.discount-create-form .staff-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+}
+
+.discount-create-form .staff-field input:focus-visible,
+.discount-create-form .staff-field select:focus-visible,
+.discount-checkbox input:focus-visible,
+.discount-table-scroller:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.discount-value-input {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+}
+
+.discount-value-input > span {
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-inline-end: 0;
+  background: var(--yellow);
+  font-weight: 900;
+}
+
+.discount-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: #f4f0e5;
+}
+
+.discount-fieldset legend {
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.discount-fieldset > p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.discount-checkbox {
+  display: flex;
+  min-height: 67px;
+  align-items: center;
+  gap: 10px;
+  align-self: end;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  cursor: pointer;
+}
+
+.discount-checkbox input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--ink);
+}
+
+.discount-checkbox span,
+.discount-checkbox strong,
+.discount-checkbox small {
+  display: block;
+}
+
+.discount-checkbox small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.discount-form-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.discount-form-footer small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.discount-table-scroller {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.discount-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.discount-table th,
+.discount-table td {
+  padding: 14px 12px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.discount-table th {
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.discount-table tbody tr:hover {
+  background: #f7f1df;
+}
+
+.discount-table td > strong,
+.discount-table td > span,
+.discount-table td > small,
+.discount-table td > code {
+  display: block;
+}
+
+.discount-table td > small {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.discount-code {
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.discount-toggle-form {
+  display: grid;
+  min-width: 120px;
+  gap: 8px;
+}
+
+.discount-toggle-form .staff-message {
+  width: 220px;
+}
+
+.discount-empty-state {
+  min-height: 210px;
+}
+
+@media (max-width: 1200px) {
+  .discount-form-grid-primary,
+  .discount-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .discount-policy-note,
+  .discount-form-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .discount-form-grid-primary,
+  .discount-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* === End discount management ============================================= */
+
+/* === Inventory management ================================================ */
+.inventory-heading-actions {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+}
+
+.inventory-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inventory-panel-header {
+  align-items: flex-end;
+}
+
+.inventory-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.inventory-search input,
+.inventory-form select {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+}
+
+.inventory-search input {
+  width: min(330px, 36vw);
+}
+
+.inventory-search input:focus-visible,
+.inventory-form select:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.inventory-form {
+  display: grid;
+  gap: 16px;
+}
+
+.inventory-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.inventory-form-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.inventory-form .staff-field > span {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+}
+
+.inventory-form .staff-field input,
+.inventory-form .staff-field select {
+  width: 100%;
+}
+
+.inventory-reason-field {
+  grid-column: span 2;
+}
+
+.inventory-form-note {
+  max-width: 800px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.inventory-empty-state {
+  min-height: 210px;
+}
+
+.inventory-table {
+  min-width: 1160px;
+}
+
+.inventory-movement-table {
+  min-width: 1080px;
+}
+
+.inventory-available-cell {
+  font-weight: 900;
+}
+
+.inventory-muted-block {
+  margin: 0 !important;
+  padding: 22px;
+  border: 1px dashed #bcb4a1;
+  background: #f7f3e9;
+}
+
+.inventory-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.inventory-balance-card {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--ink);
+  background: #f7f3e9;
+}
+
+.inventory-balance-card > strong {
+  font-size: 16px;
+}
+
+.inventory-balance-card > small {
+  color: var(--muted);
+}
+
+.inventory-balance-card dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 11px 0 0;
+}
+
+.inventory-balance-card dl > div {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.inventory-balance-card dt {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.inventory-balance-card dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 900;
+}
+
+.inventory-create-grid {
+  align-items: start;
+}
+
+@media (max-width: 1050px) {
+  .inventory-form-grid-3,
+  .inventory-balance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .inventory-heading-actions {
+    justify-items: start;
+  }
+
+  .inventory-quick-actions {
+    justify-content: flex-start;
+  }
+
+  .inventory-panel-header,
+  .inventory-search {
+    align-items: stretch;
+  }
+
+  .inventory-panel-header,
+  .inventory-search {
+    flex-direction: column;
+  }
+
+  .inventory-search input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .inventory-form-grid,
+  .inventory-form-grid-3,
+  .inventory-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-reason-field {
+    grid-column: auto;
+  }
+
+  .inventory-balance-card dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* === End inventory management ============================================ */

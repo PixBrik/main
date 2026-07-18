@@ -1,11 +1,14 @@
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/status-badge";
+import { hasPermission, requirePermission } from "@/lib/auth";
 import { inspectEnvironment } from "@/lib/env";
 import { ADMIN_SECTIONS, COMPLIANCE_GATES, LAUNCH_CONFIG } from "@/lib/launch-config";
+import { SECTION_PERMISSION } from "@/lib/permissions";
 import { adminSectionRoute } from "@/lib/routes";
 
-export default function LaunchControlPage() {
+export default async function LaunchControlPage() {
+  const principal = await requirePermission("dashboard.read");
   const environment = inspectEnvironment();
   const readyCount = environment.filter((check) => check.configured).length;
 
@@ -123,7 +126,9 @@ export default function LaunchControlPage() {
           </div>
         </div>
         <div className="module-grid">
-          {ADMIN_SECTIONS.map((section) => (
+          {ADMIN_SECTIONS.filter((section) => (
+            hasPermission(principal, SECTION_PERMISSION[section.key])
+          )).map((section) => (
             <Link className="module-card" href={adminSectionRoute(section.key)} key={section.key}>
               <h2>{section.label}</h2>
               <p>{section.description}</p>
