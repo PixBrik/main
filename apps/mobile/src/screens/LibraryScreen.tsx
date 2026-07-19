@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Polygon, Rect } from 'react-native-svg';
 
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -8,7 +8,7 @@ import {
   LIBRARY_CATEGORIES, LIBRARY_COLORS, type LibraryEntry, type MessageFont,
 } from '../data/carLibrary';
 import { SCULPTURE_SIZE_OPTIONS } from '../lib/kitSizing';
-import { listLibrary } from '../lib/libraryStore';
+import { listLibrary, loadLibrary } from '../lib/libraryStore';
 import {
   buildProceduralLibraryPreview, isLibraryEntryReleased, releasedProceduralLibraryProfiles,
   sanitiseMessage, type LibraryBuildOptions, type MessageHolder,
@@ -72,6 +72,8 @@ function BrickThumbnail({ entry, color, options }: { entry: LibraryEntry; color:
     options?.message,
     options?.size,
   ]);
+  if(entry.thumbnailUrl)return <Image accessibilityLabel={`${entry.name} realistic 3D preview`} resizeMode="contain" source={{uri:entry.thumbnailUrl}} style={styles.thumbnailImage}/>;
+  if(entry.meshUrl)return <View style={styles.meshPlaceholder}><Text style={styles.meshPlaceholderText}>REAL 3D</Text></View>;
   return <Svg height="100%" viewBox="0 0 140 104" width="100%"><Rect fill="#F5F2EA" height="104" width="140"/>{faces.map(face=><Polygon fill={face.fill} key={face.id} points={face.points} stroke="#17130A" strokeWidth=".35"/>)}</Svg>;
 }
 
@@ -83,7 +85,8 @@ export function LibraryScreen({
   generationError='',
   generationProgress=0,
 }: LibraryScreenProps) {
-  const [entries]=useState<LibraryEntry[]>(()=>listLibrary());
+  const [entries,setEntries]=useState<LibraryEntry[]>(()=>listLibrary());
+  const [catalogNotice,setCatalogNotice]=useState('');
   const [category,setCategory]=useState('all');
   const [query,setQuery]=useState('');
   const [sort,setSort]=useState<SortMode>('featured');
@@ -97,6 +100,14 @@ export function LibraryScreen({
   const [flowerCount,setFlowerCount]=useState<1|3|5>(5);
   const [flowerColors,setFlowerColors]=useState(['#B51F3A','#F05A7E','#F4C430','#A64AC9','#F4F1E8']);
   const [activeFlower,setActiveFlower]=useState(0);
+
+  useEffect(()=>{
+    let cancelled=false;
+    void loadLibrary()
+      .then((published)=>{if(!cancelled){setEntries(published);setCatalogNotice('');}})
+      .catch(()=>{if(!cancelled)setCatalogNotice('Showing customizable signs while the production catalogue reconnects.');});
+    return()=>{cancelled=true;};
+  },[]);
 
   const selected=selectedId===MESSAGE_ENTRY.id?MESSAGE_ENTRY:entries.find(entry=>entry.id===selectedId)??null;
   const releasedSizes=useMemo(()=>selected?releasedProceduralLibraryProfiles(selected):[],[selected]);
@@ -149,10 +160,11 @@ export function LibraryScreen({
   };
 
   return <ScreenFrame accent="indigo" eyebrow="Library / Browse and customise" navigationDisabled={generating} onBack={onBack}
-    subtitle={`${entries.length} cleaned, brick-native ideas. Search, filter, choose a size and make it yours.`}
+    subtitle={`${entries.length} production-ready products. Search, filter, choose a size and make it yours.`}
     title="Find your next build"
     footer={<PrimaryButton disabled={!canBuild||generating} label={generating?`Building certified size... ${Math.round(generationProgress*100)}%`:selected&&!releasedSizes.length?'Preview · certification pending':selected?`Build ${selected.name}`:'Choose an object to customise'} onPress={requestBuild}/>}>
 
+    {catalogNotice?<View style={styles.pendingNotice}><Text style={styles.pendingNoticeCopy}>{catalogNotice}</Text></View>:null}
     <View style={styles.searchWrap}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Search objects" onChangeText={setQuery} placeholder="Search cars, roses, birthday, signs..." placeholderTextColor={colors.inkSoft} style={styles.search} value={query}/>{query?<Pressable accessibilityLabel="Clear search" accessibilityRole="button" onPress={()=>setQuery('')}><Text style={styles.clear}>×</Text></Pressable>:null}</View>
 
     <Text style={styles.kicker}>CATEGORY OR THEME</Text>
@@ -184,7 +196,7 @@ export function LibraryScreen({
 
 const styles=StyleSheet.create({
   searchWrap:{alignItems:'center',backgroundColor:colors.white,borderColor:colors.ink,borderRadius:radius.md,borderWidth:2,flexDirection:'row',gap:8,marginBottom:spacing.lg,minHeight:52,paddingHorizontal:spacing.md},searchIcon:{color:colors.ink,fontSize:24,fontWeight:'900'},search:{...type.body,color:colors.ink,flex:1,fontSize:14},clear:{color:colors.ink,fontSize:24,fontWeight:'900'},kicker:{...type.label,color:colors.inkSoft,fontSize:9,marginBottom:spacing.sm},scrollStrip:{marginBottom:spacing.lg},chipRow:{flexDirection:'row',gap:spacing.sm,paddingRight:spacing.md},chip:{backgroundColor:colors.white,borderColor:colors.line,borderRadius:radius.pill,borderWidth:1.5,paddingHorizontal:14,paddingVertical:9},chipActive:{backgroundColor:colors.ink,borderColor:colors.ink},chipText:{...type.micro,color:colors.ink,fontSize:9,fontWeight:'900'},chipTextActive:{color:colors.white},catalogToolbar:{alignItems:'center',flexDirection:'row',gap:spacing.md,justifyContent:'space-between',marginBottom:spacing.md},resultCount:{...type.label,color:colors.ink,fontSize:10},sortRow:{flexDirection:'row',gap:6},sortChip:{backgroundColor:'#EEEAE1',borderRadius:radius.pill,paddingHorizontal:10,paddingVertical:7},sortChipActive:{backgroundColor:colors.blueSoft},sortText:{...type.micro,color:colors.ink,fontSize:8,fontWeight:'800'},
-  grid:{flexDirection:'row',flexWrap:'wrap',gap:spacing.sm},card:{backgroundColor:colors.white,borderColor:colors.line,borderRadius:radius.md,borderWidth:1.5,overflow:'hidden',width:'48%'},cardActive:{borderColor:colors.blue,borderWidth:3},thumbnail:{aspectRatio:1.35,backgroundColor:'#F5F2EA',position:'relative',width:'100%'},previewBadge:{backgroundColor:colors.ink,borderRadius:radius.pill,left:6,paddingHorizontal:7,paddingVertical:4,position:'absolute',top:6},previewBadgeText:{...type.micro,color:colors.white,fontSize:7,fontWeight:'900'},cardBody:{padding:spacing.sm},cardName:{...type.body,color:colors.ink,fontSize:12,fontWeight:'900',lineHeight:14},cardMeta:{...type.micro,color:colors.inkSoft,fontSize:8,marginTop:3,textTransform:'uppercase'},pagination:{alignItems:'center',flexDirection:'row',justifyContent:'space-between',marginBottom:spacing.xl,marginTop:spacing.lg},pageButton:{backgroundColor:colors.ink,borderRadius:radius.pill,paddingHorizontal:14,paddingVertical:9},pageButtonText:{...type.micro,color:colors.white,fontSize:9,fontWeight:'900'},pageStatus:{...type.label,color:colors.ink,fontSize:10},disabled:{opacity:.28},empty:{alignItems:'center',backgroundColor:colors.white,borderRadius:radius.md,marginBottom:spacing.xl,padding:spacing.xl},emptyTitle:{...type.title,color:colors.ink,fontSize:18},
+  grid:{flexDirection:'row',flexWrap:'wrap',gap:spacing.sm},card:{backgroundColor:colors.white,borderColor:colors.line,borderRadius:radius.md,borderWidth:1.5,overflow:'hidden',width:'48%'},cardActive:{borderColor:colors.blue,borderWidth:3},thumbnail:{aspectRatio:1.35,backgroundColor:'#F5F2EA',position:'relative',width:'100%'},thumbnailImage:{backgroundColor:colors.ink,height:'100%',width:'100%'},meshPlaceholder:{alignItems:'center',backgroundColor:colors.ink,height:'100%',justifyContent:'center',width:'100%'},meshPlaceholderText:{...type.label,color:colors.saffron,fontSize:11},previewBadge:{backgroundColor:colors.ink,borderRadius:radius.pill,left:6,paddingHorizontal:7,paddingVertical:4,position:'absolute',top:6},previewBadgeText:{...type.micro,color:colors.white,fontSize:7,fontWeight:'900'},cardBody:{padding:spacing.sm},cardName:{...type.body,color:colors.ink,fontSize:12,fontWeight:'900',lineHeight:14},cardMeta:{...type.micro,color:colors.inkSoft,fontSize:8,marginTop:3,textTransform:'uppercase'},pagination:{alignItems:'center',flexDirection:'row',justifyContent:'space-between',marginBottom:spacing.xl,marginTop:spacing.lg},pageButton:{backgroundColor:colors.ink,borderRadius:radius.pill,paddingHorizontal:14,paddingVertical:9},pageButtonText:{...type.micro,color:colors.white,fontSize:9,fontWeight:'900'},pageStatus:{...type.label,color:colors.ink,fontSize:10},disabled:{opacity:.28},empty:{alignItems:'center',backgroundColor:colors.white,borderRadius:radius.md,marginBottom:spacing.xl,padding:spacing.xl},emptyTitle:{...type.title,color:colors.ink,fontSize:18},
   generationError:{backgroundColor:'#FFF0EC',borderColor:colors.alarm,borderRadius:radius.md,borderWidth:2,gap:spacing.sm,marginTop:spacing.lg,padding:spacing.lg},generationErrorTitle:{...type.label,color:colors.alarm,fontSize:10},generationErrorCopy:{...type.body,color:colors.ink,fontSize:13,lineHeight:18},retryButton:{alignItems:'center',alignSelf:'flex-start',backgroundColor:colors.ink,borderRadius:radius.pill,minWidth:112,paddingHorizontal:16,paddingVertical:10},retryButtonText:{...type.label,color:colors.white,fontSize:9},pendingNotice:{backgroundColor:'#FFF7D6',borderColor:'#B18400',borderRadius:radius.sm,borderWidth:1.5,gap:6,marginBottom:spacing.lg,padding:spacing.md},pendingNoticeTitle:{...type.label,color:'#765800',fontSize:9},pendingNoticeCopy:{...type.micro,color:colors.ink,fontSize:9,lineHeight:14},
   messageIntro:{backgroundColor:colors.ink,borderRadius:radius.md,marginBottom:spacing.xl,padding:spacing.xl},messageIntroTitle:{...type.title,color:colors.white,fontSize:24,marginBottom:8},hint:{...type.micro,color:colors.inkSoft,fontSize:9,lineHeight:13,marginBottom:spacing.lg,marginTop:5},customiser:{backgroundColor:colors.white,borderColor:colors.ink,borderRadius:radius.md,borderWidth:2,marginBottom:spacing.xl,marginTop:spacing.xl,padding:spacing.lg},customHeader:{alignItems:'center',flexDirection:'row',justifyContent:'space-between',marginBottom:spacing.lg},customTitle:{...type.title,color:colors.ink,fontSize:21},selectedPreview:{borderColor:colors.line,borderRadius:radius.sm,borderWidth:1,height:72,overflow:'hidden',width:96},messageInput:{...type.title,backgroundColor:'#F5F2EA',borderColor:colors.ink,borderRadius:radius.sm,borderWidth:2,color:colors.ink,fontSize:20,minHeight:52,paddingHorizontal:spacing.md},choiceRow:{flexDirection:'row',gap:spacing.sm,marginBottom:spacing.lg},choice:{alignItems:'center',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,flex:1,justifyContent:'center',minHeight:62,padding:spacing.sm},choiceActive:{backgroundColor:colors.blueSoft,borderColor:colors.ink,borderWidth:2},choiceTitle:{color:colors.ink,fontSize:15,fontWeight:'900'},choiceIcon:{color:colors.ink,fontSize:21,fontWeight:'900'},choiceCopy:{...type.micro,color:colors.inkSoft,fontSize:8,fontWeight:'900',textAlign:'center'},flowerSlots:{flexDirection:'row',gap:spacing.sm,marginBottom:spacing.lg},flowerSlot:{alignItems:'center',borderColor:colors.line,borderRadius:radius.pill,borderWidth:2,height:42,justifyContent:'center',width:42},flowerSlotActive:{borderColor:colors.ink,borderWidth:4},flowerNumber:{color:colors.ink,fontSize:10,fontWeight:'900'},colorRow:{flexDirection:'row',gap:spacing.sm,paddingVertical:2},colorDot:{borderColor:colors.line,borderRadius:radius.pill,borderWidth:2,height:38,width:38},colorDotActive:{borderColor:colors.ink,borderWidth:4},sizeColumn:{gap:spacing.sm,marginBottom:spacing.lg},sizeChoice:{alignItems:'center',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,flexDirection:'row',justifyContent:'space-between',padding:spacing.md},sizeChoiceActive:{backgroundColor:colors.blueSoft,borderColor:colors.ink,borderWidth:2},sizeTitle:{...type.body,color:colors.ink,fontWeight:'900'},sizeCopy:{...type.micro,color:colors.inkSoft,fontSize:8},sizeCm:{...type.label,color:colors.blue,fontSize:9},disclaimer:{...type.micro,color:colors.inkSoft,fontSize:9,lineHeight:13,marginTop:spacing.sm},
 });

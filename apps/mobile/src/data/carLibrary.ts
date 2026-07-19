@@ -15,6 +15,7 @@ export interface LibraryEntry {
   era?: LibraryEra;
   tags: string[];
   meshUrl: string | null;
+  thumbnailUrl?: string;
   /** Deterministic brick-native generator; unlike a mesh, this cannot lose thin details. */
   proceduralKey?: string;
   defaultColor: string;

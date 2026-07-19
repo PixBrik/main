@@ -9,6 +9,7 @@ import {
 } from "@/components/models/model-library-forms";
 import styles from "@/components/models/model-library.module.css";
 import { hasPermission, requirePermission } from "@/lib/auth";
+import { libraryStudioUrl } from "@/lib/library-studio-session";
 import {
   getModelLibrarySnapshot,
   type ModelLibraryStatus,
@@ -64,6 +65,7 @@ function versionTransitions(version: ModelLibraryVersion, itemStatus: ModelLibra
 export default async function ModelLibraryPage() {
   const principal = await requirePermission("models.read");
   const canPublish = hasPermission(principal, "models.publish");
+  const studioUrl = canPublish ? libraryStudioUrl(principal) : null;
   const snapshot = await getModelLibrarySnapshot();
   const publishedItems = snapshot.items.filter((item) => item.status === "published").length;
   const reviewItems = snapshot.items.filter((item) => item.status === "review").length;
@@ -106,6 +108,28 @@ export default async function ModelLibraryPage() {
           <small>locked approved build versions</small>
         </article>
       </section>
+
+      {canPublish ? (
+        <section className="panel" aria-labelledby="library-studio-title">
+          <div className="panel-header">
+            <div>
+              <span className="eyebrow">Real mesh production</span>
+              <h2 id="library-studio-title">Library Studio</h2>
+            </div>
+            <span className="mono">30-minute secure session</span>
+          </div>
+          <p className={styles.sectionCopy}>
+            Generate and inspect a realistic Meshy master, verify its brick proposal, then publish it here as an approved, versioned catalogue product.
+          </p>
+          {studioUrl ? (
+            <a className={styles.studioLink} href={studioUrl} rel="noreferrer" target="_blank">
+              Open secure Library Studio
+            </a>
+          ) : (
+            <p className={styles.emptyCopy}>The customer application connection is not configured for Studio sessions.</p>
+          )}
+        </section>
+      ) : null}
 
       {canPublish ? (
         <section className="grid-2" aria-label="Create model-library records">

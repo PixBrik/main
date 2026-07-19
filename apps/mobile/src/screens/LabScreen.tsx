@@ -6,6 +6,7 @@ import { RawMeshView } from '../components/RawMeshView';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import { estimateBuild } from '../lib/brickify';
+import { physicalDimensions } from '../lib/kitSizing';
 import { has360Capture, load360Capture } from '../lib/capture360Store';
 import { hasLastCapture, loadLastCapture } from '../lib/captureStore';
 import {
@@ -16,7 +17,6 @@ import {
   submitFeedback,
   type FeedbackEntry,
 } from '../lib/feedbackStore';
-import { addLibraryEntry } from '../lib/libraryStore';
 import type { LibraryCategory } from '../data/carLibrary';
 import type { ObjectCategory } from '../lib/photoEngine/classify';
 import {
@@ -42,6 +42,7 @@ interface LabScreenProps {
   onBack: () => void;
   /** Rehydrate the last persisted capture into app state. */
   onRestore: (photoUri: string, segmentation: Segmentation) => void;
+  studioSessionToken: string | null;
 }
 
 type CandidateId = 'depth' | TripoVersionId | 'meshy-6' | 'multiview' | 'demo';
@@ -99,7 +100,7 @@ interface RunState {
  * an identical viewer — the only variable is the generation model. Used to
  * decide which engine the product should ship with.
  */
-export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScreenProps) {
+export function LabScreen({ photoUri, segmentation, onBack, onRestore, studioSessionToken }: LabScreenProps) {
   const live = isLive3DConfigured();
   const hasPhoto = !!photoUri && !!segmentation;
   const [restorable] = useState(() => hasLastCapture());
@@ -456,7 +457,7 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
         </View>
       ) : null}
 
-      <LibraryStudio />
+      <LibraryStudio studioSession={studioSessionToken} />
 
       <Coach detectedLabel={segmentation?.categoryLabel ?? null} />
     </ScreenFrame>
@@ -467,6 +468,14 @@ const CATEGORY_CHOICES: ObjectCategory[] = ['portrait', 'person', 'animal', 'veh
 
 const STUDIO_CATEGORIES: LibraryCategory[] = ['animal', 'car', 'object', 'plant', 'flower', 'aircraft'];
 type StudioState = 'idle' | 'generating' | 'converting' | 'ready' | 'publishing' | 'published' | 'failed';
+interface InspectedKit {
+  colorCount: number;
+  depthMm: number;
+  heightMm: number;
+  parts: number;
+  priceEur: number;
+  widthMm: number;
+}
 
 /**
  * Library Studio — the owner's pipeline for REALISTIC library masters.
@@ -476,17 +485,18 @@ type StudioState = 'idle' | 'generating' | 'converting' | 'ready' | 'publishing'
  * the brick proposal → publish to durable storage → the entry appears in the
  * buyer library with all three sizes and colour customization.
  */
-function LibraryStudio() {
+function LibraryStudio({ studioSession }: { studioSession: string | null }) {
   const [prompt, setPrompt] = useState('');
   const [state, setState] = useState<StudioState>('idle');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<(PublishSource & { meshUrl: string }) | null>(null);
   const [brick, setBrick] = useState<VoxelModel | null>(null);
+  const [kit, setKit] = useState<InspectedKit | null>(null);
+  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
   const [catalogLine, setCatalogLine] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState<LibraryCategory>('animal');
-  const [seedJson, setSeedJson] = useState('');
 
   const convert = async (mesh: PublishSource & { meshUrl: string }) => {
     setState('converting');
@@ -495,11 +505,28 @@ function LibraryStudio() {
     const model = models.models.balanced;
     try {
       const estimate = estimateBuild(model, colors.alarm).hollow;
+      const dimensions = physicalDimensions(model);
+      setKit({
+        colorCount: estimate.colorCount,
+        depthMm: Math.max(1, Math.round(dimensions.depthCm * 10)),
+        heightMm: Math.max(1, Math.round(dimensions.heightCm * 10)),
+        parts: estimate.parts,
+        priceEur: estimate.bundleEur,
+        widthMm: Math.max(1, Math.round(dimensions.widthCm * 10)),
+      });
       setCatalogLine(
         `STANDARD KIT: ${estimate.parts.toLocaleString('en-US')} PARTS · ${estimate.colorCount} COLOURS · ≈€${estimate.bundleEur.toFixed(0)}`,
       );
     } catch {
       setCatalogLine('');
+      setKit(null);
+    }
+    try {
+      const { snapshotGlb } = await import('../lib/photoEngine/meshSnapshot');
+      const shots = await snapshotGlb(mesh.meshUrl);
+      setPreviewDataUrl(shots[0] ?? null);
+    } catch {
+      setPreviewDataUrl(null);
     }
     setBrick(model);
     setSource(mesh);
@@ -509,11 +536,13 @@ function LibraryStudio() {
   const generate = async () => {
     if (!prompt.trim() || state === 'generating' || state === 'converting') return;
     setError(null);
-    setSeedJson('');
     setBrick(null);
+    setKit(null);
+    setPreviewDataUrl(null);
     setState('generating');
     try {
-      const result = await generateMeshFromPrompt(prompt.trim(), (fraction, stage) =>
+      if (!studioSession) throw new Error('Open Library Studio from the authenticated backoffice.');
+      const result = await generateMeshFromPrompt(prompt.trim(), studioSession, (fraction, stage) =>
         setNote(`${Math.round(fraction * 100)}% · ${stage}`),
       );
       await convert({ meshUrl: result.meshUrl, taskId: result.taskId, taskKind: result.taskKind });
@@ -526,8 +555,9 @@ function LibraryStudio() {
   const useSample = async () => {
     if (state === 'generating' || state === 'converting') return;
     setError(null);
-    setSeedJson('');
     setBrick(null);
+    setKit(null);
+    setPreviewDataUrl(null);
     try {
       const demo = DEMO_MESHES[0];
       await convert({ meshUrl: demo.url, sourceUrl: demo.url });
@@ -539,25 +569,17 @@ function LibraryStudio() {
   };
 
   const publish = async () => {
-    if (!source || !name.trim() || state === 'publishing') return;
+    if (!source || !kit || !studioSession || !name.trim() || state === 'publishing') return;
     setState('publishing');
     setError(null);
     try {
-      const durableUrl = await publishLibraryMesh(source, name.trim());
-      const entry = addLibraryEntry({
+      await publishLibraryMesh(source, name.trim(), studioSession, {
         category,
         defaultColor: '#F4C430',
-        meshUrl: durableUrl,
-        name: name.trim(),
+        kit,
+        ...(previewDataUrl ? { previewDataUrl } : {}),
         tags: [category, 'studio', 'realistic'],
       });
-      setSeedJson(
-        JSON.stringify(
-          { category, defaultColor: '#F4C430', id: entry.id, meshUrl: durableUrl, name: name.trim(), seed: true, tags: [category, 'realistic'] },
-          null,
-          2,
-        ),
-      );
       setState('published');
     } catch (publishError) {
       setError(publishError instanceof Error ? publishError.message : 'publish failed');
@@ -566,6 +588,18 @@ function LibraryStudio() {
   };
 
   const busy = state === 'generating' || state === 'converting' || state === 'publishing';
+
+  if (!studioSession) {
+    return (
+      <View style={styles.coach}>
+        <Text style={styles.coachTitle}>LIBRARY STUDIO</Text>
+        <Text style={styles.coachIntro}>
+          Publishing and paid generation are locked. Open Model Library in the authenticated
+          backoffice, then choose OPEN SECURE LIBRARY STUDIO.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.coach}>
@@ -657,9 +691,9 @@ function LibraryStudio() {
           {state !== 'published' ? (
             <Pressable
               accessibilityRole="button"
-              disabled={!name.trim() || state === 'publishing'}
+              disabled={!name.trim() || !kit || state === 'publishing'}
               onPress={publish}
-              style={({ pressed }) => [styles.coachSubmit, (!name.trim() || state === 'publishing') && styles.coachDisabled, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.coachSubmit, (!name.trim() || !kit || state === 'publishing') && styles.coachDisabled, pressed && styles.pressed]}
             >
               <Text style={styles.coachSubmitText}>
                 {state === 'publishing' ? 'PUBLISHING…' : 'PUBLISH TO LIBRARY'}
@@ -672,10 +706,9 @@ function LibraryStudio() {
       {state === 'published' ? (
         <View style={styles.appliedNote}>
           <Text style={styles.appliedText}>
-            → Published. It's live in the Object Library on this device (menu → OBJECT LIBRARY).
-            To ship it to every buyer, add this entry to LIBRARY_SEED in src/data/carLibrary.ts:
+            → Published to the backoffice catalogue. It is now live for every buyer in
+            Object Library, with this inspected mesh and its version history preserved.
           </Text>
-          <Text selectable style={styles.studioJson}>{seedJson}</Text>
         </View>
       ) : null}
     </View>

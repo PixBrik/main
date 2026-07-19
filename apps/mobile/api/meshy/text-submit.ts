@@ -14,6 +14,7 @@ import {
   guardPaidGeneration,
   sendGenerationSecurityError,
 } from '../_generationSecurity';
+import { requireStudioSession } from '../_studioSession';
 
 const MAX_PROMPT_CHARS = 600;
 const TASK_ID_PATTERN = /^[a-zA-Z0-9-_]{8,64}$/;
@@ -35,6 +36,7 @@ export default async function handler(req: any, res: any): Promise<void> {
   }
 
   try {
+    requireStudioSession(req);
     const mode: unknown = req.body?.mode;
     let taskBody: Record<string, unknown>;
     if (mode === 'preview') {

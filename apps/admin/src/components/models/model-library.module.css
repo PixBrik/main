@@ -275,3 +275,22 @@
     grid-column: auto;
   }
 }
+.studioLink {
+  align-items: center;
+  background: #17130a;
+  border: 2px solid #17130a;
+  color: #fff;
+  display: inline-flex;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.studioLink:hover,
+.studioLink:focus-visible {
+  background: #ffca05;
+  color: #17130a;
+}

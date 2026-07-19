@@ -13,10 +13,10 @@ const TASK_KIND = 'text-to-3d';
 const POLL_MS = 3000;
 const MAX_POLLS = 200; // ~10 min across both stages' polling
 
-async function submitText(body: Record<string, unknown>): Promise<string> {
+async function submitText(body: Record<string, unknown>, studioSession: string): Promise<string> {
   const res = await fetch('/api/meshy/text-submit', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-PixBrik-Studio-Session': studioSession },
     body: JSON.stringify(body),
   });
   const parsed = (await res.json().catch(() => null)) as
@@ -61,14 +61,15 @@ export interface TextTo3DResult {
 /** prompt → textured mesh. Two Meshy credits spends; caller owns that choice. */
 export async function generateMeshFromPrompt(
   prompt: string,
+  studioSession: string,
   onProgress?: TextProgressFn,
 ): Promise<TextTo3DResult> {
   onProgress?.(0.02, 'Sculpting the shape');
-  const previewId = await submitText({ mode: 'preview', prompt });
+  const previewId = await submitText({ mode: 'preview', prompt }, studioSession);
   await awaitTextTask(previewId, (p) => onProgress?.(0.05 + p * 0.45, 'Sculpting the shape'));
 
   onProgress?.(0.5, 'Painting the texture');
-  const refineId = await submitText({ mode: 'refine', previewTaskId: previewId });
+  const refineId = await submitText({ mode: 'refine', previewTaskId: previewId }, studioSession);
   await awaitTextTask(refineId, (p) => onProgress?.(0.5 + p * 0.48, 'Painting the texture'));
 
   onProgress?.(1, 'Model ready');
@@ -87,17 +88,47 @@ export interface PublishSource {
 }
 
 /** Persist an approved mesh to durable storage; returns its permanent URL. */
-export async function publishLibraryMesh(source: PublishSource, name: string): Promise<string> {
+export interface PublishLibraryMetadata {
+  category: string;
+  defaultColor: string;
+  kit: {
+    colorCount: number;
+    depthMm: number;
+    heightMm: number;
+    parts: number;
+    priceEur: number;
+    widthMm: number;
+  };
+  previewDataUrl?: string;
+  tags: string[];
+}
+
+export interface PublishedLibraryEntry {
+  category: string;
+  defaultColor: string;
+  id: string;
+  meshUrl: string;
+  name: string;
+  tags: string[];
+  thumbnailUrl?: string;
+}
+
+export async function publishLibraryMesh(
+  source: PublishSource,
+  name: string,
+  studioSession: string,
+  metadata: PublishLibraryMetadata,
+): Promise<PublishedLibraryEntry> {
   const res = await fetch('/api/library/publish', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...source, name }),
+    headers: { 'Content-Type': 'application/json', 'X-PixBrik-Studio-Session': studioSession },
+    body: JSON.stringify({ ...source, ...metadata, name }),
   });
   const parsed = (await res.json().catch(() => null)) as
-    | { meshUrl?: string; error?: string }
+    | { entry?: PublishedLibraryEntry; error?: string }
     | null;
-  if (!res.ok || !parsed?.meshUrl) {
+  if (!res.ok || !parsed?.entry) {
     throw new Error(parsed?.error || `publish failed (${res.status})`);
   }
-  return parsed.meshUrl;
+  return parsed.entry;
 }

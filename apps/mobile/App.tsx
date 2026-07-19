@@ -207,6 +207,16 @@ function initialGuideId(): string | null {
   return typeof window === 'undefined' ? null : readGuideShareId(window.location.href);
 }
 
+function initialStudioSessionToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const sources = [window.location.search.replace(/^\?/, ''), window.location.hash.replace(/^#/, '')];
+  for (const source of sources) {
+    const token = new URLSearchParams(source).get('studio')?.trim();
+    if (token && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) return token;
+  }
+  return null;
+}
+
 function samePhotoInput(a: Segmentation | null, b: Segmentation): boolean {
   if (!a) return false;
   const cropMatches = (['x', 'y', 'width', 'height'] as const).every(
@@ -252,6 +262,7 @@ function PixBrikApp() {
     ArchivoBlack_400Regular,
   });
   const [screen, setScreen] = useState<DemoScreen>(initialScreen);
+  const [studioSessionToken] = useState<string | null>(initialStudioSessionToken);
   const [restoredCheckout] = useState(() => {
     const draft = checkoutDraftFromLocation();
     return { draft, photoBuild: draft ? photoBuildFromCheckoutDraft(draft) : null };
@@ -1452,6 +1463,7 @@ function PixBrikApp() {
             }}
             photoUri={photoUri}
             segmentation={photoSegmentation}
+            studioSessionToken={studioSessionToken}
           />
         );
       case 'checkout':
