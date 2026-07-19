@@ -77,6 +77,32 @@ function geometrySignature(model) {
     .sort().join(';');
 }
 
+test('custom-message kits stay physically buildable across holders, fonts and sizes', { timeout: 240_000 }, () => {
+  const entry = {
+    category: 'object', defaultColor: '#D7263D', icon: 'Aa', id: 'custom-message', meshUrl: null,
+    name: 'Custom Message', proceduralKey: 'custom-message', supportsHolder: true, tags: ['personalise'],
+  };
+  // Two messages cover the failure surface found in production: the floating
+  // O top bar, multi-line wrapping, and every A-Z glyph. Wall hanging once
+  // cut its holes behind glyphs; two-deep letters once had no stud anchor.
+  for (const message of ['OO OO OO', 'ABCDEFG HIJKLMN OPQRSTU VWXYZ']) {
+    for (const size of ['efficient', 'balanced']) {
+      for (const holder of ['freestanding', 'wall', 'flat']) {
+        for (const font of ['block', 'rounded', 'stencil']) {
+          const model = buildProceduralLibraryProfile(entry, '#D7263D', { font, holder, message, size }, size);
+          const assessment = computeBuildAssessment(model, '#D7263D');
+          for (const fill of ['full', 'hollow']) {
+            assert.equal(
+              assessment[fill].buildable, true,
+              `${JSON.stringify(message)} ${size}/${holder}/${font}/${fill}: ${assessment[fill].assemblyIssue ?? ''}`,
+            );
+          }
+        }
+      }
+    }
+  }
+});
+
 test('curated library is large, normalized, unique and fully buildable', () => {
   assert.ok(LIBRARY_SEED.length >= 100);
   assert.equal(new Set(LIBRARY_SEED.map((entry) => entry.id)).size, LIBRARY_SEED.length);

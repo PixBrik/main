@@ -466,7 +466,11 @@ function buildMessageBrickModel(entry:LibraryEntry,primary:string,options:Librar
   const lines=wrapMessage(messageText(entry,options),maxChars);
   const width=Math.max(...lines.map(line=>line.length*6-1));
   const height=lines.length*8-1;
-  const depth=profile==='efficient'?1:profile==='balanced'?2:3;
+  // Letters stay one brick deep: a standing glyph's only physical anchor is
+  // the merged backing-plate brick behind it, so a second letter layer would
+  // have no stud to lock onto and the release gate rejects the kit. Larger
+  // sizes gain detail by scaling the whole sign up in the letter plane.
+  const depth=1;
   const cells:VoxelCell[]=[];const occupied=new Set<string>();
   const add=(i:number,j:number,k:number,zone:VoxelZone,colorHex:string)=>{const key=`${i}|${j}|${k}`;if(occupied.has(key))return;occupied.add(key);cells.push({cx:i+.5,cy:j+.5,cz:k+.5,i,j,k,zone,colorHex});};
   lines.forEach((line,lineIndex)=>{
@@ -485,14 +489,30 @@ function buildMessageBrickModel(entry:LibraryEntry,primary:string,options:Librar
   const holder=options.holder??'freestanding';
   // Every glyph is tied into a one-plate backing. This keeps diagonal pixels,
   // separate letters and punctuation physically connected in the real kit.
-  for(let i=-1;i<=width;i++)for(let j=0;j<=height+1;j++){
-    const wallHole=holder==='wall'&&j>=height&&((i>=1&&i<=2)||(i>=width-2&&i<=width-1));
+  // The wall variant grows one extra row so its hanging holes sit fully above
+  // the text: a hole behind a glyph's top bar removes the only brick that can
+  // merge with it, leaving a stud-less piece the release gate rejects.
+  const plateTop=holder==='wall'?height+2:height+1;
+  for(let i=-1;i<=width;i++)for(let j=0;j<=plateTop;j++){
+    const wallHole=holder==='wall'&&j>=height+1&&((i>=1&&i<=2)||(i>=width-2&&i<=width-1));
     if(!wallHole)add(i,j,-1,'dark',holder==='flat'?primary:'#202124');
   }
   if(holder==='freestanding'){
     for(let i=-1;i<=width;i++)for(let k=-1;k<=depth;k++)add(i,-1,k,'dark','#202124');
   }
-  return buildModelFromCells(cells,1,{slopes:false});
+  // Mini ships the base grid; Classic doubles and Showcase triples every sign
+  // pixel in the letter plane. A scaled glyph row also gives floating letter
+  // bars (like the top of an O) real stud support from their own lower rows.
+  const pixelScale=profile==='detailed'?3:profile==='balanced'?2:1;
+  if(pixelScale===1)return buildModelFromCells(cells,1,{slopes:false});
+  const scaled:VoxelCell[]=[];const scaledSeen=new Set<string>();
+  for(const cell of cells)for(let di=0;di<pixelScale;di++)for(let dj=0;dj<pixelScale;dj++){
+    const i=cell.i*pixelScale+di,j=cell.j*pixelScale+dj;
+    const key=`${i}|${j}|${cell.k}`;
+    if(scaledSeen.has(key))continue;scaledSeen.add(key);
+    scaled.push({...cell,i,j,cx:i+.5,cy:j+.5});
+  }
+  return buildModelFromCells(scaled,1,{slopes:false});
 }
 
 /** Add the shortest hidden-looking stud path between any sampled islands. */
@@ -555,7 +575,9 @@ function sourceFor(entry:LibraryEntry,options:LibraryBuildOptions){
 
 export function buildProceduralLibraryPreview(entry:LibraryEntry,color:string,options:LibraryBuildOptions={}):VoxelModel{
   const {isWord,key,source}=sourceFor(entry,options);
-  if(isWord)return buildMessageBrickModel(entry,color,options,'efficient');
+  // Words preview at the chosen finished size so mini/classic visibly change
+  // line wrapping; shapes keep one cheap preview resolution.
+  if(isWord)return buildMessageBrickModel(entry,color,options,options.size??'efficient');
   return colorize(reinforceConnectivity(voxelize(source.classify,.32,source.bounds)),color,key,options.flowerColors);
 }
 

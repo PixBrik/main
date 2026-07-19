@@ -46,35 +46,67 @@ const searchKey=(value:string)=>value
   .replace(/[^a-z0-9]+/g,' ')
   .trim();
 
-function fitFaces(faces: RenderFace[]): Projection {
+function fitFaces(faces: RenderFace[], width=140, height=104, margin=14): Projection {
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   for(const face of faces)for(const pair of face.points.split(' ')){
     const [x,y]=pair.split(',').map(Number); if(x===undefined||y===undefined)continue;
     minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
   }
-  const scale=Math.min(112/Math.max(1,maxX-minX),82/Math.max(1,maxY-minY));
-  return {baseY:56-((minY+maxY)/2)*scale,centerX:70-((minX+maxX)/2)*scale,scale};
+  const scale=Math.min((width-margin*2)/Math.max(1,maxX-minX),(height-margin*2)/Math.max(1,maxY-minY));
+  return {baseY:height/2-((minY+maxY)/2)*scale,centerX:width/2-((minX+maxX)/2)*scale,scale};
 }
 
-function BrickThumbnail({ entry, color, options }: { entry: LibraryEntry; color: string; options?: LibraryBuildOptions }) {
+function ProceduralBrickSvg({ entry, color, options, width, height }: { entry: LibraryEntry; color: string; options?: LibraryBuildOptions; width: number; height: number }) {
   const faces=useMemo(()=>{
-    if(!entry.proceduralKey)return [];
     const model=buildProceduralLibraryPreview(entry,color,options);
     const probe=buildRenderFaces(.55,color,model,{baseY:0,centerX:0,scale:1});
-    return buildRenderFaces(.55,color,model,fitFaces(probe));
+    return buildRenderFaces(.55,color,model,fitFaces(probe,width,height));
   },[
     color,
     entry,
+    height,
     options?.flowerColors,
     options?.flowerCount,
     options?.font,
     options?.holder,
     options?.message,
     options?.size,
+    width,
   ]);
+  return <Svg height="100%" viewBox={`0 0 ${width} ${height}`} width="100%"><Rect fill="#F5F2EA" height={height} width={width}/>{faces.map(face=><Polygon fill={face.fill} key={face.id} points={face.points} stroke="#17130A" strokeWidth=".35"/>)}</Svg>;
+}
+
+function BrickThumbnail({ entry, color, options }: { entry: LibraryEntry; color: string; options?: LibraryBuildOptions }) {
+  // Cards prefer the pre-rendered BRICK view of a realistic master — the
+  // buyer is shopping for the brick kit, not the source scan.
+  const brickFrame=entry.brickPreviews?.[0];
+  if(brickFrame)return <Image accessibilityLabel={`${entry.name} brick preview`} resizeMode="contain" source={{uri:brickFrame}} style={styles.thumbnailImage}/>;
   if(entry.thumbnailUrl)return <Image accessibilityLabel={`${entry.name} realistic 3D preview`} resizeMode="contain" source={{uri:entry.thumbnailUrl}} style={styles.thumbnailImage}/>;
   if(entry.meshUrl)return <View style={styles.meshPlaceholder}><Text style={styles.meshPlaceholderText}>REAL 3D</Text></View>;
-  return <Svg height="100%" viewBox="0 0 140 104" width="100%"><Rect fill="#F5F2EA" height="104" width="140"/>{faces.map(face=><Polygon fill={face.fill} key={face.id} points={face.points} stroke="#17130A" strokeWidth=".35"/>)}</Svg>;
+  return <ProceduralBrickSvg color={color} entry={entry} height={104} options={options} width={140}/>;
+}
+
+function DetailPreview({ entry, color, options }: { entry: LibraryEntry; color: string; options?: LibraryBuildOptions }) {
+  const frames=entry.brickPreviews??[];
+  const [frame,setFrame]=useState(0);
+  useEffect(()=>setFrame(0),[entry.id]);
+  if(frames.length){
+    const active=frames[Math.abs(frame)%frames.length]!;
+    return <View style={styles.detailPreview}>
+      <Image accessibilityLabel={`${entry.name} brick model, view ${(Math.abs(frame)%frames.length)+1} of ${frames.length}`} resizeMode="contain" source={{uri:active}} style={styles.detailImage}/>
+      {frames.length>1?<View style={styles.turntableRow}>
+        <Pressable accessibilityLabel="Rotate brick preview left" accessibilityRole="button" onPress={()=>setFrame(value=>value-1)} style={styles.turnButton}><Text style={styles.turnButtonText}>‹</Text></Pressable>
+        <Text style={styles.turnCaption}>DRAG THROUGH {frames.length} SIDES · REAL BRICK MODEL</Text>
+        <Pressable accessibilityLabel="Rotate brick preview right" accessibilityRole="button" onPress={()=>setFrame(value=>value+1)} style={styles.turnButton}><Text style={styles.turnButtonText}>›</Text></Pressable>
+      </View>:null}
+    </View>;
+  }
+  if(entry.thumbnailUrl)return <View style={styles.detailPreview}>
+    <Image accessibilityLabel={`${entry.name} realistic 3D preview`} resizeMode="contain" source={{uri:entry.thumbnailUrl}} style={styles.detailImage}/>
+    <Text style={styles.turnCaption}>REALISTIC MASTER · TAP BUILD FOR THE EXACT BRICK MODEL</Text>
+  </View>;
+  if(entry.meshUrl)return <View style={[styles.detailPreview,styles.detailPreviewDark]}><Text style={styles.meshPlaceholderText}>REAL 3D MASTER</Text></View>;
+  return <View style={styles.detailPreview}><View style={styles.detailSvg}><ProceduralBrickSvg color={color} entry={entry} height={190} options={options} width={320}/></View><Text style={styles.turnCaption}>LIVE BRICK PREVIEW · UPDATES WITH EVERY CHOICE</Text></View>;
 }
 
 export function LibraryScreen({
@@ -114,6 +146,21 @@ export function LibraryScreen({
   const releasedSizes=useMemo(()=>selected?releasedProceduralLibraryProfiles(selected):[],[selected]);
   const buildColor=color??selected?.defaultColor??LIBRARY_COLORS[0]!;
   const customOptions=useMemo<LibraryBuildOptions>(()=>({flowerColors,flowerCount,font,holder,message:sanitiseMessage(message),size,vase}),[flowerColors,flowerCount,font,holder,message,size,vase]);
+  // Chips reflect what is actually on sale: a category or theme appears only
+  // when at least one live entry carries it. Dead chips read as an empty shop.
+  const categories=useMemo(()=>{
+    const counts=new Map<string,number>();
+    for(const entry of entries)for(const key of new Set([entry.category,entry.theme].filter(Boolean) as string[])){
+      counts.set(key,(counts.get(key)??0)+1);
+    }
+    const known:{id:string;label:string}[]=LIBRARY_CATEGORIES.filter(item=>item.id==='all'||item.id==='message'||(counts.get(item.id)??0)>0);
+    const knownIds=new Set<string>(LIBRARY_CATEGORIES.map(item=>item.id));
+    const knownLabels=new Set(known.map(item=>item.label.toUpperCase()));
+    const extra=[...counts.keys()].filter(id=>!knownIds.has(id)).sort()
+      .map(id=>({id,label:id.replace(/-/g,' ').toUpperCase()}))
+      .filter(item=>!knownLabels.has(item.label));
+    return [...known,...extra];
+  },[entries]);
   const filtered=useMemo(()=>{
     const needle=searchKey(query);
     const result=entries.filter(entry=>{
@@ -124,7 +171,8 @@ export function LibraryScreen({
     if(sort==='az')return [...result].sort((a,b)=>a.name.localeCompare(b.name));
     if(sort==='za')return [...result].sort((a,b)=>b.name.localeCompare(a.name));
     if(sort==='category')return [...result].sort((a,b)=>`${a.category}-${a.name}`.localeCompare(`${b.category}-${b.name}`));
-    return result;
+    // Featured: realistic masters with imagery lead; procedural signs follow.
+    return [...result].sort((a,b)=>Number(!!(b.thumbnailUrl||b.brickPreviews?.length))-Number(!!(a.thumbnailUrl||a.brickPreviews?.length)));
   },[category,entries,query,sort]);
   const pageCount=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   const visible=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
@@ -169,7 +217,7 @@ export function LibraryScreen({
     <View style={styles.searchWrap}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Search objects" onChangeText={setQuery} placeholder="Search cars, roses, birthday, signs..." placeholderTextColor={colors.inkSoft} style={styles.search} value={query}/>{query?<Pressable accessibilityLabel="Clear search" accessibilityRole="button" onPress={()=>setQuery('')}><Text style={styles.clear}>×</Text></Pressable>:null}</View>
 
     <Text style={styles.kicker}>CATEGORY OR THEME</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollStrip}><View style={styles.chipRow}>{LIBRARY_CATEGORIES.map(item=><Pressable accessibilityRole="tab" accessibilityState={{selected:category===item.id}} key={item.id} onPress={()=>{setCategory(item.id);if(item.id==='message')select(MESSAGE_ENTRY);}} style={[styles.chip,category===item.id&&styles.chipActive]}><Text style={[styles.chipText,category===item.id&&styles.chipTextActive]}>{item.label}</Text></Pressable>)}</View></ScrollView>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollStrip}><View style={styles.chipRow}>{categories.map(item=><Pressable accessibilityRole="tab" accessibilityState={{selected:category===item.id}} key={item.id} onPress={()=>{setCategory(item.id);if(item.id==='message')select(MESSAGE_ENTRY);}} style={[styles.chip,category===item.id&&styles.chipActive]}><Text style={[styles.chipText,category===item.id&&styles.chipTextActive]}>{item.label}</Text></Pressable>)}</View></ScrollView>
     <View style={styles.catalogToolbar}><Text style={styles.resultCount}>{filtered.length} {filtered.length===1?'IDEA':'IDEAS'}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.sortRow}>{SORTS.map(item=><Pressable accessibilityLabel={`Sort by ${item.label}`} accessibilityRole="radio" accessibilityState={{checked:sort===item.id}} key={item.id} onPress={()=>setSort(item.id)} style={[styles.sortChip,sort===item.id&&styles.sortChipActive]}><Text style={styles.sortText}>{item.label}</Text></Pressable>)}</View></ScrollView></View>
 
     {category==='message'?<View style={styles.messageIntro}><Text style={styles.kicker}>CREATE FROM SCRATCH</Text><Text style={styles.messageIntroTitle}>Your words, built in bricks.</Text><Text style={styles.hint}>Up to 14 Latin letters, numbers and spaces. Longer messages wrap automatically. Pick the mounting style below.</Text></View>:
@@ -181,7 +229,8 @@ export function LibraryScreen({
     {generationError?<View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.generationError}><Text style={styles.generationErrorTitle}>BUILD STOPPED</Text><Text style={styles.generationErrorCopy}>{generationError}</Text><Pressable accessibilityLabel="Try building again" accessibilityRole="button" disabled={!canBuild||generating} onPress={requestBuild} style={[styles.retryButton,(!canBuild||generating)&&styles.disabled]}><Text style={styles.retryButtonText}>TRY AGAIN</Text></Pressable></View>:null}
 
     {selected?<View style={styles.customiser}>
-      <View style={styles.customHeader}><View><Text style={styles.kicker}>CUSTOMISE YOUR BUILD</Text><Text style={styles.customTitle}>{selected.name}</Text></View><View style={styles.selectedPreview}><BrickThumbnail color={buildColor} entry={selected} options={customOptions}/></View></View>
+      <View style={styles.customHeader}><View><Text style={styles.kicker}>CUSTOMISE YOUR BUILD</Text><Text style={styles.customTitle}>{selected.name}</Text></View></View>
+      <DetailPreview color={buildColor} entry={selected} options={customOptions}/>
 
       {(selected.supportsHolder||selected.id==='custom-message'||selected.id==='love-sign')?<><Text style={styles.kicker}>WORDS</Text><TextInput accessibilityLabel="Custom message" autoCapitalize="characters" maxLength={14} onChangeText={value=>setMessage(sanitiseMessage(value))} placeholder="YOUR MESSAGE" placeholderTextColor={colors.inkSoft} style={styles.messageInput} value={message}/><Text style={styles.hint}>A-Z, 0-9 and spaces only. Maximum 14 characters.</Text><Text style={styles.kicker}>FONT</Text><View style={styles.choiceRow}>{(['block','rounded','stencil'] as MessageFont[]).map(choice=><Pressable accessibilityLabel={`${FONT_LABELS[choice]} font`} accessibilityRole="radio" accessibilityState={{checked:font===choice}} key={choice} onPress={()=>setFont(choice)} style={[styles.choice,font===choice&&styles.choiceActive]}><Text style={styles.choiceTitle}>{choice==='stencil'?'A 9':'Aa 9'}</Text><Text style={styles.choiceCopy}>{FONT_LABELS[choice]}</Text></Pressable>)}</View><Text style={styles.kicker}>HOW TO DISPLAY IT</Text><View style={styles.choiceRow}>{(['freestanding','wall','flat'] as MessageHolder[]).map(choice=><Pressable accessibilityLabel={HOLDER_LABELS[choice]} accessibilityRole="radio" accessibilityState={{checked:holder===choice}} key={choice} onPress={()=>setHolder(choice)} style={[styles.choice,holder===choice&&styles.choiceActive]}><Text style={styles.choiceIcon}>{choice==='wall'?'▣':choice==='flat'?'▬':'⊥'}</Text><Text style={styles.choiceCopy}>{HOLDER_LABELS[choice]}</Text></Pressable>)}</View></>:null}
 
@@ -189,7 +238,7 @@ export function LibraryScreen({
       {selected.flowerSlots?<><Text style={styles.kicker}>CHOOSE EACH FLOWER</Text><View style={styles.flowerSlots}>{flowerColors.slice(0,flowerCount).map((hex,index)=><Pressable accessibilityLabel={`Flower ${index+1}`} accessibilityRole="radio" accessibilityState={{checked:activeFlower===index}} key={index} onPress={()=>setActiveFlower(index)} style={[styles.flowerSlot,{backgroundColor:hex},activeFlower===index&&styles.flowerSlotActive]}><Text style={styles.flowerNumber}>{index+1}</Text></Pressable>)}</View></>:null}
       {selected.bouquet?<><Text style={styles.kicker}>DISPLAY IT IN</Text><View style={styles.choiceRow}>{selected.bouquet.vases.map(option=><Pressable accessibilityLabel={option.name} accessibilityRole="radio" accessibilityState={{checked:vase===option.id}} key={option.id} onPress={()=>setVase(option.id)} style={[styles.choice,vase===option.id&&styles.choiceActive]}><Text style={styles.choiceIcon}>{option.url?'⚱':'✿'}</Text><Text style={styles.choiceCopy}>{option.name}</Text></Pressable>)}</View><Text style={styles.hint}>Photoreal blooms keep their natural colours — the vase and bouquet size are yours to choose.</Text></>:null}
 
-      {selected.bouquet?null:<><Text style={styles.kicker}>{selected.flowerSlots?'SELECTED FLOWER COLOUR':'MAIN COLOUR'}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollStrip}><View style={styles.colorRow}>{LIBRARY_COLORS.map(hex=><Pressable accessibilityLabel={`Colour ${hex}`} accessibilityRole="button" key={hex} onPress={()=>choosePaletteColor(hex)} style={[styles.colorDot,{backgroundColor:hex},(!selected.flowerSlots&&buildColor===hex)&&styles.colorDotActive]}/>)}</View></ScrollView></>}
+      {(selected.bouquet||selected.meshUrl)?(selected.meshUrl&&!selected.bouquet?<Text style={styles.hint}>Photoreal masters keep their true scanned colours — every brick is matched to the real object.</Text>:null):<><Text style={styles.kicker}>{selected.flowerSlots?'SELECTED FLOWER COLOUR':'MAIN COLOUR'}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollStrip}><View style={styles.colorRow}>{LIBRARY_COLORS.map(hex=><Pressable accessibilityLabel={`Colour ${hex}`} accessibilityRole="button" key={hex} onPress={()=>choosePaletteColor(hex)} style={[styles.colorDot,{backgroundColor:hex},(!selected.flowerSlots&&buildColor===hex)&&styles.colorDotActive]}/>)}</View></ScrollView></>}
 
       <Text style={styles.kicker}>CERTIFIED FINISHED SIZE</Text>{releasedSizes.length?<View style={styles.sizeColumn}>{releasedSizes.map(profile=>{const option=SCULPTURE_SIZE_OPTIONS[profile];return <Pressable accessibilityRole="radio" accessibilityState={{checked:size===profile}} key={profile} onPress={()=>setSize(profile)} style={[styles.sizeChoice,size===profile&&styles.sizeChoiceActive]}><View><Text style={styles.sizeTitle}>{option.name}</Text><Text style={styles.sizeCopy}>{option.promise}</Text></View><Text style={styles.sizeCm}>up to {Number(option.targetLongestCm.toFixed(1))} cm</Text></Pressable>;})}</View>:<View accessibilityLiveRegion="polite" style={styles.pendingNotice}><Text style={styles.pendingNoticeTitle}>PREVIEW AVAILABLE</Text><Text style={styles.pendingNoticeCopy}>This design is visible for inspiration and colour customisation. Ordering unlocks after its physical brick packing and child-friendly instructions pass certification.</Text></View>}
     </View>:null}
@@ -201,5 +250,5 @@ const styles=StyleSheet.create({
   searchWrap:{alignItems:'center',backgroundColor:colors.white,borderColor:colors.ink,borderRadius:radius.md,borderWidth:2,flexDirection:'row',gap:8,marginBottom:spacing.lg,minHeight:52,paddingHorizontal:spacing.md},searchIcon:{color:colors.ink,fontSize:24,fontWeight:'900'},search:{...type.body,color:colors.ink,flex:1,fontSize:14},clear:{color:colors.ink,fontSize:24,fontWeight:'900'},kicker:{...type.label,color:colors.inkSoft,fontSize:9,marginBottom:spacing.sm},scrollStrip:{marginBottom:spacing.lg},chipRow:{flexDirection:'row',gap:spacing.sm,paddingRight:spacing.md},chip:{backgroundColor:colors.white,borderColor:colors.line,borderRadius:radius.pill,borderWidth:1.5,paddingHorizontal:14,paddingVertical:9},chipActive:{backgroundColor:colors.ink,borderColor:colors.ink},chipText:{...type.micro,color:colors.ink,fontSize:9,fontWeight:'900'},chipTextActive:{color:colors.white},catalogToolbar:{alignItems:'center',flexDirection:'row',gap:spacing.md,justifyContent:'space-between',marginBottom:spacing.md},resultCount:{...type.label,color:colors.ink,fontSize:10},sortRow:{flexDirection:'row',gap:6},sortChip:{backgroundColor:'#EEEAE1',borderRadius:radius.pill,paddingHorizontal:10,paddingVertical:7},sortChipActive:{backgroundColor:colors.blueSoft},sortText:{...type.micro,color:colors.ink,fontSize:8,fontWeight:'800'},
   grid:{flexDirection:'row',flexWrap:'wrap',gap:spacing.sm},card:{backgroundColor:colors.white,borderColor:colors.line,borderRadius:radius.md,borderWidth:1.5,overflow:'hidden',width:'48%'},cardActive:{borderColor:colors.blue,borderWidth:3},thumbnail:{aspectRatio:1.35,backgroundColor:'#F5F2EA',position:'relative',width:'100%'},thumbnailImage:{backgroundColor:colors.ink,height:'100%',width:'100%'},meshPlaceholder:{alignItems:'center',backgroundColor:colors.ink,height:'100%',justifyContent:'center',width:'100%'},meshPlaceholderText:{...type.label,color:colors.saffron,fontSize:11},previewBadge:{backgroundColor:colors.ink,borderRadius:radius.pill,left:6,paddingHorizontal:7,paddingVertical:4,position:'absolute',top:6},previewBadgeText:{...type.micro,color:colors.white,fontSize:7,fontWeight:'900'},cardBody:{padding:spacing.sm},cardName:{...type.body,color:colors.ink,fontSize:12,fontWeight:'900',lineHeight:14},cardMeta:{...type.micro,color:colors.inkSoft,fontSize:8,marginTop:3,textTransform:'uppercase'},pagination:{alignItems:'center',flexDirection:'row',justifyContent:'space-between',marginBottom:spacing.xl,marginTop:spacing.lg},pageButton:{backgroundColor:colors.ink,borderRadius:radius.pill,paddingHorizontal:14,paddingVertical:9},pageButtonText:{...type.micro,color:colors.white,fontSize:9,fontWeight:'900'},pageStatus:{...type.label,color:colors.ink,fontSize:10},disabled:{opacity:.28},empty:{alignItems:'center',backgroundColor:colors.white,borderRadius:radius.md,marginBottom:spacing.xl,padding:spacing.xl},emptyTitle:{...type.title,color:colors.ink,fontSize:18},
   generationError:{backgroundColor:'#FFF0EC',borderColor:colors.alarm,borderRadius:radius.md,borderWidth:2,gap:spacing.sm,marginTop:spacing.lg,padding:spacing.lg},generationErrorTitle:{...type.label,color:colors.alarm,fontSize:10},generationErrorCopy:{...type.body,color:colors.ink,fontSize:13,lineHeight:18},retryButton:{alignItems:'center',alignSelf:'flex-start',backgroundColor:colors.ink,borderRadius:radius.pill,minWidth:112,paddingHorizontal:16,paddingVertical:10},retryButtonText:{...type.label,color:colors.white,fontSize:9},pendingNotice:{backgroundColor:'#FFF7D6',borderColor:'#B18400',borderRadius:radius.sm,borderWidth:1.5,gap:6,marginBottom:spacing.lg,padding:spacing.md},pendingNoticeTitle:{...type.label,color:'#765800',fontSize:9},pendingNoticeCopy:{...type.micro,color:colors.ink,fontSize:9,lineHeight:14},
-  messageIntro:{backgroundColor:colors.ink,borderRadius:radius.md,marginBottom:spacing.xl,padding:spacing.xl},messageIntroTitle:{...type.title,color:colors.white,fontSize:24,marginBottom:8},hint:{...type.micro,color:colors.inkSoft,fontSize:9,lineHeight:13,marginBottom:spacing.lg,marginTop:5},customiser:{backgroundColor:colors.white,borderColor:colors.ink,borderRadius:radius.md,borderWidth:2,marginBottom:spacing.xl,marginTop:spacing.xl,padding:spacing.lg},customHeader:{alignItems:'center',flexDirection:'row',justifyContent:'space-between',marginBottom:spacing.lg},customTitle:{...type.title,color:colors.ink,fontSize:21},selectedPreview:{borderColor:colors.line,borderRadius:radius.sm,borderWidth:1,height:72,overflow:'hidden',width:96},messageInput:{...type.title,backgroundColor:'#F5F2EA',borderColor:colors.ink,borderRadius:radius.sm,borderWidth:2,color:colors.ink,fontSize:20,minHeight:52,paddingHorizontal:spacing.md},choiceRow:{flexDirection:'row',gap:spacing.sm,marginBottom:spacing.lg},choice:{alignItems:'center',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,flex:1,justifyContent:'center',minHeight:62,padding:spacing.sm},choiceActive:{backgroundColor:colors.blueSoft,borderColor:colors.ink,borderWidth:2},choiceTitle:{color:colors.ink,fontSize:15,fontWeight:'900'},choiceIcon:{color:colors.ink,fontSize:21,fontWeight:'900'},choiceCopy:{...type.micro,color:colors.inkSoft,fontSize:8,fontWeight:'900',textAlign:'center'},flowerSlots:{flexDirection:'row',gap:spacing.sm,marginBottom:spacing.lg},flowerSlot:{alignItems:'center',borderColor:colors.line,borderRadius:radius.pill,borderWidth:2,height:42,justifyContent:'center',width:42},flowerSlotActive:{borderColor:colors.ink,borderWidth:4},flowerNumber:{color:colors.ink,fontSize:10,fontWeight:'900'},colorRow:{flexDirection:'row',gap:spacing.sm,paddingVertical:2},colorDot:{borderColor:colors.line,borderRadius:radius.pill,borderWidth:2,height:38,width:38},colorDotActive:{borderColor:colors.ink,borderWidth:4},sizeColumn:{gap:spacing.sm,marginBottom:spacing.lg},sizeChoice:{alignItems:'center',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,flexDirection:'row',justifyContent:'space-between',padding:spacing.md},sizeChoiceActive:{backgroundColor:colors.blueSoft,borderColor:colors.ink,borderWidth:2},sizeTitle:{...type.body,color:colors.ink,fontWeight:'900'},sizeCopy:{...type.micro,color:colors.inkSoft,fontSize:8},sizeCm:{...type.label,color:colors.blue,fontSize:9},disclaimer:{...type.micro,color:colors.inkSoft,fontSize:9,lineHeight:13,marginTop:spacing.sm},
+  messageIntro:{backgroundColor:colors.ink,borderRadius:radius.md,marginBottom:spacing.xl,padding:spacing.xl},messageIntroTitle:{...type.title,color:colors.white,fontSize:24,marginBottom:8},hint:{...type.micro,color:colors.inkSoft,fontSize:9,lineHeight:13,marginBottom:spacing.lg,marginTop:5},customiser:{backgroundColor:colors.white,borderColor:colors.ink,borderRadius:radius.md,borderWidth:2,marginBottom:spacing.xl,marginTop:spacing.xl,padding:spacing.lg},customHeader:{alignItems:'center',flexDirection:'row',justifyContent:'space-between',marginBottom:spacing.md},customTitle:{...type.title,color:colors.ink,fontSize:21},detailPreview:{backgroundColor:'#F5F2EA',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,marginBottom:spacing.lg,overflow:'hidden'},detailPreviewDark:{alignItems:'center',backgroundColor:colors.ink,justifyContent:'center',minHeight:200},detailImage:{backgroundColor:colors.ink,height:250,width:'100%'},detailSvg:{aspectRatio:320/190,width:'100%'},turntableRow:{alignItems:'center',backgroundColor:colors.white,borderTopColor:colors.line,borderTopWidth:1,flexDirection:'row',justifyContent:'space-between',paddingHorizontal:spacing.sm},turnButton:{alignItems:'center',justifyContent:'center',minHeight:48,minWidth:48},turnButtonText:{color:colors.ink,fontSize:28,fontWeight:'900'},turnCaption:{...type.micro,color:colors.inkSoft,fontSize:8,fontWeight:'900',paddingVertical:8,textAlign:'center'},messageInput:{...type.title,backgroundColor:'#F5F2EA',borderColor:colors.ink,borderRadius:radius.sm,borderWidth:2,color:colors.ink,fontSize:20,minHeight:52,paddingHorizontal:spacing.md},choiceRow:{flexDirection:'row',gap:spacing.sm,marginBottom:spacing.lg},choice:{alignItems:'center',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,flex:1,justifyContent:'center',minHeight:62,padding:spacing.sm},choiceActive:{backgroundColor:colors.blueSoft,borderColor:colors.ink,borderWidth:2},choiceTitle:{color:colors.ink,fontSize:15,fontWeight:'900'},choiceIcon:{color:colors.ink,fontSize:21,fontWeight:'900'},choiceCopy:{...type.micro,color:colors.inkSoft,fontSize:8,fontWeight:'900',textAlign:'center'},flowerSlots:{flexDirection:'row',gap:spacing.sm,marginBottom:spacing.lg},flowerSlot:{alignItems:'center',borderColor:colors.line,borderRadius:radius.pill,borderWidth:2,height:42,justifyContent:'center',width:42},flowerSlotActive:{borderColor:colors.ink,borderWidth:4},flowerNumber:{color:colors.ink,fontSize:10,fontWeight:'900'},colorRow:{flexDirection:'row',gap:spacing.sm,paddingVertical:2},colorDot:{borderColor:colors.line,borderRadius:radius.pill,borderWidth:2,height:38,width:38},colorDotActive:{borderColor:colors.ink,borderWidth:4},sizeColumn:{gap:spacing.sm,marginBottom:spacing.lg},sizeChoice:{alignItems:'center',borderColor:colors.line,borderRadius:radius.sm,borderWidth:1.5,flexDirection:'row',justifyContent:'space-between',padding:spacing.md},sizeChoiceActive:{backgroundColor:colors.blueSoft,borderColor:colors.ink,borderWidth:2},sizeTitle:{...type.body,color:colors.ink,fontWeight:'900'},sizeCopy:{...type.micro,color:colors.inkSoft,fontSize:8},sizeCm:{...type.label,color:colors.blue,fontSize:9},disclaimer:{...type.micro,color:colors.inkSoft,fontSize:9,lineHeight:13,marginTop:spacing.sm},
 });

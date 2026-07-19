@@ -56,6 +56,20 @@ function pngPreview(value: unknown): Buffer | null {
   return buffer;
 }
 
+const MAX_BRICK_PREVIEW_FRAMES = 12;
+
+function brickPreviewBuffers(value: unknown): Buffer[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > MAX_BRICK_PREVIEW_FRAMES) {
+    throw new Error(`brickPreviews must be up to ${MAX_BRICK_PREVIEW_FRAMES} PNG data URLs`);
+  }
+  return value.map((frame) => {
+    const buffer = pngPreview(frame);
+    if (!buffer) throw new Error('brickPreviews must be PNG data URLs');
+    return buffer;
+  });
+}
+
 function assetMetadata(url: string, buffer: Buffer) {
   return {
     bytes: buffer.byteLength,
@@ -165,6 +179,20 @@ export default async function handler(req: any, res: any): Promise<void> {
           },
         )
       : null;
+    const brickFrames = brickPreviewBuffers(req.body?.brickPreviews);
+    const brickFrameAssets = [];
+    for (const [index, frame] of brickFrames.entries()) {
+      const frameBlob = await put(
+        `library/v1/${slugify(req.body?.name)}-brick-${index}-${Date.now().toString(36)}.png`,
+        frame,
+        {
+          access: 'public',
+          addRandomSuffix: true,
+          contentType: 'image/png',
+        },
+      );
+      brickFrameAssets.push(assetMetadata(frameBlob.url, frame));
+    }
     const entry = await publishBackendLibraryMaster(
       {
         category: req.body?.category,
@@ -175,6 +203,7 @@ export default async function handler(req: any, res: any): Promise<void> {
         provider,
         providerJobId,
         tags: req.body?.tags,
+        ...(brickFrameAssets.length ? { brickPreviews: brickFrameAssets } : {}),
         ...(previewBlob && previewBuffer
           ? { thumbnail: assetMetadata(previewBlob.url, previewBuffer) }
           : {}),

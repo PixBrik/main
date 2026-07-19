@@ -563,8 +563,11 @@ function PixBrikApp() {
           ? await (await import('./src/lib/photoEngine/bouquetComposer')).buildBouquetFromLibrary(
               entry, options?.flowerCount ?? 5, options?.vase, setLibraryGenerationProgress,
             )
+          // Realistic masters keep their photoreal palette (no accent
+          // recolour) and voxelize only the chosen finished size.
           : await (await import('./src/lib/photoEngine/imageTo3D')).buildFromLibrary(
-              entry.meshUrl!, entry.name, colorHex, setLibraryGenerationProgress,
+              entry.meshUrl!, entry.name, undefined, setLibraryGenerationProgress,
+              options?.size ?? 'balanced',
             );
       setPhotoUri(null);
       setRightsConfirmedUri(null);

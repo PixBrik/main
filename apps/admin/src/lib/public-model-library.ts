@@ -14,6 +14,7 @@ const HEX_PATTERN = /^#[A-Fa-f0-9]{6}$/u;
 const PROVIDER_JOB_PATTERN = /^[A-Za-z0-9_-]{8,64}$/u;
 
 export type PublicLibraryEntry = Readonly<{
+  brickPreviews?: string[];
   category: string;
   defaultColor: string;
   id: string;
@@ -31,6 +32,7 @@ type AssetInput = Readonly<{
 }>;
 
 export type PublishLibraryMasterInput = Readonly<{
+  brickPreviews?: readonly AssetInput[];
   category: string;
   defaultColor: string;
   kit: Readonly<{
@@ -143,7 +145,16 @@ export function parsePublishLibraryMasterInput(value: unknown): PublishLibraryMa
   if (Object.values(parsedKit).some((entry) => entry === null)) {
     throw new LibraryPublishError("The inspected brick-kit metadata is incomplete.");
   }
+  const brickPreviews = body.brickPreviews === undefined
+    ? undefined
+    : (() => {
+      if (!Array.isArray(body.brickPreviews) || body.brickPreviews.length === 0 || body.brickPreviews.length > 12) {
+        throw new LibraryPublishError("Brick previews must be a set of 1-12 rendered frames.");
+      }
+      return body.brickPreviews.map((frame, index) => blobAsset(frame, `Brick preview ${index + 1}`));
+    })();
   return {
+    brickPreviews,
     category,
     defaultColor: defaultColor.toUpperCase(),
     kit: parsedKit as PublishLibraryMasterInput["kit"],
@@ -177,7 +188,21 @@ function publicMetadata(value: unknown, fallback: Pick<CatalogRow, "category" | 
   const tags = Array.isArray(metadata.tags)
     ? metadata.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 12)
     : [fallback.category, "realistic"];
+  const brickPreviews = Array.isArray(metadata.brickPreviews)
+    ? metadata.brickPreviews
+      .filter((frame): frame is string => typeof frame === "string")
+      .filter((frame) => {
+        try {
+          const parsed = new URL(frame);
+          return parsed.protocol === "https:" && parsed.hostname.endsWith(".public.blob.vercel-storage.com");
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, 12)
+    : [];
   return {
+    ...(brickPreviews.length ? { brickPreviews } : {}),
     category: fallback.category,
     defaultColor: defaultColor.toUpperCase(),
     id: fallback.id,
@@ -285,6 +310,9 @@ export async function publishLibraryMaster(
     const thumbnailAssetId = input.thumbnail
       ? await ensureAsset(sql, claims.sub, input.thumbnail, "image/png")
       : null;
+    for (const frame of input.brickPreviews ?? []) {
+      await ensureAsset(sql, claims.sub, frame, "image/png");
+    }
 
     const build = await sql<{ id: string }[]>`
       INSERT INTO pixbrik.build (owner_user_id, title, status, subject_type)
@@ -298,6 +326,7 @@ export async function publishLibraryMaster(
     if (!buildId) throw new Error("Build insert returned no identifier");
 
     const publicEntry: PublicLibraryEntry = {
+      ...(input.brickPreviews?.length ? { brickPreviews: input.brickPreviews.map((frame) => frame.url) } : {}),
       category: input.category,
       defaultColor: input.defaultColor,
       id: slug,
@@ -314,6 +343,7 @@ export async function publishLibraryMaster(
         kind: "realistic-mesh",
         meshUrl: publicEntry.meshUrl,
         tags: publicEntry.tags,
+        ...(publicEntry.brickPreviews ? { brickPreviews: publicEntry.brickPreviews } : {}),
         ...(publicEntry.thumbnailUrl ? { thumbnailUrl: publicEntry.thumbnailUrl } : {})
       },
       studio: {

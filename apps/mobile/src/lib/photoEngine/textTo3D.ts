@@ -100,6 +100,8 @@ export interface PublishLibraryMetadata {
     widthMm: number;
   };
   previewDataUrl?: string;
+  /** Brick turntable frames (PNG data URLs) rendered from the inspected kit. */
+  brickPreviews?: string[];
   tags: string[];
 }
 

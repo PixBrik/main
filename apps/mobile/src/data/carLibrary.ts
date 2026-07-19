@@ -16,6 +16,9 @@ export interface LibraryEntry {
   tags: string[];
   meshUrl: string | null;
   thumbnailUrl?: string;
+  /** Pre-rendered brick turntable frames (front, right, back, left) so the
+   * shop shows the exact kit instantly with zero client-side voxelization. */
+  brickPreviews?: string[];
   /** Deterministic brick-native generator; unlike a mesh, this cannot lose thin details. */
   proceduralKey?: string;
   defaultColor: string;

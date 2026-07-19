@@ -13,7 +13,7 @@ import type { VoxelModel } from '../voxelFox';
 import { smartIsolateRegion } from './backgroundRemoval';
 import { segmentRegion, type Segmentation } from './segment';
 import { quantizeToCatalog, type PhotoModels } from './voxelizePhoto';
-import { voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
+import { voxelizeGlbUrl, voxelizeGlbUrlOne, type MeshProfile } from './meshVoxelize';
 
 export { recolorPhotoModels } from './meshFidelity';
 export type { MeshBrickColorStyle } from './meshFidelity';
@@ -179,29 +179,26 @@ function recolour(model: VoxelModel, colorHex: string): VoxelModel {
 }
 
 /**
- * Library build: create the same three genuine fidelity profiles as an
- * approved provider model and, when a colour is chosen, recolour each without
- * changing occupancy. Users can therefore compare real size/detail options.
+ * Library build: voxelize only the finished size the buyer chose. Realistic
+ * masters keep their photoreal palette — recolouring a textured scan with one
+ * accent flattens it into an unrecognizable mass — and skipping the two other
+ * profiles keeps a multi-megabyte GLB from freezing the page.
  */
 export async function buildFromLibrary(
   url: string,
   label: string,
   colorHex?: string,
   onProgress?: (fraction: number) => void,
+  profile: MeshProfile = 'balanced',
 ): Promise<PhotoModels> {
-  const base = await voxelizeGlbUrl(url, onProgress);
-  const models = colorHex
-    ? {
-        balanced: recolour(base.balanced, colorHex),
-        detailed: recolour(base.detailed, colorHex),
-        efficient: recolour(base.efficient, colorHex),
-      }
-    : base;
+  const built = await voxelizeGlbUrlOne(url, profile, onProgress);
+  const model = colorHex ? recolour(built, colorHex) : built;
   return {
+    availableProfiles: [profile],
     hasDepth: true,
     label,
     mode: 'volume',
-    models,
+    models: { balanced: model, detailed: model, efficient: model },
     style: 'natural',
   };
 }

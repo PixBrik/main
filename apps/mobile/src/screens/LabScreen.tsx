@@ -499,6 +499,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
   const [brick, setBrick] = useState<VoxelModel | null>(null);
   const [kit, setKit] = useState<InspectedKit | null>(null);
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
+  const [brickPreviews, setBrickPreviews] = useState<string[]>([]);
   const [catalogLine, setCatalogLine] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState<LibraryCategory>('animal');
@@ -534,6 +535,13 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
     } catch {
       setPreviewDataUrl(null);
     }
+    try {
+      // The shop shows these instead of re-voxelizing on every visit.
+      const { renderBrickTurntable } = await import('../lib/brickTurntable');
+      setBrickPreviews(renderBrickTurntable(model, colors.alarm));
+    } catch {
+      setBrickPreviews([]);
+    }
     setBrick(model);
     setSource(mesh);
     setState('ready');
@@ -545,6 +553,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
     setBrick(null);
     setKit(null);
     setPreviewDataUrl(null);
+    setBrickPreviews([]);
     setState('generating');
     try {
       if (!studioSession) throw new Error('Open Library Studio from the authenticated backoffice.');
@@ -564,6 +573,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
     setBrick(null);
     setKit(null);
     setPreviewDataUrl(null);
+    setBrickPreviews([]);
     try {
       const demo = DEMO_MESHES[0];
       await convert({ meshUrl: demo.url, sourceUrl: demo.url });
@@ -581,6 +591,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
     setBrick(null);
     setKit(null);
     setPreviewDataUrl(null);
+    setBrickPreviews([]);
     setName(entry.name);
     setCategory(entry.category);
     try {
@@ -600,6 +611,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
         category,
         defaultColor: '#F4C430',
         kit,
+        ...(brickPreviews.length ? { brickPreviews } : {}),
         ...(previewDataUrl ? { previewDataUrl } : {}),
         tags: [category, 'studio', 'realistic'],
       });

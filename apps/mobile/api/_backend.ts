@@ -154,6 +154,7 @@ export async function fetchBackendReadiness(
 }
 
 export interface BackendLibraryEntry {
+  brickPreviews?: string[];
   category: string;
   defaultColor: string;
   id: string;
@@ -174,7 +175,9 @@ function isLibraryEntry(value: unknown): value is BackendLibraryEntry {
     && typeof entry.meshUrl === 'string'
     && Array.isArray(entry.tags)
     && entry.tags.every((tag) => typeof tag === 'string')
-    && (entry.thumbnailUrl === undefined || typeof entry.thumbnailUrl === 'string');
+    && (entry.thumbnailUrl === undefined || typeof entry.thumbnailUrl === 'string')
+    && (entry.brickPreviews === undefined
+      || (Array.isArray(entry.brickPreviews) && entry.brickPreviews.every((frame) => typeof frame === 'string')));
 }
 
 export async function fetchBackendLibrary(
