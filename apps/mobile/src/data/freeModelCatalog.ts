@@ -123,6 +123,38 @@ export const FREE_MODEL_CATALOG: readonly FreeModelEntry[] = [
   },
 ] as const;
 
+/**
+ * Poly Haven photoreal scans (all CC0), packed to self-contained GLBs by
+ * tools/library/pack-polyhaven.mjs and committed under
+ * assets/library-masters/v1 (served via raw.githubusercontent.com, which is
+ * on the publish allowlist). Sizes are the packed 1k-texture GLBs.
+ */
+const MASTERS = 'https://raw.githubusercontent.com/PixBrik/main/main/assets/library-masters/v1';
+
+export const POLYHAVEN_MODEL_CATALOG: readonly FreeModelEntry[] = [
+  { category: 'flower', description: 'Gazania flower in bloom — photoreal field scan', id: 'ph-flower-gazania', license: 'CC0', name: 'Gazania Flower', sizeKb: 2765, sourceUrl: `${MASTERS}/flower_gazania.glb` },
+  { category: 'flower', description: 'Dandelion with seed head — delicate nature study', id: 'ph-dandelion', license: 'CC0', name: 'Dandelion', sizeKb: 3072, sourceUrl: `${MASTERS}/dandelion_01.glb` },
+  { category: 'plant', description: 'Lush potted houseplant — photoreal scan', id: 'ph-potted-plant-1', license: 'CC0', name: 'Potted Plant', sizeKb: 6144, sourceUrl: `${MASTERS}/potted_plant_01.glb` },
+  { category: 'plant', description: 'Small potted succulent-style plant', id: 'ph-potted-plant-4', license: 'CC0', name: 'Small Potted Plant', sizeKb: 2048, sourceUrl: `${MASTERS}/potted_plant_04.glb` },
+  { category: 'object', description: 'Antique ceramic vase — future bouquet holder', id: 'ph-ceramic-vase', license: 'CC0', name: 'Antique Ceramic Vase', sizeKb: 512, sourceUrl: `${MASTERS}/antique_ceramic_vase_01.glb` },
+  { category: 'object', description: 'Ornate brass vase — future bouquet holder', id: 'ph-brass-vase', license: 'CC0', name: 'Brass Vase', sizeKb: 819, sourceUrl: `${MASTERS}/brass_vase_01.glb` },
+  { category: 'gift', description: 'Strawberry chocolate cake — celebration centrepiece', id: 'ph-strawberry-cake', license: 'CC0', name: 'Strawberry Chocolate Cake', sizeKb: 3277, sourceUrl: `${MASTERS}/strawberry_chocolate_cake.glb` },
+  { category: 'gift', description: 'Frosted carrot cake — bakery scan', id: 'ph-carrot-cake', license: 'CC0', name: 'Carrot Cake', sizeKb: 3277, sourceUrl: `${MASTERS}/carrot_cake.glb` },
+  { category: 'gift', description: 'Golden croissant — breakfast-lover gift', id: 'ph-croissant', license: 'CC0', name: 'Croissant', sizeKb: 2048, sourceUrl: `${MASTERS}/croissant.glb` },
+  { category: 'object', description: 'Bunch of bananas — playful kitchen decor', id: 'ph-bananas', license: 'CC0', name: 'Bananas', sizeKb: 2458, sourceUrl: `${MASTERS}/bananas.glb` },
+  { category: 'object', description: 'Fresh lemon — bright kitchen accent', id: 'ph-lemon', license: 'CC0', name: 'Lemon', sizeKb: 1843, sourceUrl: `${MASTERS}/lemon.glb` },
+  { category: 'object', description: 'Ukulele — music-lover display piece', id: 'ph-ukulele', license: 'CC0', name: 'Ukulele', sizeKb: 819, sourceUrl: `${MASTERS}/Ukulele_01.glb` },
+  { category: 'object', description: 'Vintage binoculars — explorer desk piece', id: 'ph-binoculars', license: 'CC0', name: 'Vintage Binoculars', sizeKb: 2662, sourceUrl: `${MASTERS}/vintage_binocular.glb` },
+  { category: 'object', description: 'Vintage microscope — science desk piece', id: 'ph-microscope', license: 'CC0', name: 'Vintage Microscope', sizeKb: 2765, sourceUrl: `${MASTERS}/vintage_microscope.glb` },
+  { category: 'object', description: 'Complete tea set — teapot with cups', id: 'ph-tea-set', license: 'CC0', name: 'Tea Set', sizeKb: 2252, sourceUrl: `${MASTERS}/tea_set_01.glb` },
+  { category: 'object', description: 'Dutch tall ship — grand showpiece build', id: 'ph-tall-ship', license: 'CC0', name: 'Tall Ship', sizeKb: 8499, sourceUrl: `${MASTERS}/dutch_ship_medium.glb` },
+] as const;
+
+export const ALL_FREE_MODELS: readonly FreeModelEntry[] = [
+  ...FREE_MODEL_CATALOG,
+  ...POLYHAVEN_MODEL_CATALOG,
+];
+
 export const FREE_CATALOG_CATEGORIES: readonly LibraryCategory[] = [
-  ...new Set(FREE_MODEL_CATALOG.map((entry) => entry.category)),
+  ...new Set(ALL_FREE_MODELS.map((entry) => entry.category)),
 ];

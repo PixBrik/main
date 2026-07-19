@@ -19,8 +19,8 @@ import {
 } from '../lib/feedbackStore';
 import type { LibraryCategory } from '../data/carLibrary';
 import {
+  ALL_FREE_MODELS,
   FREE_CATALOG_CATEGORIES,
-  FREE_MODEL_CATALOG,
   type FreeModelEntry,
 } from '../data/freeModelCatalog';
 import type { ObjectCategory } from '../lib/photoEngine/classify';
@@ -614,8 +614,8 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
 
   const filteredCatalog =
     catalogFilter === 'all'
-      ? FREE_MODEL_CATALOG
-      : FREE_MODEL_CATALOG.filter((entry) => entry.category === catalogFilter);
+      ? ALL_FREE_MODELS
+      : ALL_FREE_MODELS.filter((entry) => entry.category === catalogFilter);
 
   return (
     <View style={styles.coach}>
