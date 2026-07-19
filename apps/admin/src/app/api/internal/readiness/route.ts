@@ -32,11 +32,34 @@ async function roleView(role: RuntimeDatabaseRole): Promise<Record<string, unkno
               AND category.enabled
           ) AS catalog_rows
       `;
+      const [sample] = await sql<{ library: unknown }[]>`
+        SELECT build_version.configuration_snapshot -> 'library' AS library
+        FROM pixbrik.model_library_item item
+        JOIN pixbrik.model_library_version version ON version.item_id = item.id
+        JOIN pixbrik.build_version build_version ON build_version.id = version.build_version_id
+        WHERE item.status = 'published' AND version.status = 'published'
+        LIMIT 1
+      `;
+      const library = sample?.library as Record<string, unknown> | null | undefined;
       return {
         catalogRows: Number(counts?.catalog_rows ?? -1),
         database: database?.name ?? "unknown",
         items: Number(counts?.items ?? -1),
-        publishedItems: Number(counts?.published_items ?? -1)
+        publishedItems: Number(counts?.published_items ?? -1),
+        sampleLibrary: {
+          contractVersion: library && typeof library === "object" ? library.contractVersion : null,
+          isArray: Array.isArray(library),
+          kind: library && typeof library === "object" ? library.kind : null,
+          meshHost: (() => {
+            try {
+              return new URL(String((library as Record<string, unknown>)?.meshUrl ?? "")).hostname;
+            } catch {
+              return null;
+            }
+          })(),
+          preview: typeof library === "string" ? (library as string).slice(0, 80) : null,
+          type: typeof library
+        }
       };
     });
   } catch (error) {
