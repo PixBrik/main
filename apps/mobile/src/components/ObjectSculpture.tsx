@@ -139,7 +139,7 @@ export function ObjectSculpture({ scanLines = false }: ObjectSculptureProps) {
         </G>
 
         {/* ---- Stage 1: the photo card ---- */}
-        <G rotation={-3} originX={116} originY={160}>
+        <G transform="rotate(-3 116 160)">
           <Rect fill={colors.white} height={196} rx={14} width={172} x={30} y={62} />
           <Rect fill="#D8D2CA" height={164} rx={8} width={148} x={42} y={78} />
           <PhotoSneaker />

@@ -23,7 +23,9 @@ import {
 } from '../lib/instructionsPdf';
 import type { BuildProfile, VoxelModel } from '../lib/voxelFox';
 import { colors, radius, spacing, type } from '../theme/tokens';
-import type { DemoScreen } from '../types/navigation';
+import type { BuildFill, DemoScreen } from '../types/navigation';
+
+const GUIDE_PUBLISHING_ENABLED = process.env.EXPO_PUBLIC_GUIDE_SHARE_ENABLED === '1';
 
 interface InstructionsScreenProps {
   onBack: () => void;
@@ -33,6 +35,7 @@ interface InstructionsScreenProps {
   accent: string;
   buildName: string;
   profile: BuildProfile;
+  buildFill?: BuildFill;
   orderId?: string | null;
   bomOverride?: BillOfMaterials;
   /** Exact original BOM index order frozen into a published guide. */
@@ -92,12 +95,16 @@ export function InstructionsScreen({
   accent,
   buildName,
   profile,
+  buildFill = 'full',
   orderId = null,
   bomOverride,
   placementOrder,
   publishedGuideUrl,
 }: InstructionsScreenProps) {
-  const bom = useMemo(() => bomOverride ?? brickify(model, accent), [accent, bomOverride, model]);
+  const bom = useMemo(
+    () => bomOverride ?? brickify(model, accent, { hollow: buildFill === 'hollow' }),
+    [accent, bomOverride, buildFill, model],
+  );
   const plan = useMemo(
     () => createAssemblyPlan(bom, placementOrder ? { placementOrder } : {}),
     [bom, placementOrder],
@@ -113,6 +120,10 @@ export function InstructionsScreen({
   const [shareError, setShareError] = useState('');
   const [qrUri, setQrUri] = useState('');
   const [copied, setCopied] = useState(false);
+  // Frozen order and QR guides have no live Result/BOM/Purchase workspace
+  // behind them. Showing those tabs made three controls either no-op or open
+  // an unrelated fallback model, so standalone manuals keep guide controls only.
+  const standaloneGuide = !!(orderId || publishedGuideUrl);
   const step = plan.steps[stepIndex] ?? null;
   const stepsByLayer = useMemo(() => {
     const grouped = new Map<number, typeof plan.steps>();
@@ -238,6 +249,9 @@ export function InstructionsScreen({
     setShareState('working');
     try {
       let url = shareUrl;
+      if (!url && !GUIDE_PUBLISHING_ENABLED) {
+        throw new Error('Phone QR sharing is not connected yet. Print or download the exact guide instead.');
+      }
       if (!url) {
         const draft = createGuideShareDraft({
           accent,
@@ -321,7 +335,7 @@ export function InstructionsScreen({
       <ScreenFrame
         accent="coral"
         eyebrow="Buildability check"
-        footer={<DemoDock active="instructions" onNavigate={onNavigate} />}
+        footer={standaloneGuide ? undefined : <DemoDock active="instructions" onNavigate={onNavigate} />}
         onBack={onBack}
         progress={0}
         subtitle="PixBrik found a catalog placement that cannot lock onto the assembled model. It will not publish unsafe instructions."
@@ -349,7 +363,7 @@ export function InstructionsScreen({
       <ScreenFrame
         accent="saffron"
         eyebrow="Build guide"
-        footer={<DemoDock active="instructions" onNavigate={onNavigate} />}
+        footer={standaloneGuide ? undefined : <DemoDock active="instructions" onNavigate={onNavigate} />}
         onBack={onBack}
         progress={0}
         subtitle="The frozen order does not contain any catalog placements."
@@ -404,7 +418,7 @@ export function InstructionsScreen({
               </Text>
             </Pressable>
           </View>
-          <DemoDock active="instructions" onNavigate={onNavigate} />
+          {!standaloneGuide ? <DemoDock active="instructions" onNavigate={onNavigate} /> : null}
         </View>
       }
       onBack={onBack}
@@ -507,14 +521,16 @@ export function InstructionsScreen({
         <View style={styles.exportActions}>
           <Pressable
             accessibilityRole="button"
-            disabled={shareState === 'working'}
+            disabled={shareState === 'working' || (!shareUrl && !GUIDE_PUBLISHING_ENABLED)}
             onPress={() => void openPhoneGuide()}
             style={({ pressed }) => [styles.actionPrimary, pressed && styles.pressed]}
           >
             <Text style={styles.actionPrimaryText}>
               {shareState === 'working'
                 ? 'CREATING PHONE LINK…'
-                : Platform.OS === 'web'
+                : !shareUrl && !GUIDE_PUBLISHING_ENABLED
+                  ? 'PHONE QR · CLOUD STORAGE NOT CONNECTED'
+                  : Platform.OS === 'web'
                   ? qrUri ? 'SHOW PHONE QR' : 'OPEN ON PHONE · QR'
                   : 'SHARE GUIDE LINK'}
             </Text>
@@ -541,7 +557,9 @@ export function InstructionsScreen({
           ) : null}
         </View>
         <Text style={styles.sharePrivacy}>
-          The unlisted link contains the model and parts plan. Anyone with it can view the guide until it expires.
+          {GUIDE_PUBLISHING_ENABLED || shareUrl
+            ? 'The unlisted link contains the model and parts plan. Anyone with it can view the guide until it expires.'
+            : 'Print and PDF use the complete exact plan now. Phone QR unlocks only after secure expiring guide storage and abuse protection are connected.'}
         </Text>
 
         {exportState === 'working' || exportState === 'done' ? (

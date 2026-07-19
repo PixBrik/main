@@ -111,7 +111,7 @@ test('all homepage samples are detailed, subject-only silhouettes', () => {
   const expected = {
     portrait: { borderOccupancy: 66, occupiedCells: 3088, paletteSize: 20 },
     pet: { borderOccupancy: 46, occupiedCells: 2672, paletteSize: 18 },
-    car: { borderOccupancy: 0, occupiedCells: 1435, paletteSize: 11 },
+    car: { borderOccupancy: 0, occupiedCells: 1043, paletteSize: 10 },
   };
 
   for (const [id, data] of Object.entries(generated)) {
@@ -145,14 +145,14 @@ test('semantic foreground guards preserve clothing and car parts without keeping
   // missed: a bottom-connected white shirt and an over-eroded neutral car.
   const shirt = { minX: 27, maxX: 43, minY: 52, maxY: 71 };
   const centralShirt = { minX: 29, maxX: 41, minY: 52, maxY: 71 };
-  const carRoofAndCabin = { minX: 27, maxX: 56, minY: 22, maxY: 32 };
-  const carBody = { minX: 7, maxX: 64, minY: 36, maxY: 46 };
-  const carMainWheel = { minX: 38, maxX: 52, minY: 39, maxY: 52 };
-  const carRearWheel = { minX: 58, maxX: 66, minY: 35, maxY: 48 };
-  const carLowerFrontBody = { minX: 8, maxX: 36, minY: 49, maxY: 50 };
-  const carFloorShadow = { minX: 0, maxX: 36, minY: 51, maxY: 71 };
-  const carMainWheelLowerArc = { minX: 37, maxX: 49, minY: 51, maxY: 54 };
-  const belowCar = { minX: 0, maxX: 71, minY: 55, maxY: 71 };
+  const carRoofAndCabin = { minX: 34, maxX: 55, minY: 20, maxY: 29 };
+  const carBody = { minX: 14, maxX: 58, minY: 30, maxY: 39 };
+  const carMainWheel = { minX: 36, maxX: 49, minY: 34, maxY: 49 };
+  const carRearWheel = { minX: 54, maxX: 60, minY: 29, maxY: 43 };
+  const carLowerFrontBody = { minX: 13, maxX: 37, minY: 44, maxY: 47 };
+  const carFloorShadow = { minX: 0, maxX: 36, minY: 48, maxY: 71 };
+  const carMainWheelLowerArc = { minX: 37, maxX: 41, minY: 48, maxY: 49 };
+  const belowCar = { minX: 0, maxX: 71, minY: 50, maxY: 71 };
 
   assert.ok(regionOccupancy(portrait, shirt) >= 0.95, 'portrait shirt must not become transparent');
   assert.ok(
@@ -161,21 +161,24 @@ test('semantic foreground guards preserve clothing and car parts without keeping
     ) >= 0.85,
     'portrait shirt must remain visibly light, not merely filled with jacket colour',
   );
-  assert.ok(regionOccupancy(car, carRoofAndCabin) >= 0.88, 'car roof and glass must remain intact');
+  assert.ok(regionOccupancy(car, carRoofAndCabin) >= 0.9, 'car roof and glass must remain intact');
   assert.ok(regionOccupancy(car, carBody) >= 0.97, 'car body must remain structurally continuous');
-  assert.ok(regionOccupancy(car, carMainWheel) >= 0.9, 'main wheel must remain intact');
-  assert.ok(regionOccupancy(car, carRearWheel) >= 0.8, 'rear wheel must remain intact');
-  assert.equal(
-    regionOccupancy(car, carLowerFrontBody),
-    1,
+  assert.ok(regionOccupancy(car, carMainWheel) >= 0.84, 'main wheel must remain intact');
+  assert.ok(regionOccupancy(car, carRearWheel) >= 0.72, 'rear wheel must remain intact');
+  assert.ok(
+    regionOccupancy(car, carLowerFrontBody) >= 0.98,
     'the Porsche lower front contour must not be cut off with its floor shadow',
   );
   assert.equal(regionOccupancy(car, carFloorShadow), 0, 'studio floor shadow must be transparent');
   assert.ok(
-    regionOccupancy(car, carMainWheelLowerArc) >= 0.6,
+    regionOccupancy(car, carMainWheelLowerArc) >= 0.8,
     'the main wheel lower arc must survive floor-shadow removal',
   );
   assert.equal(regionOccupancy(car, belowCar), 0, 'nothing may float below the car silhouette');
+  assert.ok(
+    (car.bounds.maxX - car.bounds.minX + 1) / (car.bounds.maxY - car.bounds.minY + 1) >= 1.6,
+    'the wide Porsche reference must preserve its aspect ratio instead of stretching vertically',
+  );
 
   const falseNeutralCarColours = new Set([
     '#004A2D', // dark green
@@ -296,13 +299,16 @@ test('every active homepage brick sample supports a truthful controlled orbit', 
   assert.match(component, /PanResponder\.create/);
   assert.match(component, /requestAnimationFrame\(tick\)/);
   assert.match(component, /if \(!motionPreferenceReady\) return/);
-  assert.match(component, /setAutoRotating\(!reduceMotion\)/);
+  assert.match(component, /setAutoRotation\(!reduceMotion\)/);
   assert.match(component, /Math\.abs\(Math\.cos\(\(normalizedYaw \* Math\.PI\) \/ 180\)\)/);
   assert.match(component, /scaleX: projectedWidth/);
   assert.match(component, /backing=\{!showingFront\}/);
   assert.match(component, /Rotate preview left/);
   assert.match(component, /Rotate preview right/);
   assert.match(component, /Pause automatic rotation/);
+  assert.match(component, /const AUTO_ORBIT_LIMIT = 24/);
+  assert.match(component, /setYaw\(0\)/);
+  assert.match(component, /next >= AUTO_ORBIT_LIMIT/);
   assert.match(component, /BRICKS · 360°/);
   assert.match(component, /orbitShell:[\s\S]*overflow: 'hidden'/);
 });

@@ -47,6 +47,16 @@ interface ContactScreenProps {
   onSubmit?: (submission: ContactSubmission) => Promise<void>;
 }
 
+type ContactFeedbackKey =
+  | 'invalidEmail'
+  | 'invalidName'
+  | 'invalidOrder'
+  | 'messageLength'
+  | 'privacyNoticeError'
+  | 'required'
+  | 'sendError'
+  | 'sent';
+
 const TOPIC_ORDER: readonly ContactTopic[] = [
   'order',
   'wrong-damaged',
@@ -72,7 +82,19 @@ export function ContactScreen({
   const [message, setMessage] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-  const [feedback, setFeedback] = useState('');
+  const [feedbackKey, setFeedbackKey] = useState<ContactFeedbackKey | null>(null);
+  const feedback = feedbackKey
+    ? {
+        invalidEmail: copy.invalidEmailMessage,
+        invalidName: copy.invalidNameMessage,
+        invalidOrder: copy.invalidOrderMessage,
+        messageLength: copy.messageLengthMessage,
+        privacyNoticeError: copy.privacyNoticeErrorMessage,
+        required: copy.requiredMessage,
+        sendError: copy.sendErrorMessage,
+        sent: copy.sentMessage,
+      }[feedbackKey]
+    : '';
   const formSession = useRef({
     formStartedAt: Date.now(),
     privacyNoticePresentedAt: Date.now(),
@@ -84,24 +106,32 @@ export function ContactScreen({
     const trimmedEmail = email.trim();
     const trimmedMessage = message.trim();
     const trimmedOrderNumber = orderNumber.trim();
+    if (!isValidContactName(trimmedName)) {
+      setStatus('error');
+      setFeedbackKey('invalidName');
+      return;
+    }
     if (
-      !isValidContactName(trimmedName) ||
       trimmedMessage.length < CONTACT_MESSAGE_MIN_LENGTH ||
-      trimmedMessage.length > CONTACT_MESSAGE_MAX_LENGTH ||
-      !isValidContactOrderReference(trimmedOrderNumber)
+      trimmedMessage.length > CONTACT_MESSAGE_MAX_LENGTH
     ) {
       setStatus('error');
-      setFeedback(copy.requiredMessage);
+      setFeedbackKey('messageLength');
+      return;
+    }
+    if (!isValidContactOrderReference(trimmedOrderNumber)) {
+      setStatus('error');
+      setFeedbackKey('invalidOrder');
       return;
     }
     if (!isValidContactEmail(trimmedEmail)) {
       setStatus('error');
-      setFeedback(copy.invalidEmailMessage);
+      setFeedbackKey('invalidEmail');
       return;
     }
 
     setStatus('sending');
-      setFeedback('');
+    setFeedbackKey(null);
     try {
       const publicSubmission: ContactSubmission = {
         email: trimmedEmail,
@@ -131,7 +161,7 @@ export function ContactScreen({
         }, { runtime: Platform.OS === 'web' ? 'web' : 'native' });
       }
       setStatus('sent');
-      setFeedback(copy.sentMessage);
+      setFeedbackKey('sent');
       setMessage('');
       setCompanyWebsite('');
       const resetAt = Date.now();
@@ -142,12 +172,27 @@ export function ContactScreen({
       submissionId.current = createContactSubmissionId();
     } catch (error) {
       setStatus('error');
-      if (error instanceof ContactFormRequestError && error.field === 'email') {
-        setFeedback(copy.invalidEmailMessage);
-      } else if (error instanceof ContactFormRequestError && error.status === 400) {
-        setFeedback(copy.requiredMessage);
+      if (error instanceof ContactFormRequestError) {
+        if (error.field === 'email') {
+          setFeedbackKey('invalidEmail');
+        } else if (error.field === 'name') {
+          setFeedbackKey('invalidName');
+        } else if (error.field === 'message') {
+          setFeedbackKey('messageLength');
+        } else if (error.field === 'orderReference') {
+          setFeedbackKey('invalidOrder');
+        } else if (
+          error.field === 'privacyNoticeVersion' ||
+          error.field === 'privacyNoticePresentedAt'
+        ) {
+          setFeedbackKey('privacyNoticeError');
+        } else if (error.status === 400) {
+          setFeedbackKey('required');
+        } else {
+          setFeedbackKey('sendError');
+        }
       } else {
-        setFeedback(copy.sendErrorMessage);
+        setFeedbackKey('sendError');
       }
     }
   };
@@ -172,6 +217,7 @@ export function ContactScreen({
         <FieldLabel label={copy.nameLabel} rtl={rtl} />
         <TextInput
           accessibilityLabel={copy.nameLabel}
+          accessibilityHint={copy.invalidNameMessage}
           autoComplete="name"
           maxLength={CONTACT_NAME_MAX_LENGTH}
           onChangeText={setName}
@@ -182,6 +228,7 @@ export function ContactScreen({
         <FieldLabel label={copy.emailLabel} rtl={rtl} />
         <TextInput
           accessibilityLabel={copy.emailLabel}
+          accessibilityHint={copy.invalidEmailMessage}
           autoCapitalize="none"
           autoComplete="email"
           inputMode="email"
@@ -195,6 +242,7 @@ export function ContactScreen({
         <FieldLabel label={copy.orderLabel} rtl={rtl} />
         <TextInput
           accessibilityLabel={copy.orderLabel}
+          accessibilityHint={copy.invalidOrderMessage}
           autoCapitalize="characters"
           maxLength={CONTACT_ORDER_REFERENCE_MAX_LENGTH}
           onChangeText={setOrderNumber}
@@ -203,13 +251,18 @@ export function ContactScreen({
         />
 
         <FieldLabel label={copy.topicLabel} rtl={rtl} />
-        <View style={[styles.topicList, rtl && styles.rowReverse]}>
+        <View
+          accessibilityLabel={copy.topicLabel}
+          accessibilityRole="radiogroup"
+          style={[styles.topicList, rtl && styles.rowReverse]}
+        >
           {TOPIC_ORDER.map((topicOption) => {
             const selected = topicOption === topic;
             return (
               <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
+                accessibilityLabel={copy.topics[topicOption]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
                 key={topicOption}
                 onPress={() => setTopic(topicOption)}
                 style={({ pressed }) => [
@@ -234,8 +287,14 @@ export function ContactScreen({
         </View>
 
         <FieldLabel label={copy.messageLabel} rtl={rtl} />
+        <Text
+          style={[styles.fieldHelp, rtl && styles.arabicBody, textDirection]}
+        >
+          {copy.messageLengthHelp}
+        </Text>
         <TextInput
           accessibilityLabel={copy.messageLabel}
+          accessibilityHint={copy.messageLengthMessage}
           maxLength={CONTACT_MESSAGE_MAX_LENGTH}
           multiline
           numberOfLines={7}
@@ -264,8 +323,11 @@ export function ContactScreen({
           accessibilityElementsHidden
           aria-hidden
           autoComplete="off"
+          focusable={false}
           importantForAccessibility="no-hide-descendants"
           onChangeText={setCompanyWebsite}
+          pointerEvents="none"
+          showSoftInputOnFocus={false}
           style={styles.honeypot}
           tabIndex={-1}
           value={companyWebsite}
@@ -287,6 +349,7 @@ export function ContactScreen({
         ) : null}
 
         <Pressable
+          accessibilityLabel={status === 'sending' ? copy.sendingLabel : copy.sendLabel}
           accessibilityRole="button"
           accessibilityState={{ disabled: status === 'sending' }}
           disabled={status === 'sending'}
@@ -350,6 +413,14 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+  },
+  fieldHelp: {
+    color: inkAlpha(0.62),
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: spacing.sm,
+    marginTop: -spacing.xs,
   },
   ltrInput: {
     textAlign: 'left',

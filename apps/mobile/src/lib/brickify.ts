@@ -844,21 +844,38 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       // let the assembly validator reject it instead of hiding a substitution.
       return { color: wanted, substituted: false };
     };
-    const structuralColorForCells = (
+    const structuralColorCandidatesForCells = (
       cells: Array<{ key: string }>,
       fallbackColorId: number,
-    ): number | null => {
-      const visibleColors = new Set<number>();
+    ): number[] => {
+      const visibleColors: number[] = [];
       for (const cell of cells) {
         if (!exteriorKeys.has(cell.key)) continue;
         const source = sourceCellByKey.get(cell.key);
-        if (source) visibleColors.add(colorOf(source));
+        if (source) {
+          const colorId = colorOf(source);
+          if (!visibleColors.includes(colorId)) visibleColors.push(colorId);
+        }
       }
-      // A physical brick has one colour. Crossing source-colour boundaries is
-      // allowed only behind the visible shell; every exposed stud must retain
-      // the exact catalog colour approved in the preview.
-      if (visibleColors.size > 1) return null;
-      return visibleColors.values().next().value ?? fallbackColorId;
+      // A textured mesh can place a one-stud feature beside the supported
+      // body with no vertical clutch below it. When that seam is the only
+      // reason the exact packing is disconnected, one real bridge brick must
+      // use one of the source colours. Keep the detached feature colour and
+      // let the exact packed 360/BOM show the bounded one-stud adjustment; no
+      // geometry is added or removed, and the rewrite is accepted below only
+      // when graph simulation proves that it improves connectivity.
+      const ordered = visibleColors.length === 1
+        ? [visibleColors[0]!, fallbackColorId]
+        : [fallbackColorId, ...visibleColors];
+      return [...new Set(ordered)];
+    };
+    const structuralColorForCells = (
+      cells: Array<{ key: string }>,
+      fallbackColorId: number,
+      brick?: CatalogBrick,
+    ): number | null => {
+      const candidates = structuralColorCandidatesForCells(cells, fallbackColorId);
+      return candidates.find((colorId) => !brick || structuralColorFor(brick, colorId) !== null) ?? null;
     };
     const addStructuralPlacement = (
       brick: CatalogBrick,
@@ -950,8 +967,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
                   }
                 }
                 if (!fits) continue;
-                const colorId = structuralColorForCells(covered, anchor.colorId);
-                if (colorId === null || structuralColorFor(brick, colorId) === null) continue;
+                const colorId = structuralColorForCells(covered, anchor.colorId, brick);
+                if (colorId === null) continue;
                 options.push({ brick, colorId, i, j: anchor.j, k, spanI, spanK });
               }
             }
@@ -979,6 +996,20 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       return search(all);
     };
 
+    const packingSignature = (candidatePlacements: BrickPlacement[]) =>
+      candidatePlacements
+        .map((placement) => [
+          placement.part,
+          placement.colorId,
+          placement.i,
+          placement.j,
+          placement.k,
+          placement.spanI,
+          placement.spanK,
+        ].join('|'))
+        .sort()
+        .join(';');
+    const seenStructuralPackings = new Set([packingSignature(placements)]);
     const maxTiePasses = placements.length;
     for (let pass = 0; pass < maxTiePasses; pass++) {
       const parent = placements.map((_, index) => index);
@@ -1052,8 +1083,6 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
               detached.shape === 'slope'
             ) continue;
             const combinedCells = [...placementCells(detached), ...placementCells(connected)];
-            const bridgeColorId = structuralColorForCells(combinedCells, detached.colorId);
-            if (bridgeColorId === null) continue;
             const minI = Math.min(...combinedCells.map((cell) => cell.i));
             const maxI = Math.max(...combinedCells.map((cell) => cell.i));
             const minK = Math.min(...combinedCells.map((cell) => cell.k));
@@ -1062,12 +1091,20 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             const spanK = maxK - minK + 1;
             const uniqueCells = new Set(combinedCells.map((cell) => cell.key));
             if (uniqueCells.size !== spanI * spanK) continue;
-            const bridgeBrick = BRICKS.find((brick) =>
-              ((brick.l === spanI && brick.w === spanK) ||
-              (brick.w === spanI && brick.l === spanK)) &&
-              structuralColorFor(brick, bridgeColorId) !== null,
-            );
-            if (!bridgeBrick) continue;
+            let bridgeBrick: CatalogBrick | undefined;
+            let bridgeColorId: number | null = null;
+            for (const colorId of structuralColorCandidatesForCells(combinedCells, detached.colorId)) {
+              bridgeBrick = BRICKS.find((brick) =>
+                ((brick.l === spanI && brick.w === spanK) ||
+                (brick.w === spanI && brick.l === spanK)) &&
+                structuralColorFor(brick, colorId) !== null,
+              );
+              if (bridgeBrick) {
+                bridgeColorId = colorId;
+                break;
+              }
+            }
+            if (!bridgeBrick || bridgeColorId === null) continue;
             const basePenalty = disconnected.has(connectedIndex) ? 10_000_000 : 0;
             const visiblePenalty = exteriorKeys.has(neighbourKey) ? 100_000 : 0;
             const areaPenalty = uniqueCells.size * 100;
@@ -1107,6 +1144,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           selectedTie.spanI,
           selectedTie.spanK,
         );
+        seenStructuralPackings.add(packingSignature(placements));
         continue;
       }
 
@@ -1150,12 +1188,12 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             const bridgeColorId = structuralColorForCells(
               [detachedCell, connectedCell],
               detached.colorId,
+              structuralOneByTwo,
             );
             if (
               connected.shape === 'slope' ||
               detached.shape === 'slope' ||
-              bridgeColorId === null ||
-              structuralColorFor(structuralOneByTwo, bridgeColorId) === null
+              bridgeColorId === null
             ) continue;
             splitCandidates.push({
               colorId: bridgeColorId,
@@ -1172,7 +1210,17 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         }
       }
       splitCandidates.sort((a, b) => a.score - b.score);
-      let repaired = false;
+      let selectedRepair: {
+        candidate: (typeof splitCandidates)[number];
+        connected: BrickPlacement;
+        detached: BrickPlacement;
+        kept: BrickPlacement[];
+        remainderSpecs: StructuralPlacementSpec[];
+        signature: string;
+        spanI: number;
+        spanK: number;
+        trialComponentCount: number;
+      } | null = null;
       for (const candidate of splitCandidates.slice(0, 200)) {
         const detached = placements[candidate.detachedIndex]!;
         const connected = placements[candidate.connectedIndex]!;
@@ -1215,39 +1263,63 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             spanK: spec.spanK,
           })),
         ];
-        // A colour-safe bridge can move a seam before the next pass removes
-        // the detached remainder. Accept equal-component rewrites as long as
-        // they preserve exact coverage; the bounded outer loop prevents a
-        // pathological model from cycling forever.
-        if (disconnectedComponentCount(trial) > currentComponentCount) continue;
-
-        releasePlacement(detached);
-        releasePlacement(connected);
-        placements.splice(0, placements.length, ...kept);
-        addStructuralPlacement(
-          structuralOneByTwo,
-          candidate.colorId,
-          Math.min(candidate.detachedCell.i, candidate.connectedCell.i),
-          candidate.detachedCell.j,
-          Math.min(candidate.detachedCell.k, candidate.connectedCell.k),
-          spanI,
-          spanK,
-        );
-        for (const spec of remainderSpecs) {
-          addStructuralPlacement(
-            spec.brick,
-            spec.colorId,
-            spec.i,
-            spec.j,
-            spec.k,
-            spec.spanI,
-            spec.spanK,
-          );
+        // Prefer a rewrite that actually removes a detached component. An
+        // equal-count seam move is still useful when it unlocks the next pass,
+        // but never revisit an earlier packing (the old first-match strategy
+        // could cycle and finish with the same floating 1 x 1).
+        const trialComponentCount = disconnectedComponentCount(trial);
+        const signature = packingSignature(trial);
+        if (
+          trialComponentCount > currentComponentCount
+          || seenStructuralPackings.has(signature)
+        ) continue;
+        if (
+          !selectedRepair
+          || trialComponentCount < selectedRepair.trialComponentCount
+          || (
+            trialComponentCount === selectedRepair.trialComponentCount
+            && candidate.score < selectedRepair.candidate.score
+          )
+        ) {
+          selectedRepair = {
+            candidate,
+            connected,
+            detached,
+            kept,
+            remainderSpecs,
+            signature,
+            spanI,
+            spanK,
+            trialComponentCount,
+          };
         }
-        repaired = true;
-        break;
       }
-      if (!repaired) break;
+      if (!selectedRepair) break;
+      const repair = selectedRepair;
+      releasePlacement(repair.detached);
+      releasePlacement(repair.connected);
+      placements.splice(0, placements.length, ...repair.kept);
+      addStructuralPlacement(
+        structuralOneByTwo,
+        repair.candidate.colorId,
+        Math.min(repair.candidate.detachedCell.i, repair.candidate.connectedCell.i),
+        repair.candidate.detachedCell.j,
+        Math.min(repair.candidate.detachedCell.k, repair.candidate.connectedCell.k),
+        repair.spanI,
+        repair.spanK,
+      );
+      for (const spec of repair.remainderSpecs) {
+        addStructuralPlacement(
+          spec.brick,
+          spec.colorId,
+          spec.i,
+          spec.j,
+          spec.k,
+          spec.spanI,
+          spec.spanK,
+        );
+      }
+      seenStructuralPackings.add(repair.signature);
     }
 
   }

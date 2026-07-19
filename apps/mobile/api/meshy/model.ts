@@ -5,6 +5,11 @@
  */
 
 import { fetchMeshyTask, parseMeshyTaskKind } from '../_meshy';
+import {
+  ModelStreamError,
+  modelResponseStarted,
+  streamProviderModel,
+} from '../_modelStream';
 
 export default async function handler(req: any, res: any): Promise<void> {
   const taskId = req.query?.taskId;
@@ -31,15 +36,13 @@ export default async function handler(req: any, res: any): Promise<void> {
     }
 
     const modelRes = await fetch(modelUrl);
-    if (!modelRes.ok) {
-      res.status(502).json({ error: `model download failed (${modelRes.status})` });
+    await streamProviderModel(modelRes, res);
+  } catch (err: any) {
+    if (modelResponseStarted(res)) {
+      if (!res.destroyed) res.destroy?.(err);
       return;
     }
-    const buffer = Buffer.from(await modelRes.arrayBuffer());
-    res.setHeader('Content-Type', 'model/gltf-binary');
-    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-    res.status(200).send(buffer);
-  } catch (err: any) {
-    res.status(500).json({ error: err?.message || 'model proxy failed' });
+    const status = err instanceof ModelStreamError ? err.status : 500;
+    res.status(status).json({ error: err?.message || 'model proxy failed' });
   }
 }

@@ -100,11 +100,15 @@ export function allowedContactOrigins(
   return origins;
 }
 
-function requireAllowedOrigin(req: any): void {
+function requireAllowedOrigin(
+  req: any,
+  env: Record<string, string | undefined> = process.env,
+): void {
   const origin = headerValue(req.headers?.origin).trim();
-  // Native apps and server-to-server clients do not send Origin. Browser
-  // cross-origin requests do, and must match a configured PixBrik origin.
-  if (origin && !allowedContactOrigins().has(origin)) {
+  if (env.NODE_ENV === 'production' && !origin) {
+    throw new HttpError('A verified PixBrik browser origin is required.', 403, 'contact_origin_required');
+  }
+  if (origin && !allowedContactOrigins(env).has(origin)) {
     throw new HttpError('This contact request origin is not allowed.', 403, 'contact_origin_denied');
   }
 }

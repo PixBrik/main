@@ -29,7 +29,7 @@ import {
 } from '../lib/photoEngine/voxelizePhoto';
 import type { RenderFace } from '../lib/voxelRender';
 import { colors, radius, spacing, type } from '../theme/tokens';
-import type { CaptureMode } from '../types/navigation';
+import type { BuildProduct, CaptureMode } from '../types/navigation';
 
 /**
  * Capture, rebuilt from scratch around what a BUYER does — not what the
@@ -42,9 +42,9 @@ import type { CaptureMode } from '../types/navigation';
  *   3. "See it in bricks": three REAL previews (classic B/W, sepia, colour)
  *      built from the framed photo. Smart isolate is the recommended first
  *      result when configured, with an explicit upload-labelled action.
- *   4. Continue to sizes and prices. The full-3D sculpture lives on the
- *      result screen as a premium AI-generated upgrade with its own
- *      approve-first step.
+ *   4. Flat builds continue to sizes and prices. True 3D first asks Object
+ *      or Person: objects approve an isolated one-photo input, while people
+ *      go directly to four guided real views before any provider task.
  *
  * Deliberately NOT in this flow: SAM, CLIP, face mapping, depth. They are
  * slow, fragile (they killed mobile tabs), and none of them is needed to
@@ -54,6 +54,7 @@ import type { CaptureMode } from '../types/navigation';
 
 interface CaptureScreenProps {
   mode: CaptureMode;
+  targetProduct?: BuildProduct;
   captured: boolean;
   photoUri: string | null;
   photoBuild: PhotoModels | null;
@@ -66,7 +67,17 @@ interface CaptureScreenProps {
   onUseSample: () => void;
   onBack: () => void;
   onContinue: () => void;
+  sculptureSubjectKind: SculptureSubjectKind | null;
+  onSculptureSubjectKindChange: (kind: SculptureSubjectKind | null) => void;
+  onGuided3D?: (kind: SculptureSubjectKind) => void;
+  onNavigationLockChange?: (locked: boolean) => void;
 }
+
+export type SculptureSubjectKind = 'object' | 'person';
+
+type DetectionResolution =
+  | { status: 'detected'; subject: DetectedObject }
+  | { status: 'unknown' };
 
 type Stage = 'idle' | 'loading' | 'framing' | 'building' | 'ready' | 'failed';
 type BackgroundMode = 'scene' | 'smart';
@@ -97,6 +108,21 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function isPersonDetection(subject: DetectedObject): boolean {
+  return subject.label.trim().toLowerCase() === 'person';
+}
+
+/** A person match always outranks a larger prop or piece of furniture. */
+function strongestSubject(found: DetectedObject[]): DetectedObject | null {
+  const people = found.filter(isPersonDetection);
+  const candidates = people.length ? people : found;
+  return candidates.length
+    ? candidates.reduce((a, b) =>
+        b.score * b.width * b.height > a.score * a.width * a.height ? b : a,
+      )
+    : null;
+}
+
 /** Natural pixel size of an image URI (web). */
 function measurePhoto(uri: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve, reject) => {
@@ -110,6 +136,7 @@ function measurePhoto(uri: string): Promise<{ w: number; h: number }> {
 
 export function CaptureScreen({
   mode,
+  targetProduct = 'panel',
   captured,
   photoUri,
   photoBuild,
@@ -122,9 +149,14 @@ export function CaptureScreen({
   onUseSample,
   onBack,
   onContinue,
+  sculptureSubjectKind,
+  onSculptureSubjectKindChange,
+  onGuided3D,
+  onNavigationLockChange,
 }: CaptureScreenProps) {
   const [stage, setStage] = useState<Stage>(photoBuild ? 'ready' : 'idle');
   const needsRights = !!photoUri && !rightsConfirmed;
+  const navigationBusy = stage === 'building' || stage === 'loading';
   const buildingRef = useRef(false);
   const restoredCropUri = useRef<string | null>(null);
 
@@ -138,8 +170,16 @@ export function CaptureScreen({
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const dragStart = useRef({ x: 0, y: 0 });
-  const [detectedLabel, setDetectedLabel] = useState<string>('photo');
-  const [detectedSubject, setDetectedSubject] = useState<DetectedObject | null>(null);
+  const detectedLabelRef = useRef('photo');
+  const detectedSubjectRef = useRef<DetectedObject | null>(null);
+  const subjectChoiceOriginRef = useRef<'detector' | 'user' | null>(null);
+  const detectionRequestRef = useRef<{
+    promise: Promise<DetectionResolution>;
+    uri: string;
+  } | null>(null);
+  const [detectedPerson, setDetectedPerson] = useState(
+    /\b(person|portrait|human)\b/i.test(segmentation?.categoryLabel ?? ''),
+  );
 
   // Style previews + an honest scene/cutout choice. Smart mode is committed
   // only after the provider succeeds, so a failed request never loses a build.
@@ -157,6 +197,11 @@ export function CaptureScreen({
   const [stylePreviews, setStylePreviews] = useState<Array<{ id: string; faces: RenderFace[] }>>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [largeFaces, setLargeFaces] = useState<Record<string, RenderFace[]>>({});
+
+  useEffect(() => {
+    onNavigationLockChange?.(navigationBusy);
+    return () => onNavigationLockChange?.(false);
+  }, [navigationBusy, onNavigationLockChange]);
   const buildRevisionRef = useRef(0);
   const currentPhotoUriRef = useRef(photoUri);
   currentPhotoUriRef.current = photoUri;
@@ -283,21 +328,52 @@ export function CaptureScreen({
     setPan(clampPan(frameW / 2 - centreFracX * dW2, frameH / 2 - centreFracY * dH2, dW2, dH2));
   };
 
+  /**
+   * Resolve the strongest detection once per photo. `buildPanel` awaits this
+   * same promise, so a fast click cannot commit a portrait as a generic object
+   * while the detector is still loading.
+   */
+  const detectionForPhoto = (uri: string): Promise<DetectionResolution> => {
+    const existing = detectionRequestRef.current;
+    if (existing?.uri === uri) return existing.promise;
+    const promise: Promise<DetectionResolution> = isDetectionSupported()
+      ? Promise.race([
+          detectObjects(uri)
+            .then<DetectionResolution>((found) => {
+              const subject = strongestSubject(found);
+              return subject ? { status: 'detected', subject } : { status: 'unknown' };
+            })
+            .catch((): DetectionResolution => ({ status: 'unknown' })),
+          new Promise<DetectionResolution>((resolve) =>
+            setTimeout(() => resolve({ status: 'unknown' }), 8000),
+          ),
+        ])
+      : Promise.resolve({ status: 'unknown' });
+    detectionRequestRef.current = { promise, uri };
+    return promise;
+  };
+
   /** Pre-centre the frame on the strongest detection — best effort only. */
   const seedFromDetection = async (uri: string, natural: { w: number; h: number }, fw: number) => {
     if (!isDetectionSupported()) return;
     try {
-      const found = await Promise.race([
-        detectObjects(uri),
-        new Promise<DetectedObject[]>((resolve) => setTimeout(() => resolve([]), 8000)),
-      ]);
+      const resolution = await detectionForPhoto(uri);
       if (currentPhotoUriRef.current !== uri) return;
-      if (!found.length) return;
-      const best = found.reduce((a, b) =>
-        b.score * b.width * b.height > a.score * a.width * a.height ? b : a,
-      );
-      setDetectedLabel(best.label);
-      setDetectedSubject(best);
+      if (resolution.status !== 'detected') return;
+      const best = resolution.subject;
+      detectedLabelRef.current = best.label;
+      detectedSubjectRef.current = best;
+      const detectedKind: SculptureSubjectKind = isPersonDetection(best) ? 'person' : 'object';
+      if (targetProduct === 'sculpture') {
+        if (detectedKind === 'person') {
+          subjectChoiceOriginRef.current = 'detector';
+          setDetectedPerson(true);
+          onSculptureSubjectKindChange('person');
+        } else if (subjectChoiceOriginRef.current !== 'user') {
+          subjectChoiceOriginRef.current = 'detector';
+          onSculptureSubjectKindChange('object');
+        }
+      }
       const fh = fw * FRAME_ASPECT;
       const cover = Math.max(fw / natural.w, fh / natural.h);
       // Zoom so the frame roughly covers the detection plus padding.
@@ -317,6 +393,14 @@ export function CaptureScreen({
     }
   };
 
+  // Remounted unfinished captures need the same detection pass as a newly
+  // picked photo; otherwise leaving and returning could bypass person routing.
+  useEffect(() => {
+    if (!photoUri || !photoSize || !frameW) return;
+    if (detectionRequestRef.current?.uri === photoUri) return;
+    void seedFromDetection(photoUri, photoSize, frameW);
+  }, [frameW, photoSize, photoUri]);
+
   const capture = async () => {
     // Invalidate any cutout/panel request before opening the replacement picker.
     buildRevisionRef.current += 1;
@@ -331,8 +415,14 @@ export function CaptureScreen({
       setPan({ x: 0, y: 0 });
       setStylePreviews([]);
       setLargeFaces({});
-      setDetectedLabel('photo');
-      setDetectedSubject(null);
+      detectedLabelRef.current = 'photo';
+      detectedSubjectRef.current = null;
+      detectionRequestRef.current = null;
+      setDetectedPerson(false);
+      // A subject choice belongs to one photo. Reusing Object/Person after a
+      // replacement could route a different human image into one-photo 3D.
+      subjectChoiceOriginRef.current = null;
+      onSculptureSubjectKindChange(null);
       setBackgroundMode(
         Platform.OS === 'web' && isBackgroundRemovalEnabled() ? 'smart' : 'scene',
       );
@@ -341,9 +431,6 @@ export function CaptureScreen({
       currentPhotoUriRef.current = uri;
       onPhotoChange(uri);
       setStage('framing');
-      if (Platform.OS === 'web' && frameW) {
-        void seedFromDetection(uri, natural, frameW);
-      }
     } catch {
       setStage('failed');
     }
@@ -352,6 +439,18 @@ export function CaptureScreen({
   /** Build locally from the scene, or explicitly request a cached smart cutout. */
   const buildPanel = async (nextMode: BackgroundMode, style: PanelStyle = 'natural') => {
     if (!photoUri || buildingRef.current) return;
+    if (nextMode === 'smart' && !rightsConfirmed) {
+      setSmartError('Confirm that you own or may use this photo before uploading it for smart isolation.');
+      return;
+    }
+    if (targetProduct === 'sculpture' && sculptureSubjectKind === null) {
+      setSmartError('Choose Object or Person first. PixBrik will not guess when subject detection is uncertain.');
+      return;
+    }
+    if (targetProduct === 'sculpture' && sculptureSubjectKind === 'person') {
+      onGuided3D?.('person');
+      return;
+    }
     const sourceUri = photoUri;
     const buildRevision = ++buildRevisionRef.current;
     const hadApprovedBuild = !!photoBuild && !!segmentation;
@@ -363,15 +462,49 @@ export function CaptureScreen({
     try {
       const region = cropRegion();
       const share = region.width * region.height;
-      let info = categorize(detectedLabel, share);
-      const taught = labelOverride(detectedLabel);
+      // Resolve the in-flight detector before category metadata is persisted.
+      // Otherwise a quick tap can classify a person as OBJECT and make the
+      // one-photo 3D route invent or mirror unseen head surfaces.
+      const detection = isDetectionSupported()
+        ? await detectionForPhoto(sourceUri)
+        : ({ status: 'unknown' } as const);
+      if (
+        buildRevisionRef.current !== buildRevision ||
+        currentPhotoUriRef.current !== sourceUri
+      ) {
+        return;
+      }
+      const detected = detection.status === 'detected'
+        ? detection.subject
+        : detectedSubjectRef.current;
+      if (detected) {
+        detectedLabelRef.current = detected.label;
+        detectedSubjectRef.current = detected;
+      }
+      if (targetProduct === 'sculpture' && detected && isPersonDetection(detected)) {
+        // Fail closed before Smart isolate or a paid 3D provider sees the
+        // photo. The four-view route is the only truthful person workflow.
+        setDetectedPerson(true);
+        subjectChoiceOriginRef.current = 'detector';
+        onSculptureSubjectKindChange('person');
+        setStage('framing');
+        onGuided3D?.('person');
+        return;
+      }
+      const resolvedLabel = detected?.label ??
+        (targetProduct === 'sculpture' && sculptureSubjectKind === 'object'
+          ? 'object'
+          : detectedLabelRef.current);
+      let info = categorize(resolvedLabel, share);
+      const taught = labelOverride(resolvedLabel);
       if (taught) info = infoForCategory(taught, share);
       let expectedBounds: IsolationExpectedBounds | undefined;
-      if (detectedSubject) {
-        const left = Math.max(region.x, detectedSubject.x);
-        const top = Math.max(region.y, detectedSubject.y);
-        const right = Math.min(region.x + region.width, detectedSubject.x + detectedSubject.width);
-        const bottom = Math.min(region.y + region.height, detectedSubject.y + detectedSubject.height);
+      const subject = detected ?? detectedSubjectRef.current;
+      if (subject) {
+        const left = Math.max(region.x, subject.x);
+        const top = Math.max(region.y, subject.y);
+        const right = Math.min(region.x + region.width, subject.x + subject.width);
+        const bottom = Math.min(region.y + region.height, subject.y + subject.height);
         if (right > left && bottom > top) {
           expectedBounds = {
             height: (bottom - top) / region.height,
@@ -398,7 +531,7 @@ export function CaptureScreen({
       seg.preserveFeatures = false;
       seg.face = null;
       onSegmentation(seg);
-      const models = buildPhotoModels(seg, detectedLabel, 'relief', style, {
+      const models = buildPhotoModels(seg, resolvedLabel, 'relief', style, {
         category: info.displayName,
       });
       onObjectLocked(models);
@@ -446,7 +579,7 @@ export function CaptureScreen({
   // Mini previews for the three styles, rendered from the buyer's photo.
   useEffect(() => {
     setLargeFaces({});
-    if (stage !== 'ready' || !segmentation) {
+    if (targetProduct === 'sculpture' || stage !== 'ready' || !segmentation) {
       setStylePreviews([]);
       return;
     }
@@ -464,11 +597,11 @@ export function CaptureScreen({
     return () => {
       cancelled = true;
     };
-  }, [stage, segmentation]);
+  }, [stage, segmentation, targetProduct]);
 
   // Large lightbox preview at 'balanced', built on demand and cached.
   useEffect(() => {
-    if (expandedIndex === null || !segmentation) return;
+    if (targetProduct === 'sculpture' || expandedIndex === null || !segmentation) return;
     const choice = STYLE_CHOICES[expandedIndex];
     if (!choice || largeFaces[choice.id]) return;
     let cancelled = false;
@@ -486,53 +619,216 @@ export function CaptureScreen({
     return () => {
       cancelled = true;
     };
-  }, [expandedIndex, segmentation, largeFaces]);
+  }, [expandedIndex, segmentation, largeFaces, targetProduct]);
 
   const framingActive = stage === 'framing' || stage === 'ready';
   const webFlow = Platform.OS === 'web';
   const smartAvailable = webFlow && isBackgroundRemovalEnabled();
+  const native3DUnavailable = targetProduct === 'sculpture' && !webFlow;
+  const sculptureSubjectUndecided =
+    targetProduct === 'sculpture' && sculptureSubjectKind === null;
+  const sculptureNeedsIsolation =
+    targetProduct === 'sculpture' && segmentation?.maskSource !== 'background-removal';
+  const sculptureDetectedPerson =
+    targetProduct === 'sculpture' &&
+    (detectedPerson ||
+      sculptureSubjectKind === 'person' ||
+      /\b(person|portrait|human)\b/i.test(segmentation?.categoryLabel ?? ''));
+  const isolationNeedsRights =
+    needsRights &&
+    !sculptureDetectedPerson &&
+    (targetProduct === 'sculpture' || backgroundMode === 'smart');
 
   return (
     <ScreenFrame
       accent="coral"
-      eyebrow="2 / Your photo"
+      eyebrow={
+        native3DUnavailable
+          ? 'True 3D availability'
+          : targetProduct === 'sculpture'
+            ? '2 / Isolate the object'
+            : '2 / Your photo'
+      }
       footer={
-        photoUri && !webFlow ? (
+        native3DUnavailable ? (
+          <PrimaryButton label="True 3D needs the web app · Go back" onPress={onBack} />
+        ) : photoUri && !webFlow ? (
           <PrimaryButton disabled label="Use the sample object below" onPress={onContinue} />
         ) : photoUri && (stage === 'building' || stage === 'loading') ? (
-          <PrimaryButton disabled label="Building your preview…" onPress={onContinue} />
+          <PrimaryButton
+            disabled
+            label={targetProduct === 'sculpture' ? 'Preparing the subject…' : 'Building your preview…'}
+            onPress={onContinue}
+          />
         ) : photoUri && (stage === 'framing' || stage === 'failed') ? (
           <PrimaryButton
+            disabled={
+              isolationNeedsRights ||
+              (targetProduct === 'sculpture' &&
+                ((!sculptureDetectedPerson && !smartAvailable) || sculptureSubjectUndecided))
+            }
             label={
-              backgroundMode === 'smart'
-                ? stage === 'failed'
+              targetProduct === 'sculpture'
+                ? sculptureDetectedPerson
+                  ? 'Continue with 4 guided photos →'
+                  : sculptureSubjectUndecided
+                  ? 'Choose Object or Person first'
+                  : isolationNeedsRights
+                  ? 'Confirm you own the photo before upload'
+                  : !smartAvailable
+                  ? 'Smart isolate is required for True 3D'
+                  : stage === 'failed'
+                    ? 'Retry crop upload & isolate'
+                    : 'Upload crop · isolate the object'
+                : backgroundMode === 'smart'
+                ? isolationNeedsRights
+                  ? 'Confirm you own the photo before upload'
+                  : stage === 'failed'
                   ? 'Retry crop upload & isolate'
                   : 'Upload crop · isolate & preview'
                 : stage === 'failed'
                   ? 'Try the whole-frame preview again'
                   : 'Keep whole frame & see in bricks'
             }
-            onPress={() => buildPanel(backgroundMode)}
+            onPress={
+              sculptureDetectedPerson && onGuided3D
+                ? () => onGuided3D('person')
+                : () => buildPanel(targetProduct === 'sculpture' ? 'smart' : backgroundMode)
+            }
           />
         ) : photoBuild || (!photoUri && captured) ? (
           <PrimaryButton
-            disabled={needsRights}
-            label={needsRights ? 'Confirm you own the photo' : 'Compare build sizes →'}
-            onPress={onContinue}
+            disabled={needsRights || sculptureNeedsIsolation}
+            label={
+              sculptureNeedsIsolation
+                ? smartAvailable
+                  ? 'Isolate the subject before 3D'
+                  : 'Smart isolate is required for True 3D'
+                : needsRights
+                ? 'Confirm you own the photo'
+                : sculptureDetectedPerson
+                  ? 'Continue with 4 guided photos →'
+                : targetProduct === 'sculpture'
+                  ? 'Continue to the 3D model →'
+                  : 'Compare build sizes →'
+            }
+            onPress={
+              sculptureDetectedPerson && onGuided3D
+                ? () => onGuided3D('person')
+                : onContinue
+            }
           />
         ) : (
           <PrimaryButton disabled label="Add a photo first" onPress={onContinue} />
         )
       }
       onBack={onBack}
+      navigationDisabled={navigationBusy}
       progress={0.25}
       subtitle={
-        mode === 'photo'
+        native3DUnavailable
+          ? 'True 3D generation and mesh review currently run in the PixBrik web app. Go back and continue at pixbrik.com in your browser.'
+          : targetProduct === 'sculpture'
+          ? sculptureSubjectKind === 'person'
+            ? 'People use front, left, back and right photos so no face is mirrored and no unseen side is guessed. Choose Person below to continue the guided capture.'
+            : sculptureSubjectKind === 'object'
+              ? 'Use one clear object photo. Frame it tightly and approve the isolated subject before AI completes the unseen sides.'
+              : 'Choose Object for one isolated photo with AI-completed hidden sides, or Person for four real guided views.'
+          : mode === 'photo'
           ? 'One good photo is all it takes. Drag to position it, zoom with + and −, and see it in bricks.'
           : 'Hold steady and complete one controlled orbit around the object.'
       }
-      title={stage === 'ready' ? 'Looking good.' : photoUri ? 'Frame it.' : 'Add your photo.'}
+      title={
+        native3DUnavailable
+          ? 'Open True 3D on the web.'
+          : stage === 'ready'
+          ? targetProduct === 'sculpture'
+            ? sculptureNeedsIsolation
+              ? 'Isolate the object.'
+              : sculptureDetectedPerson
+                ? 'Person detected.'
+                : 'Subject ready.'
+            : 'Looking good.'
+          : photoUri
+            ? 'Frame it.'
+            : targetProduct === 'sculpture'
+              ? sculptureSubjectUndecided
+                ? 'Object or person?'
+                : sculptureSubjectKind === 'person'
+                  ? 'Use four real views.'
+                  : 'Add one object photo.'
+              : 'Add your photo.'
+      }
     >
+      {native3DUnavailable ? (
+        <View accessibilityLiveRegion="polite" style={styles.sculptureReview}>
+          <Text style={styles.sculptureReviewEyebrow}>TRUE 3D · WEB ONLY FOR NOW</Text>
+          <Text style={styles.sculptureReviewTitle}>No photo will be uploaded here.</Text>
+          <Text style={styles.sculptureReviewBody}>
+            This native build cannot review or convert the generated mesh safely yet. Open pixbrik.com in your browser to use one-photo objects or four-view people.
+          </Text>
+        </View>
+      ) : null}
+      {targetProduct === 'sculpture' && webFlow && onGuided3D ? (
+        <View style={styles.personRoute}>
+          <View style={styles.personRouteCopy}>
+            <Text style={styles.personRouteTitle}>WHAT ARE YOU BUILDING?</Text>
+            <Text style={styles.personRouteBody}>
+              Choose explicitly before any 3D work. If detection is uncertain, PixBrik will never silently treat a person as an object.
+            </Text>
+          </View>
+          <View accessibilityRole="radiogroup" style={styles.subjectChoiceRow}>
+            <Pressable
+              aria-checked={sculptureSubjectKind === 'object'}
+              accessibilityLabel="Object: use one isolated photo and let AI complete unseen sides"
+              accessibilityRole="radio"
+              accessibilityState={{
+                checked: sculptureSubjectKind === 'object',
+                disabled: detectedPerson,
+              }}
+              disabled={detectedPerson}
+              onPress={() => {
+                setSmartError(null);
+                subjectChoiceOriginRef.current = 'user';
+                onSculptureSubjectKindChange('object');
+              }}
+              style={({ pressed }) => [
+                styles.subjectChoice,
+                sculptureSubjectKind === 'object' && styles.subjectChoiceActive,
+                detectedPerson && styles.bgOptionDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.subjectChoiceTitle}>OBJECT</Text>
+              <Text style={styles.subjectChoiceText}>One isolated photo · AI completes hidden sides</Text>
+            </Pressable>
+            <Pressable
+              aria-checked={sculptureSubjectKind === 'person'}
+              accessibilityLabel="Person: use four guided real photos"
+              accessibilityRole="radio"
+              accessibilityState={{ checked: sculptureSubjectKind === 'person' }}
+              onPress={() => {
+                subjectChoiceOriginRef.current = 'user';
+                onSculptureSubjectKindChange('person');
+                onGuided3D('person');
+              }}
+              style={({ pressed }) => [
+                styles.subjectChoice,
+                sculptureSubjectKind === 'person' && styles.subjectChoiceActive,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.subjectChoiceTitle}>PERSON</Text>
+              <Text style={styles.subjectChoiceText}>Four real views · no mirrored face or guessed back</Text>
+            </Pressable>
+          </View>
+          {detectedPerson ? (
+            <Text accessibilityLiveRegion="polite" style={styles.detectedPersonNote}>
+              PERSON DETECTED · Four guided photos are required before 3D generation.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {/* ——— The photo in its frame (or the empty state) ——— */}
       {photoUri && webFlow ? (
         <View
@@ -627,7 +923,9 @@ export function CaptureScreen({
           the buyer's explicit consent to upload only the framed crop. */}
       {photoUri && webFlow && (stage === 'framing' || stage === 'failed') ? (
         <View style={styles.prebuildBackgroundChoice}>
-          <Text style={styles.stepLabel}>REMOVE THE BACKGROUND?</Text>
+          <Text style={styles.stepLabel}>
+            {targetProduct === 'sculpture' ? 'ISOLATE THE OBJECT FOR TRUE 3D' : 'REMOVE THE BACKGROUND?'}
+          </Text>
           <View accessibilityRole="radiogroup" style={styles.bgOptionGrid}>
             <Pressable
               aria-checked={backgroundMode === 'smart'}
@@ -661,12 +959,13 @@ export function CaptureScreen({
                 </Text>
               </View>
               <Text style={styles.bgOptionText}>
-                Detects the object contour and drops studio, white, or gradient backgrounds. Your
-                framed crop is uploaded only after you tap the preview button.
+                {targetProduct === 'sculpture'
+                  ? 'Detects the object contour so the 3D provider receives the subject—not the wall, floor, or studio backdrop. Your framed crop is uploaded only after you tap the button.'
+                  : 'Detects the object contour and drops studio, white, or gradient backgrounds. Your framed crop is uploaded only after you tap the preview button.'}
               </Text>
             </Pressable>
 
-            <Pressable
+            {targetProduct === 'panel' ? <Pressable
               aria-checked={backgroundMode === 'scene'}
               accessibilityLabel="Keep whole frame, including its background"
               accessibilityRole="radio"
@@ -686,12 +985,67 @@ export function CaptureScreen({
                 {backgroundMode === 'scene' ? <Text style={styles.bgOptionBadge}>SELECTED ✓</Text> : null}
               </View>
               <Text style={styles.bgOptionText}>Keeps the background and stays entirely on this device.</Text>
-            </Pressable>
+            </Pressable> : null}
           </View>
+          {smartError ? (
+            <View accessibilityLiveRegion="polite" style={styles.smartError}>
+              <Text style={styles.smartErrorText}>{smartError}</Text>
+              <Text style={styles.smartErrorHint}>Your photo was not sent to the 3D generator. Adjust the crop or retry Smart isolate.</Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
       {stage === 'ready' && photoBuild && segmentation ? (
+        targetProduct === 'sculpture' ? (
+          <View accessibilityLabel="True 3D subject review" style={styles.sculptureReview}>
+            <Text style={styles.sculptureReviewEyebrow}>
+              {sculptureDetectedPerson ? 'PERSON DETECTED · FOUR VIEWS REQUIRED' : 'TRUE 3D INPUT · SUBJECT ONLY'}
+            </Text>
+            <Text style={styles.sculptureReviewTitle}>
+              {sculptureDetectedPerson ? 'Use real photos for every side.' : 'Check the complete outline.'}
+            </Text>
+            <Text style={styles.sculptureReviewBody}>
+              {sculptureDetectedPerson
+                ? 'The detector found a person. Continue with front, left, back and right photos so the model uses real hair and shoulders instead of inventing or mirroring the unseen surfaces.'
+                : sculptureNeedsIsolation
+                  ? 'True 3D needs a subject-only cutout. The wall, floor and studio background must not become part of the generated mesh.'
+                  : 'The isolated cutout shown above is the exact subject prepared for 3D generation. Check every edge, wheel, handle and thin part before continuing.'}
+            </Text>
+            {segmentation.isolationWarning ? (
+              <View accessibilityLiveRegion="polite" style={styles.smartReview}>
+                <Text style={styles.smartReviewTitle}>CHECK THE CUTOUT</Text>
+                <Text style={styles.smartReviewText}>{segmentation.isolationWarning}</Text>
+                <Text style={styles.smartReviewText}>
+                  If any part is missing, adjust the framing and isolate it again before generating 3D.
+                </Text>
+              </View>
+            ) : null}
+            {sculptureNeedsIsolation && smartAvailable ? (
+              <PrimaryButton
+                label="Upload crop · isolate the object"
+                onPress={() => void buildPanel('smart', photoBuild.style)}
+              />
+            ) : null}
+            {smartError ? (
+              <View accessibilityLiveRegion="polite" style={styles.smartError}>
+                <Text style={styles.smartErrorText}>{smartError}</Text>
+                <Text style={styles.smartErrorHint}>The 3D generator has not received this photo. Retry Smart isolate.</Text>
+              </View>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setBackgroundMode('smart');
+                setSmartError(null);
+                setStage('framing');
+              }}
+              style={({ pressed }) => [styles.reframeLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.reframeLinkText}>← Adjust framing or replace the photo</Text>
+            </Pressable>
+          </View>
+        ) : (
         <>
           <Text style={styles.stepLabel}>PICK YOUR STYLE — TAP A PREVIEW TO SEE IT LARGER</Text>
           <View style={styles.styleGrid}>
@@ -920,9 +1274,10 @@ export function CaptureScreen({
             </Modal>
           ) : null}
         </>
+        )
       ) : null}
 
-      {stage === 'failed' ? (
+      {stage === 'failed' && !smartError ? (
         <View style={styles.failNote}>
           <Text style={styles.failNoteText}>
             That photo could not be processed — try another one, or continue with the sample object.
@@ -931,7 +1286,7 @@ export function CaptureScreen({
       ) : null}
 
       {/* ——— Photo entry / sample / rights ——— */}
-      {!photoUri ? (
+      {!photoUri && !native3DUnavailable ? (
         <View style={styles.captureRow}>
           <View style={styles.hint}>
             <Text style={styles.hintTitle}>
@@ -977,7 +1332,7 @@ export function CaptureScreen({
         </Pressable>
       ) : null}
 
-      {!photoBuild && (!photoUri || !webFlow) ? (
+      {targetProduct === 'panel' && !photoBuild && (!photoUri || !webFlow) ? (
         <Pressable
           accessibilityHint="Continues with the built-in fox object instead of a photo"
           accessibilityRole="button"
@@ -998,6 +1353,83 @@ export function CaptureScreen({
 }
 
 const styles = StyleSheet.create({
+  sculptureReview: {
+    backgroundColor: colors.white,
+    borderColor: colors.ink,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  sculptureReviewEyebrow: {
+    ...type.label,
+    color: colors.coral,
+    fontSize: 10,
+  },
+  sculptureReviewTitle: {
+    ...type.heading,
+    color: colors.ink,
+    fontSize: 24,
+  },
+  sculptureReviewBody: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  personRoute: {
+    alignItems: 'center',
+    backgroundColor: colors.mintSoft,
+    borderColor: colors.ink,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  personRouteCopy: { flex: 1, minWidth: 220 },
+  personRouteTitle: { ...type.label, color: colors.ink },
+  personRouteBody: { ...type.body, color: colors.inkSoft, fontSize: 12, marginTop: spacing.xs },
+  subjectChoiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    width: '100%',
+  },
+  subjectChoice: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    flex: 1,
+    gap: spacing.xs,
+    minHeight: 78,
+    minWidth: 190,
+    padding: spacing.md,
+  },
+  subjectChoiceActive: {
+    borderColor: colors.ink,
+    borderWidth: 3,
+  },
+  subjectChoiceTitle: {
+    ...type.label,
+    color: colors.ink,
+  },
+  subjectChoiceText: {
+    ...type.body,
+    color: colors.inkSoft,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  detectedPersonNote: {
+    ...type.label,
+    color: colors.coral,
+    fontSize: 10,
+    width: '100%',
+  },
   frame: {
     backgroundColor: colors.panelDark,
     borderRadius: radius.lg,

@@ -46,21 +46,31 @@ test('anonymous and authenticated top-menu states are honest', () => {
   assert.match(menu, /usePixBrikAuth\(\)/);
   assert.match(menu, /'SIGN IN'/);
   assert.match(menu, /!auth\.configured \? 'ACCOUNT'/);
+  assert.match(menu, /'Open account'/);
+  assert.match(menu, /`Open account for \$\{auth\.user\?\.displayName/);
+  assert.doesNotMatch(menu, /sign-in is unavailable|Loading account status/i);
   assert.match(menu, /<BricklingAvatar/);
   assert.match(menu, /auth\.user\.id/);
   assert.match(menu, /decorative/);
   assert.doesNotMatch(menu, /accountHead|accountBody/);
 });
 
-test('account distinguishes Clerk identity from local data and performs real sign-out', () => {
+test('account keeps the device workspace usable while distinguishing Clerk identity from local data', () => {
   const account = source('src/screens/AccountScreen.tsx');
   const webPanel = source('src/components/ClerkAuthPanel.web.tsx');
   const nativePanel = source('src/components/ClerkAuthPanel.tsx');
 
   assert.match(account, /await auth\.signOut\(\)/);
   assert.match(account, /SIGNED IN WITH CLERK/);
-  assert.match(account, /SAVED ON THIS DEVICE · NOT ACCOUNT-SYNCED/);
-  assert.match(account, /Secure account sign-in has not been connected to this site yet/);
+  assert.match(account, /Platform\.OS === 'web'/);
+  assert.match(account, /BROWSER WORKSPACE READY/);
+  assert.match(account, /LOCAL PROJECT SAVING UNAVAILABLE/);
+  assert.match(account, /PRIVATE TO THIS BROWSER · CLOUD SYNC OFF/);
+  assert.match(account, /This native app build has no local build or order storage/);
+  assert.match(account, /Build gallery \(\$\{buildCount\}\)/);
+  assert.match(account, /Cloud account sign-in and sync are not connected yet/);
+  assert.match(account, /this data will not follow/);
+  assert.doesNotMatch(account, /SIGN-IN TEMPORARILY UNAVAILABLE|please try again later/i);
   assert.doesNotMatch(account, /Clerk is not configured on this deployment/);
   assert.match(account, /It will not be added to your Clerk account/);
   assert.match(webPanel, /from '@clerk\/expo\/web'/);
@@ -68,6 +78,7 @@ test('account distinguishes Clerk identity from local data and performs real sig
   assert.match(webPanel, /routing="path"/);
   assert.match(webPanel, /withSignUp/);
   assert.match(nativePanel, /NATIVE SIGN-IN ISN'T IN THIS BUILD YET/);
+  assert.match(nativePanel, /no local build or/);
   assert.doesNotMatch(nativePanel, /@clerk\/expo\/native/);
 });
 

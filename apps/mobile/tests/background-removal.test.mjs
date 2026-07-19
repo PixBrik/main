@@ -158,6 +158,7 @@ test('proxy sends provider multipart settings and returns no-store PNG without l
     body: multipartBody(fakePng(800, 600), boundary),
     headers: {
       'content-type': `multipart/form-data; boundary=${boundary}`,
+      origin: 'https://pixbrik.com',
       'x-pixbrik-subject-hint': 'portrait',
     },
     method: 'POST',
@@ -262,7 +263,7 @@ test('production is default-off and denies foreign or malformed origins before r
   assert.equal(fetchCalls, 0);
 });
 
-test('configured origins canonicalize safely while no-Origin native clients remain deliberate', async () => {
+test('configured origins canonicalize safely while originless production requests fail closed', async () => {
   const output = fakePng(128, 128);
   let fetchCalls = 0;
   const api = await loadTypeScriptModule(apiSourceUrl, {
@@ -292,7 +293,7 @@ test('configured origins canonicalize safely while no-Origin native clients rema
     (error) => error.code === 'background_removal_misconfigured',
   );
 
-  const boundary = 'native-no-origin';
+  const boundary = 'origin-required';
   const response = responseRecorder();
   await api.default({
     body: multipartBody(fakePng(512, 512), boundary),
@@ -302,8 +303,9 @@ test('configured origins canonicalize safely while no-Origin native clients rema
     },
     method: 'POST',
   }, response);
-  assert.equal(response.statusCode, 200);
-  assert.equal(fetchCalls, 1);
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.body.code, 'background_removal_origin_required');
+  assert.equal(fetchCalls, 0);
 });
 
 test('hashed per-IP and global daily provider breakers enforce exact boundaries', async () => {
@@ -383,6 +385,7 @@ test('invalid input cannot select a provider, fetch, or consume provider-call al
     body: multipartBody(Buffer.from('not a PNG'), invalidBoundary),
     headers: {
       'content-type': `multipart/form-data; boundary=${invalidBoundary}`,
+      origin: 'https://pixbrik.com',
       'x-forwarded-for': ip,
     },
     method: 'POST',
@@ -400,6 +403,7 @@ test('invalid input cannot select a provider, fetch, or consume provider-call al
     body: multipartBody(fakePng(256, 256), validBoundary),
     headers: {
       'content-type': `multipart/form-data; boundary=${validBoundary}`,
+      origin: 'https://pixbrik.com',
       'x-forwarded-for': ip,
     },
     method: 'POST',

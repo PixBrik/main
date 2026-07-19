@@ -38,7 +38,7 @@ await execFileAsync(process.execPath, [
 process.env.NODE_PATH = path.join(appRoot, 'node_modules');
 Module._initPaths();
 
-const { voxelizeGlb } = require(path.join(
+const { voxelizeGlb, voxelizeGlbOne } = require(path.join(
   compileDir,
   'lib',
   'photoEngine',
@@ -160,6 +160,135 @@ function asymmetricGlb() {
   return result;
 }
 
+function sceneGlb({ contaminants = false, detail = true } = {}) {
+  const opaqueShapes = [
+    { kind: 'box', material: 0, max: [1, 2, 0.6], min: [-1, 0, -0.6] },
+  ];
+  if (detail) {
+    // Separate but adjacent multipart detail (eye/hair/wheel analogue).
+    opaqueShapes.push({ kind: 'box', material: 0, max: [1.22, 1.42, 0.2], min: [1.04, 1.2, -0.2] });
+  }
+  if (contaminants) {
+    opaqueShapes.push(
+      { kind: 'box', material: 0, max: [8, 0, 8], min: [-8, -0.01, -8] },
+      { kind: 'box', material: 0, max: [8, 8, 4.01], min: [-8, -3, 4] },
+      { kind: 'box', material: 0, max: [6.02, 7.02, 6.02], min: [6, 7, 6] },
+      {
+        kind: 'triangle',
+        material: 0,
+        points: [[-100, 40, 0], [100, 40, 0], [0, 40, 0]],
+      },
+    );
+  }
+  // Keep opaque islands in one mesh: many AI GLBs combine the subject, floor
+  // and scan debris into a single primitive rather than separate scene nodes.
+  const parts = [{ kind: 'compound', material: 0, shapes: opaqueShapes }];
+  if (contaminants) {
+    parts.push({ kind: 'box', material: 1, max: [24, 24, 24], min: [-24, -24, -24] });
+  }
+
+  const accessors = [];
+  const bufferViews = [];
+  const meshes = [];
+  const nodes = [];
+  const chunks = [];
+  let byteOffset = 0;
+  const append = (bytes, target) => {
+    byteOffset = pad4(byteOffset);
+    const viewIndex = bufferViews.length;
+    bufferViews.push({ buffer: 0, byteLength: bytes.byteLength, byteOffset, target });
+    chunks.push({ byteOffset, bytes });
+    byteOffset += bytes.byteLength;
+    return viewIndex;
+  };
+
+  for (const part of parts) {
+    const positions = [];
+    const indices = [];
+    const shapes = part.kind === 'compound' ? part.shapes : [part];
+    for (const shape of shapes) {
+      if (shape.kind === 'box') {
+        box(shape.min, shape.max, positions, indices);
+      } else {
+        const start = positions.length / 3;
+        positions.push(...shape.points.flat());
+        indices.push(start, start + 1, start + 2);
+      }
+    }
+    const positionView = append(new Uint8Array(new Float32Array(positions).buffer), 34962);
+    const indexView = append(new Uint8Array(new Uint16Array(indices).buffer), 34963);
+    const positionAccessor = accessors.length;
+    const triples = Array.from({ length: positions.length / 3 }, (_, index) => positions.slice(index * 3, index * 3 + 3));
+    accessors.push({
+      bufferView: positionView,
+      componentType: 5126,
+      count: positions.length / 3,
+      max: [0, 1, 2].map((axis) => Math.max(...triples.map((point) => point[axis]))),
+      min: [0, 1, 2].map((axis) => Math.min(...triples.map((point) => point[axis]))),
+      type: 'VEC3',
+    });
+    const indexAccessor = accessors.length;
+    accessors.push({
+      bufferView: indexView,
+      componentType: 5123,
+      count: indices.length,
+      type: 'SCALAR',
+    });
+    const meshIndex = meshes.length;
+    meshes.push({ primitives: [{ attributes: { POSITION: positionAccessor }, indices: indexAccessor, material: part.material }] });
+    nodes.push({ mesh: meshIndex });
+  }
+
+  const binLength = pad4(byteOffset);
+  const binary = new Uint8Array(binLength);
+  for (const chunk of chunks) binary.set(chunk.bytes, chunk.byteOffset);
+  const json = {
+    accessors,
+    asset: { version: '2.0' },
+    bufferViews,
+    buffers: [{ byteLength: binLength }],
+    materials: [
+      {
+        pbrMetallicRoughness: {
+          baseColorFactor: [0.62, 0.22, 0.1, 1],
+          metallicFactor: 0,
+          roughnessFactor: 1,
+        },
+      },
+      {
+        alphaMode: 'BLEND',
+        pbrMetallicRoughness: {
+          baseColorFactor: [0.2, 0.8, 0.3, 0],
+          metallicFactor: 0,
+          roughnessFactor: 1,
+        },
+      },
+    ],
+    meshes,
+    nodes,
+    scene: 0,
+    scenes: [{ nodes: nodes.map((_, index) => index) }],
+  };
+  const encoded = new TextEncoder().encode(JSON.stringify(json));
+  const jsonLength = pad4(encoded.byteLength);
+  const totalLength = 12 + 8 + jsonLength + 8 + binLength;
+  const result = new ArrayBuffer(totalLength);
+  const view = new DataView(result);
+  const bytes = new Uint8Array(result);
+  view.setUint32(0, 0x46546c67, true);
+  view.setUint32(4, 2, true);
+  view.setUint32(8, totalLength, true);
+  view.setUint32(12, jsonLength, true);
+  view.setUint32(16, 0x4e4f534a, true);
+  bytes.fill(0x20, 20, 20 + jsonLength);
+  bytes.set(encoded, 20);
+  const binHeader = 20 + jsonLength;
+  view.setUint32(binHeader, binLength, true);
+  view.setUint32(binHeader + 4, 0x004e4942, true);
+  bytes.set(binary, binHeader + 8);
+  return result;
+}
+
 function geometry(model) {
   return model.cells.map((cell) => `${cell.i}|${cell.j}|${cell.k}`);
 }
@@ -228,6 +357,25 @@ test('triangle-box conversion preserves asymmetric proportions and the thin atta
     assert.ok(tip.length >= 4, `${profile}: thin asymmetric tip was erased`);
     assert.ok(new Set(tip.map((cell) => cell.j)).size < height / 3, `${profile}: arm inflated into body`);
   }
+});
+
+test('scene sanitation removes non-rendering geometry, oversized planes and far debris without erasing nearby parts', { timeout: 45_000 }, async () => {
+  const options = { colorStyle: 'natural', studSpans: { efficient: 20 } };
+  const bodyOnly = await voxelizeGlbOne(sceneGlb({ detail: false }), 'efficient', undefined, options);
+  const clean = await voxelizeGlbOne(sceneGlb(), 'efficient', undefined, options);
+  const contaminated = await voxelizeGlbOne(sceneGlb({ contaminants: true }), 'efficient', undefined, options);
+
+  assert.notDeepEqual(
+    geometry(clean),
+    geometry(bodyOnly),
+    'a separate nearby eye/hair/wheel-sized part was incorrectly treated as debris',
+  );
+  assert.deepEqual(
+    geometry(contaminated),
+    geometry(clean),
+    'floor, backdrop, transparent mesh, zero-area triangle or far speck changed subject occupancy',
+  );
+  assert.deepEqual(bounds(contaminated), bounds(clean), 'contaminants changed the subject scale or framing');
 });
 
 test('natural palette ignores hidden-volume colours and does not promote a one-cell camouflage outlier', () => {

@@ -72,6 +72,16 @@ interface PaletteEntry {
   hex: string;
 }
 
+type NaturalColorFamily = 'neutral' | 'warm' | 'other';
+
+interface ColorCharacter {
+  /** HSV hue in degrees. Undefined for a truly achromatic colour. */
+  hue: number | null;
+  saturation: number;
+  chroma: number;
+  family: NaturalColorFamily;
+}
+
 let palette: PaletteEntry[] | null = null;
 
 /**
@@ -126,6 +136,108 @@ export function quantizeToCatalog(r: number, g: number, b: number, exclude?: Set
   return best;
 }
 
+function characterizeColor(r: number, g: number, b: number): ColorCharacter {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  const saturation = max > 0 ? chroma / max : 0;
+  let hue: number | null = null;
+
+  if (chroma > 0) {
+    if (max === r) {
+      hue = 60 * (((g - b) / chroma) % 6);
+    } else if (max === g) {
+      hue = 60 * ((b - r) / chroma + 2);
+    } else {
+      hue = 60 * ((r - g) / chroma + 4);
+    }
+    if (hue < 0) hue += 360;
+  }
+
+  // Shadows can report a high mathematical saturation from only a few RGB
+  // points of channel noise. Treat that small absolute chroma as neutral too.
+  const neutral = chroma <= 12 || saturation <= 0.12 || (max <= 64 && chroma <= 28);
+  const warm = !neutral && hue !== null && (hue <= 65 || hue >= 330);
+  return { chroma, family: neutral ? 'neutral' : warm ? 'warm' : 'other', hue, saturation };
+}
+
+function isGreenOrOlive(character: ColorCharacter): boolean {
+  return (
+    character.hue !== null &&
+    character.saturation > 0.12 &&
+    character.chroma > 12 &&
+    character.hue >= 52 &&
+    character.hue <= 175
+  );
+}
+
+function targetWithSourceLuma(target: Rgb, source: Rgb): Rgb {
+  const luma = (color: Rgb) => 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+  const shift = luma(source) - luma(target);
+  return target.map((channel) => Math.max(0, Math.min(255, channel + shift))) as Rgb;
+}
+
+/**
+ * Catalog matching for a natural flat panel. The source pixel controls hue
+ * eligibility while the (possibly posterized) target controls region value:
+ *
+ * - achromatic photos can only select achromatic bricks, preventing white
+ *   clothing and black paint from becoming Tarmac/olive camouflage;
+ * - warm skin, fur and wood can never select green/olive inventory colours;
+ * - the remaining chromatic colours retain Redmean perceptual matching, so
+ *   this guard does not trade away luminance contrast or exact matches.
+ *
+ * This deliberately remains separate from `quantizeToCatalog`: textured 3D
+ * meshes and the classic/sepia ramps retain their existing behaviour.
+ */
+function quantizeNaturalPanelColorFromSource(
+  target: Rgb,
+  source: Rgb,
+): string {
+  const sourceCharacter = characterizeColor(source[0], source[1], source[2]);
+  // Regions retain the posterized cluster's coherent hue, but each source
+  // cell contributes its real luminance. Neutral regions carry likeness only
+  // through value, so they match the sampled pixel directly. This preserves
+  // paint reflections, fabric folds and compact facial contrast without
+  // reverting to unconstrained per-pixel hues.
+  const distanceTarget =
+    sourceCharacter.family === 'neutral'
+      // Cell averaging slightly compresses neutral highlights before catalog
+      // matching. A tiny value gain restores the captured contrast while
+      // remaining far below a visible exposure adjustment.
+      ? (source.map((channel) => Math.min(255, channel * 1.035)) as Rgb)
+      : targetWithSourceLuma(target, source);
+  let best = '#B40000';
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const entry of getPalette()) {
+    const candidateCharacter = characterizeColor(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
+    if (sourceCharacter.family === 'neutral' && candidateCharacter.family !== 'neutral') continue;
+    if (sourceCharacter.family === 'warm' && isGreenOrOlive(candidateCharacter)) continue;
+
+    let distance = colorDistance(
+      distanceTarget[0],
+      distanceTarget[1],
+      distanceTarget[2],
+      entry.rgb[0],
+      entry.rgb[1],
+      entry.rgb[2],
+    );
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = entry.hex;
+    }
+  }
+
+  // The catalog always has neutral and warm-safe colours, but retain a safe
+  // fallback if a future inventory import filters every eligible candidate.
+  return Number.isFinite(bestDistance) ? best : quantizeToCatalog(target[0], target[1], target[2]);
+}
+
+export function quantizeNaturalPanelColor(r: number, g: number, b: number): string {
+  return quantizeNaturalPanelColorFromSource([r, g, b], [r, g, b]);
+}
+
 type Rgb = [number, number, number];
 
 /**
@@ -135,7 +247,13 @@ type Rgb = [number, number, number];
  * turns per-cell quantization noise into the coherent zones a real brick
  * portrait uses.
  */
-function posterize(cells: Cell2D[][], width: number, height: number, paletteSize: number): void {
+function posterize(
+  cells: Cell2D[][],
+  width: number,
+  height: number,
+  paletteSize: number,
+  naturalPanelHueCoherence = false,
+): void {
   const samples: { x: number; y: number; color: Rgb }[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -262,12 +380,17 @@ function posterize(cells: Cell2D[][], width: number, height: number, paletteSize
       const cell = cells[y]![x]!;
       const cluster = smoothed[y * width + x]!;
       if (cluster !== -1) {
-        cell.posterHex = clusterHex[cluster]!;
+        cell.posterHex =
+          naturalPanelHueCoherence && cell.color
+            ? quantizeNaturalPanelColorFromSource(centroids[cluster]!, cell.color as Rgb)
+            : clusterHex[cluster]!;
       }
       // Feature cells quantize from their own (dark) colour so eyes and
       // noses never dissolve into the surrounding skin/fur cluster.
       if (cell.feature && cell.color) {
-        cell.posterHex = quantizeToCatalog(cell.color[0], cell.color[1], cell.color[2]);
+        cell.posterHex = naturalPanelHueCoherence
+          ? quantizeNaturalPanelColor(cell.color[0], cell.color[1], cell.color[2])
+          : quantizeToCatalog(cell.color[0], cell.color[1], cell.color[2]);
       }
     }
   }
@@ -767,7 +890,13 @@ export function voxelizeSegmentation(
   if (mode === 'relief' && style !== 'natural') {
     ditherToRamp(cells, width, height, style === 'classic' ? CLASSIC_RAMP : SEPIA_RAMP);
   } else {
-    posterize(cells, width, height, PALETTE_SIZE_BY_MODE[mode]);
+    posterize(
+      cells,
+      width,
+      height,
+      PALETTE_SIZE_BY_MODE[mode],
+      mode === 'relief' && style === 'natural',
+    );
     // Only a cut-out silhouette has mixed foreground/background edge pixels.
     // A full-frame mosaic must keep the buyer's real border colours.
     if (segmentation.coverage < 0.98) {

@@ -14,19 +14,55 @@ test('demo checkout persists a complete order instead of only toggling confirmat
   ]);
 
   assert.match(checkout, /const order = createOrder\(\{/);
-  assert.match(checkout, /const orderedModel = buildFill === 'hollow' \? hollowBuildModel\(model\) : model/);
-  assert.match(checkout, /buildId: saved\?\.id \?\? null/);
+  assert.match(checkout, /model,/);
+  assert.match(checkout, /buildId,/);
+  assert.doesNotMatch(checkout, /saveBuild\(/);
   assert.match(checkout, /onOrderPlaced\(placed\)/);
   assert.doesNotMatch(checkout, /onPress=\{\(\) => setPlaced\(true\)\}/);
 
   assert.match(store, /const STORAGE_KEY = 'pixbrik\.orders\.v1'/);
+  assert.match(store, /const hollow = input\.fill === 'hollow'/);
+  assert.match(store, /brickify\(input\.model, input\.accent, \{ hollow \}\)/);
+  assert.match(store, /const orderedModel = hollow \? hollowBuildModel\(input\.model\) : input\.model/);
   assert.match(store, /if \(!isAssemblyBuildable\(bom\)\) return null/);
-  assert.match(store, /model: snapshotOrderModel\(input\.model, input\.accent\)/);
+  assert.match(store, /model: snapshotOrderModel\(orderedModel, input\.accent\)/);
   assert.match(store, /placements: bom\.placements\.map/);
   assert.match(store, /partLines: bom\.lines\.map/);
   assert.match(store, /parts: bom\.totalParts/);
   assert.match(store, /status: 'reserved-demo'/);
   assert.match(store, /JSON\.stringify\(\[order, \.\.\.listOrders\(\)\]/);
+});
+
+test('build naming follows the exact active gallery record into checkout without creating a duplicate', async () => {
+  const [app, field, checkout] = await Promise.all([
+    source('App.tsx'),
+    source('src/components/BuildNameField.tsx'),
+    source('src/screens/CheckoutScreen.tsx'),
+  ]);
+
+  assert.match(app, /const \[activeSavedBuildId, setActiveSavedBuildId\] = useState<string \| null>\(null\)/);
+  assert.match(app, /const \[buildName, setBuildName\] = useState\('PixBrik build'\)/);
+  assert.match(app, /activateSavedBuild\('panel', \{ id: saved\?\.id \?\? null, name: savedName \}\)/);
+  assert.match(app, /activateSavedBuild\('sculpture', \{ id: saved\?\.id \?\? null, name: savedName \}\)/);
+  assert.match(app, /activeSavedBuildId=\{activeSavedBuildId\}/);
+  assert.match(app, /onBuildNameChange=\{changeActiveBuildName\}/);
+  assert.match(app, /buildId=\{activeSavedBuildId\}/);
+  assert.match(app, /buildName=\{buildName\}/);
+
+  assert.match(field, /buildId: string \| null/);
+  assert.match(field, /name: string/);
+  assert.match(field, /onNameChange: \(name: string\) => void/);
+  assert.match(field, /!!buildId/);
+  assert.match(field, /if \(!buildId\)/);
+  assert.match(field, /this session and any demo order only/);
+  assert.match(field, /buildId \? \(saved \? 'Saved ✓' : 'Save name'\) : 'Use name'/);
+  assert.match(field, /renameBuild\(buildId, trimmedName\)/);
+  assert.doesNotMatch(field, /latestBuild/);
+
+  assert.match(checkout, /buildId: string \| null/);
+  assert.match(checkout, /buildId,/);
+  assert.match(checkout, /model,/);
+  assert.doesNotMatch(checkout, /saveBuild/);
 });
 
 test('unbuildable previews cannot become orders or child-facing manuals', async () => {
@@ -64,18 +100,18 @@ test('account exposes persisted order details and the exact order guide', async 
   assert.match(account, /order\.paletteMode/);
   assert.match(account, /order\.parts\.toLocaleString/);
   assert.match(account, /Open this build's instructions/);
-  assert.match(account, /Device builds \(\$\{buildCount\}\)/);
+  assert.match(account, /Build gallery \(\$\{buildCount\}\)/);
 
   assert.match(app, /model=\{loadOrderModel\(selectedOrder\.model\)\}/);
   assert.match(app, /bomOverride=\{selectedOrder\.bom\}/);
   assert.match(app, /orderId=\{selectedOrder\.id\}/);
   assert.match(
     app,
-    /onOpenInstructions=\{\(order\) => \{[\s\S]*setSelectedOrder\(order\);[\s\S]*setScreen\('instructions'\);/,
-    'opening a stored order must not depend on selectedOrder state updating synchronously',
+    /onOpenInstructions=\{\(order\) => \{[\s\S]*setSelectedOrder\(order\);[\s\S]*navigate\('instructions', order\);/,
+    'opening a stored order must pass the order synchronously through browser-aware navigation',
   );
   assert.doesNotMatch(instructions, /from '\.\.\/data\/mockData'/);
-  assert.match(instructions, /brickify\(model, accent\)/);
+  assert.match(instructions, /brickify\(model, accent, \{ hollow: buildFill === 'hollow' \}\)/);
   assert.match(instructions, /createAssemblyPlan\(bom, placementOrder \? \{ placementOrder \} : \{\}\)/);
   assert.match(instructions, /stepsByLayer/);
   assert.match(instructions, /candidate\.number <= step\.number/);

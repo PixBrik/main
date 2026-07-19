@@ -40,7 +40,7 @@ export const SCULPTURE_SIZE_OPTIONS: Readonly<Record<BuildProfile, SculptureSize
   },
   detailed: {
     name: 'Showcase',
-    promise: 'Most facial and surface detail',
+    promise: 'Most shape and surface detail',
     shortName: 'SHOWCASE',
     targetLongestCm: SCULPTURE_STUD_SPAN.detailed * STUD_PITCH_CM,
   },

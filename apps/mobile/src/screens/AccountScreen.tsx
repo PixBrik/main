@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BricklingAvatar } from '../components/BricklingAvatar';
 import { ClerkAuthPanel } from '../components/ClerkAuthPanel';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { listBuilds } from '../lib/buildGallery';
+import { clear360Capture, has360Capture } from '../lib/capture360Store';
+import { clearLastCapture, hasLastCapture } from '../lib/captureStore';
 import { listOrders, type OrderRecord } from '../lib/orderStore';
 import { usePixBrikAuth } from '../lib/pixbrikAuth';
 import { colors, radius, spacing, type } from '../theme/tokens';
@@ -31,8 +33,12 @@ export function AccountScreen({
   const [orders] = useState<OrderRecord[]>(listOrders);
   const [expandedId, setExpandedId] = useState<string | null>(selectedOrderId ?? orders[0]?.id ?? null);
   const [buildCount] = useState(() => listBuilds().length);
+  const [rawCapturePresent, setRawCapturePresent] = useState(
+    () => Platform.OS === 'web' && (has360Capture() || hasLastCapture()),
+  );
   const [signOutState, setSignOutState] = useState<'idle' | 'working' | 'failed'>('idle');
   const currentUser = auth.loaded && auth.isSignedIn ? auth.user : null;
+  const hasBrowserStorage = Platform.OS === 'web';
 
   const signOut = async () => {
     if (!currentUser || signOutState === 'working') return;
@@ -48,24 +54,57 @@ export function AccountScreen({
   return (
     <ScreenFrame
       accent="mint"
-      eyebrow={currentUser ? 'Account / Signed in' : 'Account / Device only'}
-      footer={<PrimaryButton label={`Device builds (${buildCount})`} onPress={onOpenBuilds} />}
+      eyebrow={
+        currentUser
+          ? 'Account / Signed in'
+          : auth.configured
+            ? hasBrowserStorage
+              ? 'Account / Browser only'
+              : 'Account / Project saving off'
+            : hasBrowserStorage
+              ? 'Account / Browser workspace'
+              : 'Account / Storage unavailable'
+      }
+      footer={<PrimaryButton label={`Build gallery (${buildCount})`} onPress={onOpenBuilds} />}
       onBack={onBack}
-      subtitle="Identity and local project storage are separate. Signing in does not upload the builds or demo orders saved in this browser."
-      title={currentUser ? `Hi, ${currentUser.displayName.split(/\s+/)[0]}.` : 'Your PixBrik space.'}
+      subtitle={
+        auth.configured
+          ? hasBrowserStorage
+            ? 'Identity and browser project storage are separate. Signing in does not upload the builds or demo orders saved in this browser.'
+            : 'Identity and project storage are separate. This native build does not save builds or demo orders locally yet.'
+          : hasBrowserStorage
+            ? 'Your browser builds and demo orders are ready below. Cloud sync is not connected yet.'
+            : 'Cloud account sign-in and local project saving are not connected in this native build.'
+      }
+      title={
+        currentUser
+          ? `Hi, ${currentUser.displayName.split(/\s+/)[0]}.`
+          : auth.configured
+            ? 'Your PixBrik space.'
+            : hasBrowserStorage
+              ? 'Your browser workspace.'
+              : 'Your PixBrik space.'
+      }
     >
       {!auth.configured ? (
-        <View accessibilityRole="alert" style={styles.authUnavailable}>
-          <Text style={styles.authKicker}>ACCOUNT SIGN-IN TEMPORARILY UNAVAILABLE</Text>
+        <View style={styles.authNotice}>
+          <Text style={styles.authKicker}>
+            {hasBrowserStorage ? 'BROWSER WORKSPACE READY' : 'LOCAL PROJECT SAVING UNAVAILABLE'}
+          </Text>
           <Text style={styles.authBody}>
-            Secure account sign-in has not been connected to this site yet. Your builds remain
-            stored on this device; please try again later or contact hello@pixbrik.com.
+            {hasBrowserStorage
+              ? 'You can create builds, review saved orders and open instructions in this browser. Cloud account sign-in and sync are not connected yet, so this data will not follow you to another browser or device.'
+              : 'This native app build does not save builds or demo orders locally. Cloud account sign-in and sync are also not connected yet; use the web app for browser-local saving.'}
           </Text>
         </View>
       ) : !auth.loaded ? (
-        <View accessibilityLiveRegion="polite" style={styles.authUnavailable}>
+        <View accessibilityLiveRegion="polite" style={styles.authNotice}>
           <Text style={styles.authKicker}>CHECKING SECURE SIGN-IN…</Text>
-          <Text style={styles.authBody}>Your local builds remain available while account status loads.</Text>
+          <Text style={styles.authBody}>
+            {hasBrowserStorage
+              ? 'Your browser builds remain available while account status loads.'
+              : 'Account status is loading. This native app build has no local project storage.'}
+          </Text>
         </View>
       ) : currentUser ? (
         <View style={styles.identityCard}>
@@ -94,7 +133,9 @@ export function AccountScreen({
             </Text>
           ) : null}
           <Text style={styles.identityBoundary}>
-            Signing out ends the Clerk session. It does not delete or transfer this device's local data.
+            {hasBrowserStorage
+              ? "Signing out ends the Clerk session. It does not delete or transfer this browser's local data."
+              : 'Signing out ends the Clerk session. This native app build has no local build or order storage.'}
           </Text>
         </View>
       ) : (
@@ -102,18 +143,55 @@ export function AccountScreen({
       )}
 
       <View style={styles.deviceBoundary}>
-        <Text style={styles.deviceBoundaryTitle}>SAVED ON THIS DEVICE · NOT ACCOUNT-SYNCED</Text>
+        <Text style={styles.deviceBoundaryTitle}>
+          {hasBrowserStorage ? 'PRIVATE TO THIS BROWSER · CLOUD SYNC OFF' : 'LOCAL PROJECT SAVING OFF'}
+        </Text>
         <Text style={styles.deviceBoundaryBody}>
-          {buildCount} build{buildCount === 1 ? '' : 's'} and {orders.length} demo order{orders.length === 1 ? '' : 's'} are visible only in this browser or app installation.
+          {hasBrowserStorage
+            ? `${buildCount} build${buildCount === 1 ? '' : 's'} and ${orders.length} demo order${orders.length === 1 ? '' : 's'} are visible only in this browser.`
+            : 'This native app build has no local build or order storage. Cloud sync is also off.'}
         </Text>
       </View>
 
-      <Text style={styles.sectionLabel}>DEVICE-LOCAL DEMO ORDERS</Text>
+      {hasBrowserStorage ? (
+        <View style={styles.capturePrivacyCard}>
+          <View style={styles.capturePrivacyCopy}>
+            <Text style={styles.capturePrivacyTitle}>SOURCE PHOTO PRIVACY</Text>
+            <Text style={styles.capturePrivacyBody}>
+              Raw capture photos are kept only in this browser for retakes and expire automatically after 24 hours.
+              Saved brick models and demo orders do not need the raw photos.
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !rawCapturePresent }}
+            disabled={!rawCapturePresent}
+            onPress={() => {
+              clear360Capture();
+              clearLastCapture();
+              setRawCapturePresent(false);
+            }}
+            style={({ pressed }) => [
+              styles.deleteCaptures,
+              !rawCapturePresent && styles.deleteCapturesDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.deleteCapturesText}>
+              {rawCapturePresent ? 'DELETE CAPTURED PHOTOS' : 'NO RAW PHOTOS STORED'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <Text style={styles.sectionLabel}>{hasBrowserStorage ? 'ORDERS IN THIS BROWSER' : 'SAVED ORDERS'}</Text>
       {orders.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>NO ORDERS YET</Text>
           <Text style={styles.emptyBody}>
-            Complete the demo checkout and the exact kit, price, colours and generated guide will appear on this device. It will not be added to your Clerk account.
+            {hasBrowserStorage
+              ? 'Complete the demo checkout and the exact kit, price, colours and generated guide will appear in this browser. It will not be added to your Clerk account.'
+              : 'This native app build cannot save demo orders yet. Use the web app for browser-local order review and instructions until cloud accounts are connected.'}
           </Text>
         </View>
       ) : (
@@ -218,7 +296,7 @@ export function AccountScreen({
 
 const styles = StyleSheet.create({
   orders: { gap: spacing.md },
-  authUnavailable: {
+  authNotice: {
     backgroundColor: colors.white,
     borderColor: colors.ink,
     borderRadius: radius.lg,
@@ -262,6 +340,31 @@ const styles = StyleSheet.create({
   },
   deviceBoundaryTitle: { ...type.label, color: colors.saffron },
   deviceBoundaryBody: { ...type.body, color: colors.white, fontSize: 12, marginTop: spacing.xs },
+  capturePrivacyCard: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+  },
+  capturePrivacyCopy: { flex: 1, minWidth: 220 },
+  capturePrivacyTitle: { ...type.label, color: colors.ink },
+  capturePrivacyBody: { ...type.body, color: colors.inkSoft, fontSize: 11, marginTop: spacing.xs },
+  deleteCaptures: {
+    borderColor: colors.ink,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+  },
+  deleteCapturesDisabled: { opacity: 0.45 },
+  deleteCapturesText: { ...type.micro, color: colors.ink, fontSize: 8 },
   sectionLabel: { ...type.label, color: colors.inkSoft, marginBottom: spacing.sm },
   emptyCard: {
     backgroundColor: colors.white,

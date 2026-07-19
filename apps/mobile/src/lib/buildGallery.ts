@@ -10,6 +10,7 @@ import type { PanelStyle, PhotoBuildMode } from './photoEngine/voxelizePhoto';
 
 export type SavedBuildProduct = 'panel' | 'sculpture';
 export type SavedBuildProvenance = 'flat-photo' | 'provider-3d' | 'library';
+export type SavedBuildSubject = 'object' | 'person';
 
 export interface SavedBuildMetadata {
   hasDepth: boolean;
@@ -20,6 +21,7 @@ export interface SavedBuildMetadata {
   /** Linked reference to the approved source GLB when this is a true 3D build. */
   source3DMeshUrl?: string;
   source3DRetakesRemaining?: number;
+  source3DSubject?: SavedBuildSubject;
 }
 
 export interface SavedBuild {
@@ -38,6 +40,7 @@ export interface SavedBuild {
   style?: PanelStyle;
   source3DMeshUrl?: string;
   source3DRetakesRemaining?: number;
+  source3DSubject?: SavedBuildSubject;
   /** [i, j, k, paletteIndex, slopeFlag, facing] per cell — compact enough for localStorage. */
   cells: number[][];
 }
@@ -67,15 +70,13 @@ export function listBuilds(): SavedBuild[] {
   }
 }
 
-export function saveBuild(
+function serializeBuild(
+  id: string,
   name: string,
   model: VoxelModel,
   accent: string,
   metadata: SavedBuildMetadata,
-): SavedBuild | null {
-  const store = storage();
-  if (!store) return null;
-
+): SavedBuild {
   const palette: string[] = [];
   const paletteIndex = new Map<string, number>();
   const cells = model.cells.map((cell) => {
@@ -89,10 +90,10 @@ export function saveBuild(
     return [cell.i, cell.j, cell.k, index, cell.shape === 'slope' ? 1 : 0, cell.facing ?? 0];
   });
 
-  const build: SavedBuild = {
+  return {
     brickCount: model.brickCount,
     cells,
-    id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    id,
     name,
     palette,
     ...(model.layerHeight ? { layerHeight: model.layerHeight } : {}),
@@ -100,11 +101,54 @@ export function saveBuild(
     savedAt: new Date().toISOString(),
     size: model.size,
   };
+}
+
+export function saveBuild(
+  name: string,
+  model: VoxelModel,
+  accent: string,
+  metadata: SavedBuildMetadata,
+): SavedBuild | null {
+  const store = storage();
+  if (!store) return null;
+  const build = serializeBuild(
+    `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    name,
+    model,
+    accent,
+    metadata,
+  );
 
   try {
     const builds = [build, ...listBuilds()].slice(0, MAX_BUILDS);
     store.setItem(STORAGE_KEY, JSON.stringify(builds));
     return build;
+  } catch {
+    return null;
+  }
+}
+
+/** Replace one in-progress gallery build without creating style/background duplicates. */
+export function updateBuild(
+  id: string,
+  name: string,
+  model: VoxelModel,
+  accent: string,
+  metadata: SavedBuildMetadata,
+): SavedBuild | null {
+  const store = storage();
+  if (!store) return null;
+  const current = listBuilds();
+  if (!current.some((build) => build.id === id)) {
+    return saveBuild(name, model, accent, metadata);
+  }
+  const replacement = serializeBuild(id, name, model, accent, metadata);
+  try {
+    store.setItem(
+      STORAGE_KEY,
+      JSON.stringify([replacement, ...current.filter((build) => build.id !== id)].slice(0, MAX_BUILDS)),
+    );
+    return replacement;
   } catch {
     return null;
   }

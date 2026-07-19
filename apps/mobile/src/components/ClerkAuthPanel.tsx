@@ -8,8 +8,8 @@ export function ClerkAuthPanel() {
     <View accessibilityRole="alert" style={styles.card}>
       <Text style={styles.title}>NATIVE SIGN-IN ISN'T IN THIS BUILD YET</Text>
       <Text style={styles.body}>
-        Use the PixBrik web app to sign in for now. Builds and demo orders shown here remain only on
-        this device and are not synced to that account.
+        Use the PixBrik web app to sign in for now. This native app build also has no local build or
+        demo-order storage; use the web app for browser-local saving.
       </Text>
     </View>
   );

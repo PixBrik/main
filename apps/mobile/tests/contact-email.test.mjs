@@ -292,6 +292,15 @@ test('API accepts real messages, hides honeypot detection, blocks foreign origin
   assert.equal(valid.body.ok, true);
   assert.equal(sent.length, 1);
 
+  const originless = responseRecorder();
+  await api.default({
+    body: rawSubmission({ formStartedAt: Date.now() - 5_000 }),
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.99' },
+    method: 'POST',
+  }, originless);
+  assert.equal(originless.statusCode, 403);
+  assert.equal(sent.length, 1);
+
   const trap = responseRecorder();
   await api.default({
     body: rawSubmission({
@@ -299,7 +308,7 @@ test('API accepts real messages, hides honeypot detection, blocks foreign origin
       formStartedAt: Date.now() - 5_000,
       submissionId: '0d86cf68-3bd1-4d06-8551-4b760cf4b204',
     }),
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.11' },
+    headers: { 'content-type': 'application/json', origin: 'https://pixbrik.com', 'x-forwarded-for': '203.0.113.11' },
     method: 'POST',
   }, trap);
   assert.equal(trap.statusCode, 202);
@@ -317,7 +326,7 @@ test('API accepts real messages, hides honeypot detection, blocks foreign origin
   const simpleFormPost = responseRecorder();
   await api.default({
     body: JSON.stringify(rawSubmission({ formStartedAt: Date.now() - 5_000 })),
-    headers: { 'content-type': 'text/plain', 'x-forwarded-for': '203.0.113.12' },
+    headers: { 'content-type': 'text/plain', origin: 'https://pixbrik.com', 'x-forwarded-for': '203.0.113.12' },
     method: 'POST',
   }, simpleFormPost);
   assert.equal(simpleFormPost.statusCode, 415);
@@ -332,7 +341,7 @@ test('API accepts real messages, hides honeypot detection, blocks foreign origin
         formStartedAt: Date.now() - 5_000,
         submissionId: `11111111-1111-4111-8111-${suffix}`,
       }),
-      headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.20' },
+      headers: { 'content-type': 'application/json', origin: 'https://pixbrik.com', 'x-forwarded-for': '203.0.113.20' },
       method: 'POST',
     }, response);
     assert.equal(response.statusCode, 202);
@@ -343,7 +352,7 @@ test('API accepts real messages, hides honeypot detection, blocks foreign origin
       formStartedAt: Date.now() - 5_000,
       submissionId: '22222222-2222-4222-8222-222222222222',
     }),
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.20' },
+    headers: { 'content-type': 'application/json', origin: 'https://pixbrik.com', 'x-forwarded-for': '203.0.113.20' },
     method: 'POST',
   }, limited);
   assert.equal(limited.statusCode, 429);

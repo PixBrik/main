@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -137,6 +137,7 @@ function BrickMosaic({ backing = false, compact = false, id }: MosaicProps) {
 const FULL_TURN = 360;
 const ORBIT_STEP = 22.5;
 const AUTO_ROTATE_DEGREES_PER_MS = 0.01;
+const AUTO_ORBIT_LIMIT = 24;
 
 function normalizeDegrees(value: number) {
   return ((value % FULL_TURN) + FULL_TURN) % FULL_TURN;
@@ -165,12 +166,24 @@ function RotatableMosaic({
   const [autoRotating, setAutoRotating] = useState(false);
   const yawRef = useRef(yaw);
   const gestureStartYaw = useRef(yaw);
+  const autoDirection = useRef<1 | -1>(1);
   yawRef.current = yaw;
+
+  const setAutoRotation = useCallback((enabled: boolean) => {
+    if (enabled) {
+      // The marketing preview should keep the likeness visible while showing
+      // that this is a physical panel. Buyers can still drag or use the arrow
+      // controls for a complete, truthful 360-degree inspection.
+      autoDirection.current = 1;
+      setYaw(0);
+    }
+    setAutoRotating(enabled);
+  }, []);
 
   useEffect(() => {
     if (!motionPreferenceReady) return;
-    setAutoRotating(!reduceMotion);
-  }, [motionPreferenceReady, reduceMotion]);
+    setAutoRotation(!reduceMotion);
+  }, [motionPreferenceReady, reduceMotion, setAutoRotation]);
 
   useEffect(() => {
     if (!autoRotating) return undefined;
@@ -179,7 +192,18 @@ function RotatableMosaic({
     const tick = (time: number) => {
       if (previousTime !== null) {
         const elapsed = Math.min(40, time - previousTime);
-        setYaw((current) => normalizeDegrees(current + elapsed * AUTO_ROTATE_DEGREES_PER_MS));
+        setYaw((current) => {
+          const next = current + elapsed * AUTO_ROTATE_DEGREES_PER_MS * autoDirection.current;
+          if (next >= AUTO_ORBIT_LIMIT) {
+            autoDirection.current = -1;
+            return AUTO_ORBIT_LIMIT;
+          }
+          if (next <= -AUTO_ORBIT_LIMIT) {
+            autoDirection.current = 1;
+            return -AUTO_ORBIT_LIMIT;
+          }
+          return next;
+        });
       }
       previousTime = time;
       frame = requestAnimationFrame(tick);
@@ -231,7 +255,7 @@ function RotatableMosaic({
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === 'increment') rotateBy(ORBIT_STEP);
           if (event.nativeEvent.actionName === 'decrement') rotateBy(-ORBIT_STEP);
-          if (event.nativeEvent.actionName === 'activate') setAutoRotating((current) => !current);
+          if (event.nativeEvent.actionName === 'activate') setAutoRotation(!autoRotating);
         }}
         style={styles.orbitStage}
         {...panResponder.panHandlers}
@@ -260,7 +284,7 @@ function RotatableMosaic({
         <Pressable
           accessibilityLabel={autoRotating ? 'Pause automatic rotation' : 'Start automatic rotation'}
           accessibilityRole="button"
-          onPress={() => setAutoRotating((current) => !current)}
+          onPress={() => setAutoRotation(!autoRotating)}
           style={({ pressed }) => [styles.orbitToggle, pressed && styles.orbitButtonPressed]}
         >
           <Text style={styles.orbitToggleText}>{autoRotating ? 'PAUSE' : 'AUTO'}</Text>
@@ -286,7 +310,7 @@ function SourcePhoto({ alt, id, source }: Pick<Showcase, 'alt' | 'id' | 'source'
     <View style={styles.photoFrame}>
       <Image
         fadeDuration={0}
-        resizeMode="cover"
+        resizeMode={id === 'car' ? 'contain' : 'cover'}
         source={{ uri: HOME_MOSAICS[id].fallbackUri }}
         style={styles.fallbackImage}
       />
@@ -297,7 +321,7 @@ function SourcePhoto({ alt, id, source }: Pick<Showcase, 'alt' | 'id' | 'source'
           defaultSource={{ uri: HOME_MOSAICS[id].fallbackUri }}
           fadeDuration={0}
           onError={() => setFailed(true)}
-          resizeMode="cover"
+          resizeMode={id === 'car' ? 'contain' : 'cover'}
           source={source}
           style={styles.sourceImage}
         />

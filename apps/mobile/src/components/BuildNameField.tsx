@@ -1,25 +1,38 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { latestBuild, renameBuild } from '../lib/buildGallery';
+import { renameBuild } from '../lib/buildGallery';
 import { colors, radius, spacing, type } from '../theme/tokens';
 
-/**
- * Name-your-build field. Renames the most recently saved build (the one just
- * created) so it shows under "Previous builds" with a memorable name. Purely
- * local (localStorage via buildGallery) — no app wiring needed.
- */
-export function BuildNameField({ enabled }: { enabled: boolean }) {
-  const [name, setName] = useState(() => latestBuild()?.name ?? '');
-  const [saved, setSaved] = useState(false);
+/** Names the exact reviewed build while keeping the downstream order name in sync. */
+interface BuildNameFieldProps {
+  buildId: string | null;
+  enabled: boolean;
+  name: string;
+  onNameChange: (name: string) => void;
+}
+
+export function BuildNameField({ buildId, enabled, name, onNameChange }: BuildNameFieldProps) {
+  const [savedIdentity, setSavedIdentity] = useState<{ buildId: string; name: string } | null>(null);
+  const trimmedName = name.trim();
+  const saved =
+    !!buildId &&
+    !!trimmedName &&
+    savedIdentity?.buildId === buildId &&
+    savedIdentity.name === trimmedName;
 
   if (!enabled) return null;
 
   const save = () => {
-    const target = latestBuild();
-    if (target && renameBuild(target.id, name)) {
-      setSaved(true);
+    if (!trimmedName) return;
+    if (!buildId) {
+      onNameChange(trimmedName);
+      setSavedIdentity(null);
+      return;
     }
+    if (!renameBuild(buildId, trimmedName)) return;
+    onNameChange(trimmedName);
+    setSavedIdentity({ buildId, name: trimmedName });
   };
 
   return (
@@ -30,8 +43,8 @@ export function BuildNameField({ enabled }: { enabled: boolean }) {
           accessibilityLabel="Build name"
           maxLength={40}
           onChangeText={(value) => {
-            setName(value);
-            setSaved(false);
+            onNameChange(value);
+            setSavedIdentity(null);
           }}
           placeholder="e.g. Mum's cat, my car…"
           placeholderTextColor={colors.inkSoft}
@@ -41,13 +54,25 @@ export function BuildNameField({ enabled }: { enabled: boolean }) {
           value={name}
         />
         <Pressable
+          accessibilityHint={
+            buildId
+              ? 'Saves the name with this browser build.'
+              : 'Uses the name for this session and any demo order; this build is not saved in the gallery.'
+          }
           accessibilityRole="button"
           onPress={save}
           style={({ pressed }) => [styles.button, saved && styles.buttonSaved, pressed && styles.pressed]}
         >
-          <Text style={[styles.buttonText, saved && styles.buttonTextSaved]}>{saved ? 'Saved ✓' : 'Save name'}</Text>
+          <Text style={[styles.buttonText, saved && styles.buttonTextSaved]}>
+            {buildId ? (saved ? 'Saved ✓' : 'Save name') : 'Use name'}
+          </Text>
         </Pressable>
       </View>
+      {!buildId ? (
+        <Text style={styles.hint}>
+          This build is not saved in the gallery. Its name applies to this session and any demo order only.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -64,6 +89,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  hint: {
+    ...type.micro,
+    color: colors.inkSoft,
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: spacing.xs,
   },
   input: {
     ...type.body,

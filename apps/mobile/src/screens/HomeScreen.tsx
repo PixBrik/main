@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -39,6 +39,8 @@ export function HomeScreen({ onStart, onStart3D, onOpenBuild, onOpenLibrary }: H
   const { width: viewportWidth } = useWindowDimensions();
   const [builds] = useState<SavedBuild[]>(() => listBuilds());
   const [showAll, setShowAll] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const buildsOffsetRef = useRef(0);
   const wide = viewportWidth >= 920;
   const pageGutter = wide ? spacing.xxl : spacing.xl;
   const pageWidth = Math.max(260, Math.min(viewportWidth - pageGutter * 2, wide ? 1180 : 472));
@@ -56,11 +58,19 @@ export function HomeScreen({ onStart, onStart3D, onOpenBuild, onOpenLibrary }: H
   );
 
   const visibleBuilds = showAll ? builds : builds.slice(0, 2);
+  const openBuildGallery = () => {
+    setShowAll(true);
+    // Wait one frame for the expanded gallery before moving it into view.
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ animated: true, y: Math.max(0, buildsOffsetRef.current - spacing.md) });
+    });
+  };
 
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { width: pageWidth }, wide && styles.scrollWide]}
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topRow}>
@@ -68,8 +78,9 @@ export function HomeScreen({ onStart, onStart3D, onOpenBuild, onOpenLibrary }: H
           <View style={styles.topActions}>
             {builds.length > 0 ? (
               <Pressable
+                accessibilityLabel={`Open build gallery with ${builds.length} saved build${builds.length === 1 ? '' : 's'}`}
                 accessibilityRole="button"
-                onPress={() => setShowAll((current) => !current)}
+                onPress={openBuildGallery}
                 style={({ pressed }) => [styles.buildsPill, pressed && styles.pressedPill]}
               >
                 <Text style={styles.buildsPillText}>MY BUILDS</Text>
@@ -143,7 +154,12 @@ export function HomeScreen({ onStart, onStart3D, onOpenBuild, onOpenLibrary }: H
         ) : null}
 
         {builds.length > 0 && onOpenBuild ? (
-          <View style={styles.buildsBlock}>
+          <View
+            onLayout={(event) => {
+              buildsOffsetRef.current = event.nativeEvent.layout.y;
+            }}
+            style={styles.buildsBlock}
+          >
             <Text style={styles.buildsLabel}>YOUR BUILDS</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.buildsRow}>

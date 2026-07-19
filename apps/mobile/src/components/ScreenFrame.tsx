@@ -47,6 +47,8 @@ interface ScreenFrameProps {
   scroll?: boolean;
   /** Scroll the content back to its start whenever this identity changes. */
   scrollResetKey?: string | number;
+  /** Prevent leaving while a paid or irreversible operation is in flight. */
+  navigationDisabled?: boolean;
   /** Retired in Saffron Press — accepted for API compatibility. */
   accent?: SignalName;
 }
@@ -62,6 +64,7 @@ export function ScreenFrame({
   trailing,
   scroll = true,
   scrollResetKey,
+  navigationDisabled = false,
 }: ScreenFrameProps) {
   const [journeyIn, headIn, bodyIn] = useStagger(3);
   const scrollRef = useRef<ScrollView>(null);
@@ -85,7 +88,7 @@ export function ScreenFrame({
   const brandHeader = (
     <View style={styles.brandRow}>
       <BrandMark size={18} variant="full" />
-      {trailing ?? <TopMenu />}
+      {trailing ?? <TopMenu disabled={navigationDisabled} />}
     </View>
   );
 
@@ -97,9 +100,15 @@ export function ScreenFrame({
             <Pressable
               accessibilityLabel="Go back"
               accessibilityRole="button"
+              accessibilityState={{ disabled: navigationDisabled }}
+              disabled={navigationDisabled}
               hitSlop={10}
               onPress={onBack}
-              style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+              style={({ pressed }) => [
+                styles.back,
+                navigationDisabled && styles.backDisabled,
+                pressed && styles.backPressed,
+              ]}
             >
               <Text style={styles.backText}>←</Text>
             </Pressable>
@@ -220,6 +229,9 @@ const styles = StyleSheet.create({
   },
   backPressed: {
     transform: [{ scale: 0.96 }],
+  },
+  backDisabled: {
+    opacity: 0.4,
   },
   backText: {
     color: colors.ink,

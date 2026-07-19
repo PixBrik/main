@@ -168,6 +168,35 @@ test('one-cell-thick and already-shell models stay intact with negligible hollow
   assert.deepEqual([...placementKeys(hollowBom)].sort(), thin.cells.map(keyOf).sort());
 });
 
+test('a one-stud colour feature receives a bounded catalog bridge without changing geometry', () => {
+  const model = modelFrom([
+    { colorHex: '#E4B000', i: 0, j: 0, k: 0 },
+    { colorHex: '#E4B000', i: 0, j: 1, k: 0 },
+    { colorHex: '#111111', i: 1, j: 1, k: 0 },
+  ]);
+  const bom = brickify(model, '#E4B000');
+  const plan = createAssemblyPlan(bom);
+  const sourceByKey = new Map(model.cells.map((cell) => [keyOf(cell), cell]));
+  let adjustedCells = 0;
+  for (const placement of bom.placements) {
+    for (let di = 0; di < placement.spanI; di++) {
+      for (let dk = 0; dk < placement.spanK; dk++) {
+        const cell = sourceByKey.get(`${placement.i + di}|${placement.j}|${placement.k + dk}`);
+        if (!cell) continue;
+        const wanted = catalogColorFor(
+          cell.colorHex ?? voxelBaseColor({ ...cell, exposed: [] }, '#E4B000'),
+        ).id;
+        if (wanted !== placement.colorId) adjustedCells++;
+      }
+    }
+  }
+
+  assert.equal(plan.supportSummary.unsupported, 0);
+  assert.equal(isAssemblyBuildable(bom), true);
+  assert.equal(adjustedCells, 1, 'the structural tie may adjust only the adjacent one-stud seam');
+  assert.deepEqual([...placementKeys(bom)].sort(), model.cells.map(keyOf).sort());
+});
+
 test('standard sculpture packings are connected or explicitly fail the release gate', () => {
   const disconnected = {};
   const examples = {};
@@ -209,6 +238,35 @@ test('standard sculpture packings are connected or explicitly fail the release g
       }
     }
   }
+  assert.equal(
+    disconnected['balanced-solid'],
+    0,
+    `the default sample must always have a sellable fallback: ${JSON.stringify(disconnected)}`,
+  );
+  assert.equal(
+    disconnected['balanced-hollow'],
+    0,
+    `the default lower-part-count sample should remain physically buildable: ${JSON.stringify(disconnected)}`,
+  );
+  const buyerModel = getVoxelModel('balanced');
+  const buyerBom = brickify(buyerModel, '#17130A', { hollow: true });
+  const buyerDefault = createAssemblyPlan(buyerBom);
+  assert.equal(
+    buyerDefault.supportSummary.unsupported,
+    0,
+    `the default Result/BOM accent must produce the same buildable hollow kit: ${JSON.stringify({
+      unsupported: buyerDefault.steps
+        .filter((step) => step.support.status === 'unsupported')
+        .map((step) => step.placement),
+      nearby: buyerBom.placements.filter((placement) =>
+        Math.abs(placement.i + 4) <= 3 && Math.abs(placement.j - 12) <= 1 && Math.abs(placement.k - 1) <= 3,
+      ),
+    })}`,
+  );
+  assert.ok(
+    Object.values(disconnected).some((count) => count === 0),
+    `at least one sample option must reach checkout and instructions: ${JSON.stringify(disconnected)}`,
+  );
   assert.ok(
     Object.values(disconnected).some((count) => count > 0),
     `fixture must exercise the fail-closed path: ${JSON.stringify(disconnected)}; examples: ${JSON.stringify(examples)}; first: ${JSON.stringify(firstNeighbourhood)}`,
@@ -252,6 +310,49 @@ test('order persistence performs no write for an unsupported packing', () => {
     });
     assert.equal(order, null);
     assert.equal(writes, 0);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});
+
+test('hollow order freezes the exact quoted BOM instead of repacking a hollow reconstruction', () => {
+  let saved = null;
+  globalThis.localStorage = {
+    clear() {},
+    getItem() { return saved; },
+    key() { return null; },
+    length: 0,
+    removeItem() {},
+    setItem(_key, value) { saved = value; },
+  };
+  try {
+    const model = getVoxelModel('balanced');
+    const accent = '#17130A';
+    const quoted = brickify(model, accent, { hollow: true });
+    const order = createOrder({
+      accent,
+      buildId: null,
+      buildName: 'Quoted hollow fixture',
+      countryCode: 'FR',
+      currency: 'EUR',
+      currencySymbol: '€',
+      deliveryRange: 'test only',
+      fill: 'hollow',
+      guest: true,
+      kitPrice: 1,
+      model,
+      paletteMode: 'natural',
+      product: 'sculpture',
+      profile: 'balanced',
+      selectedVariant: 'balanced',
+      shippingPrice: 0,
+      style: 'natural',
+      totalPrice: 1,
+    });
+    assert.ok(order);
+    assert.equal(order.parts, quoted.totalParts);
+    assert.deepEqual(order.bom.placements, quoted.placements);
+    assert.equal(order.model.cells.length, hollowBuildModel(model).cells.length);
   } finally {
     delete globalThis.localStorage;
   }

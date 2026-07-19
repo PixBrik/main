@@ -249,11 +249,17 @@ function classify(x: number, y: number, z: number): VoxelZone | null {
   for (let t = 0; t <= 1.0001; t += 0.05) {
     const cx = 1.55 + 2.25 * t;
     const cy = 2.05 + 1.35 * t * t;
-    const radius = 0.68 - 0.18 * t;
+    // Keep the rising tip thick enough to retain a vertical stud connection
+    // after sampling at every supported profile. A thinner terminal sphere
+    // can quantize into a visually adjacent but physically floating tail-tip
+    // piece at the balanced and detailed resolutions.
+    const radius = 0.68 - 0.13 * t;
     const dx = x - cx;
     const dy = y - cy;
     const dz = z + 0.35;
-    if (dx * dx + dy * dy + dz * dz <= radius * radius) {
+    // Slight vertical reinforcement keeps the swept tail locked through each
+    // stair-step instead of relying on unsupported side-by-side contact.
+    if (dx * dx + (dy / 1.25) * (dy / 1.25) + dz * dz <= radius * radius) {
       return t > 0.72 ? 'cream' : 'body';
     }
   }

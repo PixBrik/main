@@ -12,8 +12,6 @@ const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
   { label: 'HOME', screen: 'home' },
   { label: 'CREATE A BUILD', screen: 'mode' },
   { label: 'OBJECT LIBRARY', screen: 'library' },
-  { label: 'MY KIT', screen: 'purchase' },
-  { label: 'MODEL LAB (BETA)', screen: 'lab' },
   ...(LEGAL_CONTENT_AVAILABLE
     ? ([{ label: 'LEGAL & CONTACT', screen: 'legal' }] as const)
     : ([{ label: 'CONTACT', screen: 'contact' }] as const)),
@@ -23,7 +21,7 @@ const MENU_ITEMS: ReadonlyArray<{ label: string; screen: DemoScreen }> = [
  * Global top-right chrome: explicit sign-in or Brickling identity + menu.
  * The identity control opens the account and device-local order screen.
  */
-export function TopMenu() {
+export function TopMenu({ disabled = false }: { disabled?: boolean }) {
   const navigate = useAppNavigation();
   const auth = usePixBrikAuth();
   const [open, setOpen] = useState(false);
@@ -41,15 +39,13 @@ export function TopMenu() {
       <View style={styles.row}>
         <Pressable
           accessibilityLabel={
-            !auth.configured
-              ? 'Account; sign-in is unavailable on this deployment'
-              : !auth.loaded
-              ? 'Loading account status'
-              : auth.isSignedIn
-                ? `Account for ${auth.user?.displayName ?? 'PixBrik builder'}`
-                : 'Sign in to PixBrik'
+            auth.loaded && auth.isSignedIn
+              ? `Open account for ${auth.user?.displayName ?? 'PixBrik builder'}`
+              : 'Open account'
           }
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
+          disabled={disabled}
           onPress={() => {
             setOpen(false);
             navigate('account');
@@ -75,6 +71,8 @@ export function TopMenu() {
         <Pressable
           accessibilityLabel="Menu"
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
+          disabled={disabled}
           onPress={() => {
             setOpen((current) => !current);
           }}
@@ -86,7 +84,7 @@ export function TopMenu() {
         </Pressable>
       </View>
 
-      {open ? (
+      {open && !disabled ? (
         <View style={styles.dropdown}>
           {MENU_ITEMS.map((item) => (
             <Pressable

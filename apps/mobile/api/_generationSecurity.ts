@@ -122,6 +122,13 @@ export function guardPaidGeneration(
   }
 
   const origin = headerValue(req.headers?.origin).trim();
+  if (env.NODE_ENV === 'production' && !origin) {
+    throw new GenerationSecurityError(
+      'A verified PixBrik browser origin is required.',
+      403,
+      'generation_origin_required',
+    );
+  }
   if (origin && !allowedGenerationOrigins(env).has(origin)) {
     throw new GenerationSecurityError('This generation origin is not allowed.', 403, 'generation_origin_denied');
   }

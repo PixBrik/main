@@ -39,6 +39,8 @@ export type MeshProfile = keyof typeof RES;
 export interface MeshVoxelizeOptions {
   /** Natural catalogue colours by default; `bw` is a five-tone neutral ramp. */
   colorStyle?: MeshBrickColorStyle;
+  /** Optional subject-specific stud spans; human likenesses need a denser grid. */
+  studSpans?: Partial<Record<MeshProfile, number>>;
 }
 
 interface PreparedMaterial {
@@ -57,6 +59,23 @@ interface PreparedMesh {
   bounds: THREE.Box3;
   hasVertexColor: boolean;
   materials: PreparedMaterial[];
+}
+
+interface SubjectPart {
+  bounds: THREE.Box3;
+  diagonal: number;
+  isBroadPlane: boolean;
+  surfaceArea: number;
+  triangleCount: number;
+}
+
+interface MeshCandidate extends SubjectPart {
+  geometry: THREE.BufferGeometry;
+  materials: THREE.Material[];
+}
+
+interface TriangleComponent extends SubjectPart {
+  triangles: number[];
 }
 
 function readTexture(material: THREE.Material): PreparedMaterial['textureData'] {
@@ -79,38 +98,346 @@ function readTexture(material: THREE.Material): PreparedMaterial['textureData'] 
   };
 }
 
+const FULLY_TRANSPARENT_OPACITY = 1e-3;
+const BROAD_PLANE_THICKNESS_RATIO = 0.012;
+const BROAD_PLANE_SECOND_AXIS_RATIO = 0.35;
+const OVERSIZED_PLANE_SCALE = 1.5;
+const TINY_DEBRIS_DIAGONAL_RATIO = 0.025;
+const TINY_DEBRIS_AREA_RATIO = 0.002;
+const TINY_DEBRIS_DISTANCE_RATIO = 0.15;
+
+function isEffectivelyVisible(node: THREE.Object3D): boolean {
+  for (let current: THREE.Object3D | null = node; current; current = current.parent) {
+    if (!current.visible) return false;
+  }
+  return true;
+}
+
+function materialRenders(material: THREE.Material | undefined): boolean {
+  if (!material || !material.visible || material.colorWrite === false) return false;
+  const alphaCanHideSurface = material.transparent || material.alphaTest > FULLY_TRANSPARENT_OPACITY;
+  return !(alphaCanHideSurface && material.opacity <= FULLY_TRANSPARENT_OPACITY);
+}
+
+function materialIndexAt(geometry: THREE.BufferGeometry, elementOffset: number): number {
+  const group = geometry.groups.find(
+    (candidate) => elementOffset >= candidate.start && elementOffset < candidate.start + candidate.count,
+  );
+  return group?.materialIndex ?? 0;
+}
+
+function subjectPart(
+  bounds: THREE.Box3,
+  surfaceArea: number,
+  triangleCount: number,
+): SubjectPart {
+  const size = bounds.getSize(new THREE.Vector3());
+  const dimensions = [size.x, size.y, size.z].sort((left, right) => left - right);
+  const largest = dimensions[2] || 0;
+  return {
+    bounds,
+    diagonal: size.length(),
+    isBroadPlane: largest > 0
+      && dimensions[0]! / largest <= BROAD_PLANE_THICKNESS_RATIO
+      && dimensions[1]! / largest >= BROAD_PLANE_SECOND_AXIS_RATIO,
+    surfaceArea,
+    triangleCount,
+  };
+}
+
+/** Partition one geometry into topologically connected triangle islands. */
+function triangleComponents(
+  position: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
+  triangleIndices: number[],
+  triangleAreas: number[],
+  overallBounds: THREE.Box3,
+): TriangleComponent[] {
+  const triangleCount = triangleAreas.length;
+  if (triangleCount <= 1) {
+    return [{
+      ...subjectPart(overallBounds.clone(), triangleAreas[0] ?? 0, triangleCount),
+      triangles: triangleCount ? [0] : [],
+    }];
+  }
+
+  const parent = new Int32Array(triangleCount);
+  const rank = new Uint8Array(triangleCount);
+  for (let index = 0; index < triangleCount; index++) parent[index] = index;
+  const find = (value: number): number => {
+    let root = value;
+    while (parent[root] !== root) root = parent[root]!;
+    while (parent[value] !== value) {
+      const next = parent[value]!;
+      parent[value] = root;
+      value = next;
+    }
+    return root;
+  };
+  const union = (left: number, right: number) => {
+    let leftRoot = find(left);
+    let rightRoot = find(right);
+    if (leftRoot === rightRoot) return;
+    if (rank[leftRoot]! < rank[rightRoot]!) [leftRoot, rightRoot] = [rightRoot, leftRoot];
+    parent[rightRoot] = leftRoot;
+    if (rank[leftRoot] === rank[rightRoot]) rank[leftRoot] = rank[leftRoot]! + 1;
+  };
+
+  // Coordinate welding connects non-indexed geometry and UV-seam duplicates.
+  // The tolerance is seven orders below the model span, far too small to join
+  // separate features that merely happen to sit close together.
+  const weld = Math.max(overallBounds.getSize(new THREE.Vector3()).length() * 1e-7, 1e-9);
+  const firstTriangleAtVertex = new Map<string, number>();
+  for (let triangle = 0; triangle < triangleCount; triangle++) {
+    for (let corner = 0; corner < 3; corner++) {
+      const vertex = triangleIndices[triangle * 3 + corner]!;
+      const key = `${Math.round(position.getX(vertex) / weld)}|${Math.round(position.getY(vertex) / weld)}|${Math.round(position.getZ(vertex) / weld)}`;
+      const first = firstTriangleAtVertex.get(key);
+      if (first === undefined) firstTriangleAtVertex.set(key, triangle);
+      else union(triangle, first);
+    }
+  }
+
+  const grouped = new Map<number, { bounds: THREE.Box3; surfaceArea: number; triangles: number[] }>();
+  const point = new THREE.Vector3();
+  for (let triangle = 0; triangle < triangleCount; triangle++) {
+    const root = find(triangle);
+    let group = grouped.get(root);
+    if (!group) {
+      group = { bounds: new THREE.Box3().makeEmpty(), surfaceArea: 0, triangles: [] };
+      grouped.set(root, group);
+    }
+    group.triangles.push(triangle);
+    group.surfaceArea += triangleAreas[triangle]!;
+    for (let corner = 0; corner < 3; corner++) {
+      point.fromBufferAttribute(position, triangleIndices[triangle * 3 + corner]!);
+      group.bounds.expandByPoint(point);
+    }
+  }
+  return [...grouped.values()].map((group) => ({
+    ...subjectPart(group.bounds, group.surfaceArea, group.triangles.length),
+    triangles: group.triangles,
+  }));
+}
+
+/**
+ * Clone one mesh in world space and remove triangles that can never render.
+ * BoundingBox.computeBoundingBox() considers unused attribute vertices, so we
+ * build the bounds from the retained triangles as well: a single degenerate,
+ * far-away vertex must not make the subject resolve to a handful of voxels.
+ */
+function collectCandidate(mesh: THREE.Mesh): MeshCandidate | null {
+  if (!mesh.geometry || !isEffectivelyVisible(mesh)) return null;
+  const materials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.Material[];
+  if (!materials.some(materialRenders)) return null;
+
+  const geometry = mesh.geometry.clone();
+  geometry.applyMatrix4(mesh.matrixWorld); // bake transform -> world space
+  const position = geometry.getAttribute('position');
+  if (!position || position.itemSize < 3 || position.count < 3) {
+    geometry.dispose();
+    return null;
+  }
+
+  const index = geometry.getIndex();
+  const elementCount = index?.count ?? position.count;
+  const drawStart = Math.max(0, geometry.drawRange.start || 0);
+  const drawCount = Number.isFinite(geometry.drawRange.count)
+    ? Math.max(0, geometry.drawRange.count)
+    : elementCount - drawStart;
+  const drawEnd = Math.min(elementCount, drawStart + drawCount);
+  const retainedIndices: number[] = [];
+  const retainedMaterials: number[] = [];
+  const retainedAreas: number[] = [];
+  const bounds = new THREE.Box3().makeEmpty();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const cross = new THREE.Vector3();
+  let surfaceArea = 0;
+
+  for (let offset = drawStart; offset + 2 < drawEnd; offset += 3) {
+    const materialIndex = materialIndexAt(geometry, offset);
+    if (!materialRenders(materials[materialIndex] ?? materials[0])) continue;
+    const ia = index ? index.getX(offset) : offset;
+    const ib = index ? index.getX(offset + 1) : offset + 1;
+    const ic = index ? index.getX(offset + 2) : offset + 2;
+    if (
+      !Number.isInteger(ia) || !Number.isInteger(ib) || !Number.isInteger(ic)
+      || ia < 0 || ib < 0 || ic < 0
+      || ia >= position.count || ib >= position.count || ic >= position.count
+    ) continue;
+
+    a.fromBufferAttribute(position, ia);
+    b.fromBufferAttribute(position, ib);
+    c.fromBufferAttribute(position, ic);
+    if (![a, b, c].every((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))) {
+      continue;
+    }
+    ab.subVectors(b, a);
+    ac.subVectors(c, a);
+    const twiceArea = cross.crossVectors(ab, ac).length();
+    const maxEdgeSquared = Math.max(ab.lengthSq(), ac.lengthSq(), b.distanceToSquared(c));
+    if (!(twiceArea > maxEdgeSquared * 1e-12)) continue;
+
+    retainedIndices.push(ia, ib, ic);
+    retainedMaterials.push(materialIndex);
+    retainedAreas.push(twiceArea / 2);
+    bounds.expandByPoint(a);
+    bounds.expandByPoint(b);
+    bounds.expandByPoint(c);
+    surfaceArea += twiceArea / 2;
+  }
+
+  if (!retainedMaterials.length || bounds.isEmpty() || !(surfaceArea > 0)) {
+    geometry.dispose();
+    return null;
+  }
+
+  // AI exporters often collapse the subject, floor and floating scan specks
+  // into one mesh. Partitioning by welded triangle connectivity lets the same
+  // conservative subject rules work within a mesh as well as between meshes.
+  const components = triangleComponents(position, retainedIndices, retainedAreas, bounds);
+  const retainedComponents = new Set(sanitizeSubjectParts(components));
+  const finalIndices: number[] = [];
+  const finalMaterials: number[] = [];
+  bounds.makeEmpty();
+  surfaceArea = 0;
+  for (const component of components) {
+    if (!retainedComponents.has(component)) continue;
+    bounds.union(component.bounds);
+    surfaceArea += component.surfaceArea;
+    for (const triangle of component.triangles) {
+      finalIndices.push(
+        retainedIndices[triangle * 3]!,
+        retainedIndices[triangle * 3 + 1]!,
+        retainedIndices[triangle * 3 + 2]!,
+      );
+      finalMaterials.push(retainedMaterials[triangle]!);
+    }
+  }
+  if (!finalMaterials.length || bounds.isEmpty()) {
+    geometry.dispose();
+    return null;
+  }
+
+  // Use an explicit index so degenerate non-indexed triangles no longer take
+  // part in BVH queries. Rebuild groups to keep per-face material lookup exact.
+  geometry.setIndex(finalIndices);
+  geometry.clearGroups();
+  let groupStart = 0;
+  let groupMaterial = finalMaterials[0]!;
+  for (let triangle = 1; triangle <= finalMaterials.length; triangle++) {
+    const nextMaterial = finalMaterials[triangle];
+    if (triangle === finalMaterials.length || nextMaterial !== groupMaterial) {
+      geometry.addGroup(groupStart, triangle * 3 - groupStart, groupMaterial);
+      groupStart = triangle * 3;
+      groupMaterial = nextMaterial ?? groupMaterial;
+    }
+  }
+  geometry.boundingBox = bounds.clone();
+
+  const stats = subjectPart(bounds, surfaceArea, finalMaterials.length);
+  return {
+    ...stats,
+    geometry,
+    materials,
+  };
+}
+
+function boxDistance(left: THREE.Box3, right: THREE.Box3): number {
+  const dx = Math.max(0, left.min.x - right.max.x, right.min.x - left.max.x);
+  const dy = Math.max(0, left.min.y - right.max.y, right.min.y - left.max.y);
+  const dz = Math.max(0, left.min.z - right.max.z, right.min.z - left.max.z);
+  return Math.hypot(dx, dy, dz);
+}
+
+function subjectScore(candidate: SubjectPart): number {
+  // Triangle count only breaks close calls; scale remains the primary signal
+  // so a detailed eye or wheel cannot outrank the body that contains it.
+  return candidate.diagonal * (1 + Math.min(0.35, Math.log2(candidate.triangleCount + 1) * 0.035));
+}
+
+/**
+ * Keep the largest volumetric subject and every plausible nearby part. Only
+ * two relative, high-confidence contaminant classes are removed:
+ *   - a broad, paper-thin plane at least 1.5x the subject (floor/backdrop);
+ *   - a minute component far from every substantial subject part (scene dust).
+ * Small overlapping/nearby meshes are deliberately retained for eyes, hair,
+ * wheels, jewellery and other multipart details.
+ */
+function sanitizeSubjectParts<T extends SubjectPart>(candidates: T[]): T[] {
+  if (candidates.length <= 1) return candidates;
+  const volumetric = candidates.filter((candidate) => !candidate.isBroadPlane);
+  if (!volumetric.length) return candidates;
+  const primary = volumetric.reduce((best, candidate) => (
+    subjectScore(candidate) > subjectScore(best) ? candidate : best
+  ));
+  const withoutPlanes = candidates.filter((candidate) => (
+    candidate === primary
+    || !candidate.isBroadPlane
+    || candidate.diagonal < primary.diagonal * OVERSIZED_PLANE_SCALE
+  ));
+
+  const core = withoutPlanes.filter((candidate) => (
+    candidate === primary
+    || candidate.diagonal >= primary.diagonal * 0.08
+    || candidate.surfaceArea >= primary.surfaceArea * 0.01
+  ));
+  const coreSet = new Set(core);
+  return withoutPlanes.filter((candidate) => {
+    if (candidate === primary || coreSet.has(candidate)) return true;
+    const isTiny = candidate.diagonal <= primary.diagonal * TINY_DEBRIS_DIAGONAL_RATIO
+      && candidate.surfaceArea <= primary.surfaceArea * TINY_DEBRIS_AREA_RATIO;
+    if (!isTiny) return true;
+    let nearestCore = Infinity;
+    for (const part of core) {
+      nearestCore = Math.min(nearestCore, boxDistance(candidate.bounds, part.bounds));
+    }
+    return nearestCore <= primary.diagonal * TINY_DEBRIS_DISTANCE_RATIO;
+  });
+}
+
 function prepare(root: THREE.Object3D): PreparedMesh[] {
   root.updateWorldMatrix(true, true);
-  const prepared: PreparedMesh[] = [];
+  const candidates: MeshCandidate[] = [];
   root.traverse((node) => {
     const mesh = node as THREE.Mesh;
-    if (!mesh.isMesh || !mesh.geometry) return;
-    const geometry = mesh.geometry.clone();
-    geometry.applyMatrix4(mesh.matrixWorld); // bake transform → world space
-    geometry.computeBoundingBox();
-    const sourceMaterials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.Material[];
+    if (!mesh.isMesh) return;
+    const candidate = collectCandidate(mesh);
+    if (candidate) candidates.push(candidate);
+  });
+  const retained = new Set(sanitizeSubjectParts(candidates));
+  for (const candidate of candidates) {
+    if (!retained.has(candidate)) candidate.geometry.dispose();
+  }
+
+  return candidates.filter((candidate) => retained.has(candidate)).map((candidate) => {
     // Raycast through a double-sided copy: parity counts EVERY wall crossing,
     // and a FrontSide source material would silently cull the exits.
-    const raycastMaterials = sourceMaterials.map((material) => {
+    const raycastMaterials = candidate.materials.map((material) => {
       const copy = material.clone();
       copy.side = THREE.DoubleSide;
       return copy;
     });
-    const worldMesh = new THREE.Mesh(geometry, raycastMaterials.length === 1 ? raycastMaterials[0]! : raycastMaterials);
-    const bvh = new MeshBVH(geometry);
-    (geometry as unknown as { boundsTree: MeshBVH }).boundsTree = bvh;
-    prepared.push({
+    const worldMesh = new THREE.Mesh(
+      candidate.geometry,
+      raycastMaterials.length === 1 ? raycastMaterials[0]! : raycastMaterials,
+    );
+    const bvh = new MeshBVH(candidate.geometry);
+    (candidate.geometry as unknown as { boundsTree: MeshBVH }).boundsTree = bvh;
+    return {
       bvh,
-      bounds: geometry.boundingBox!.clone(),
-      hasVertexColor: !!geometry.getAttribute('color'),
-      materials: sourceMaterials.map((material) => ({
+      bounds: candidate.bounds.clone(),
+      hasVertexColor: !!candidate.geometry.getAttribute('color'),
+      materials: candidate.materials.map((material) => ({
         materialColor: (material as THREE.MeshStandardMaterial).color?.clone() ?? new THREE.Color('#cccccc'),
-        textureData: readTexture(material),
+        textureData: materialRenders(material) ? readTexture(material) : null,
       })),
       mesh: worldMesh,
-    });
+    };
   });
-  return prepared;
 }
 
 const tempTarget = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
@@ -358,9 +685,10 @@ async function voxelizeMeshes(
   const size = new THREE.Vector3();
   box.getSize(size);
   const maxAxis = Math.max(size.x, size.y, size.z) || 1;
-  const voxel = maxAxis / RES[profile];
+  const targetSpan = Math.max(1, Math.round(options.studSpans?.[profile] ?? RES[profile]));
+  const voxel = maxAxis / targetSpan;
   const voxelHeight = voxel * BRICK_HEIGHT_RATIO;
-  const worldSize = 6.3 / RES[profile]; // match built-in models' scale
+  const worldSize = 6.3 / targetSpan; // match built-in models' scale
   const worldLayerHeight = worldSize * BRICK_HEIGHT_RATIO;
 
   const nx = Math.max(1, Math.ceil(size.x / voxel));
@@ -552,8 +880,30 @@ export async function voxelizeGlbUrlOne(
   onProgress?: VoxelizeProgressFn,
   options: MeshVoxelizeOptions = {},
 ): Promise<VoxelModel> {
-  const buffer = await (await fetch(url)).arrayBuffer();
+  const buffer = await fetchGlb(url);
   return voxelizeGlbOne(buffer, profile, onProgress, options);
+}
+
+const MAX_CLIENT_GLB_BYTES = 128 * 1024 * 1024;
+
+async function fetchGlb(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`generated model download failed (${response.status})`);
+  }
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_CLIENT_GLB_BYTES) {
+    throw new Error('generated model is too large to convert safely in this browser');
+  }
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength < 12 || buffer.byteLength > MAX_CLIENT_GLB_BYTES) {
+    throw new Error('generated model is not a supported GLB file');
+  }
+  const signature = new Uint8Array(buffer, 0, 4);
+  if (signature[0] !== 0x67 || signature[1] !== 0x6c || signature[2] !== 0x54 || signature[3] !== 0x46) {
+    throw new Error('generated model is not a supported GLB file');
+  }
+  return buffer;
 }
 
 /** Fetch a GLB URL and voxelize it. */
@@ -562,8 +912,7 @@ export async function voxelizeGlbUrl(
   onProgress?: VoxelizeProgressFn,
   options: MeshVoxelizeOptions = {},
 ): Promise<Record<MeshProfile, VoxelModel>> {
-  const response = await fetch(url);
-  const buffer = await response.arrayBuffer();
+  const buffer = await fetchGlb(url);
   return voxelizeGlb(buffer, onProgress, options);
 }
 

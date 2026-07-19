@@ -55,6 +55,13 @@ export function guideBlobToken(env: Record<string, string | undefined> = process
   return token;
 }
 
+/** Public guide writes stay fail-closed until storage quotas/firewall are provisioned. */
+export function guideSharingEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.NODE_ENV !== 'production' || env.GUIDE_SHARE_ENABLED === '1';
+}
+
 export function guideTtlDays(env: Record<string, string | undefined> = process.env): number {
   const raw = env.GUIDE_SHARE_TTL_DAYS?.trim();
   if (!raw) return GUIDE_SHARE_DEFAULT_TTL_DAYS;
@@ -269,6 +276,9 @@ export default async function handler(req: any, res: any): Promise<void> {
   }
 
   try {
+    if (!guideSharingEnabled()) {
+      throw new HttpError('Phone guide sharing is not enabled on this deployment.', 503);
+    }
     const token = guideBlobToken();
     if (req.method === 'POST') await publish(req, res, token);
     else await load(req, res, token);

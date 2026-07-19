@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { countries } from '../data/mockData';
 import { accentForVariant, resolveActiveModel } from '../lib/activeBuild';
 import {
   BUNDLE_MARKUP,
-  estimateBuild,
   isCatalogStockError,
-  type BuildEstimateSide,
 } from '../lib/brickify';
+import { assessBuild, type AssessedBuildSide } from '../lib/kitAssessment';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { estimateDelivery } from '../lib/shippingEstimate';
 import { whenVisible } from '../lib/whenVisible';
@@ -65,7 +64,6 @@ export function PurchaseScreen({
   buildFill,
   onBuildFillChange,
 }: PurchaseScreenProps) {
-  const [coupon, setCoupon] = useState('');
   const [pricing, setPricing] = useState<'pending' | 'done'>('pending');
   const [pricingProgress, setPricingProgress] = useState(0);
   const country = countries.find((candidate) => candidate.code === countryCode) ?? countries[0];
@@ -76,18 +74,29 @@ export function PurchaseScreen({
   const estimate = useMemo(() => {
     const model = resolveActiveModel(photoBuild, selectedVariant);
     try {
-      return estimateBuild(model, accentForVariant(selectedVariant));
+      return assessBuild(model, accentForVariant(selectedVariant));
     } catch (error) {
       if (isCatalogStockError(error)) return null;
       throw error;
     }
   }, [photoBuild, selectedVariant]);
 
-  const side: BuildEstimateSide | null = estimate
+  const side: AssessedBuildSide | null = estimate
     ? buildFill === 'hollow'
       ? estimate.hollow
       : estimate.full
     : null;
+  const otherSide = estimate
+    ? buildFill === 'hollow'
+      ? estimate.full
+      : estimate.hollow
+    : null;
+
+  useEffect(() => {
+    if (side && !side.buildable && otherSide?.buildable) {
+      onBuildFillChange(buildFill === 'hollow' ? 'full' : 'hollow');
+    }
+  }, [buildFill, onBuildFillChange, otherSide, side]);
   const savingPct = estimate ? Math.round(estimate.hollowSaving * 100) : 0;
   const delivery = useMemo(() => estimateDelivery(countryCode), [countryCode]);
   const totalEur = side ? side.bundleEur + delivery.costEur : 0;
@@ -155,7 +164,7 @@ export function PurchaseScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estimate, pricing, totalEur, currency.rate]);
 
-  if (!estimate || !side) {
+  if (!estimate || !side || !side.buildable) {
     return (
       <View style={styles.screen}>
         <View style={styles.unavailableScreen}>
@@ -168,10 +177,13 @@ export function PurchaseScreen({
             <Text style={styles.backText}>←</Text>
           </Pressable>
           <View accessibilityRole="alert" style={styles.unavailableMessage}>
-            <Text accessibilityRole="header" style={styles.screenTitle}>KIT UNAVAILABLE</Text>
+            <Text accessibilityRole="header" style={styles.screenTitle}>
+              {side && !side.buildable ? 'BUILD OPTION UNAVAILABLE' : 'KIT UNAVAILABLE'}
+            </Text>
             <Text style={styles.cardCaption}>
-              Current catalog stock cannot cover every piece in this build. No order has been created.
-              Go back and choose another build profile, or try again later.
+              {side && !side.buildable
+                ? `${side.assemblyIssue} PixBrik will not sell a kit that cannot generate a safe guide. Go back and choose a highlighted size or fill.`
+                : 'Current catalog stock cannot cover every piece in this build. No order has been created. Go back and choose another build profile, or try again later.'}
             </Text>
           </View>
         </View>
@@ -186,7 +198,7 @@ export function PurchaseScreen({
       <View style={styles.loaderScreen}>
         <InkLoader dots progress={pricingProgress} size={52} stage={label} />
         <Text style={styles.loaderFoot}>
-          Matching every brick to live part stock.{'\n'}This takes a few seconds.
+          Matching every brick to the current catalog snapshot.{'\n'}This takes a few seconds.
         </Text>
       </View>
     );
@@ -198,8 +210,8 @@ export function PurchaseScreen({
   // Reinforced hollow first — same approved outside, with the base/ribs that
   // make the lower-part-count model practical to assemble.
   const options = [
-    { id: 'hollow' as BuildFill, name: 'REINFORCED HOLLOW', meta: `${estimate.hollow.parts.toLocaleString('en-US')} parts${savingPct > 0 ? ` · −${savingPct}%` : ''} · internal supports`, price: estimate.hollow.bundleEur },
-    { id: 'full' as BuildFill, name: 'SOLID · COLLECTOR', meta: `${estimate.full.parts.toLocaleString('en-US')} parts · filled core`, price: estimate.full.bundleEur },
+    { id: 'hollow' as BuildFill, name: 'REINFORCED HOLLOW', meta: estimate.hollow.buildable ? `${estimate.hollow.parts.toLocaleString('en-US')} parts${savingPct > 0 ? ` · −${savingPct}%` : ''} · internal supports` : 'Not offered · cannot produce a safe guide', price: estimate.hollow.bundleEur, buildable: estimate.hollow.buildable },
+    { id: 'full' as BuildFill, name: 'SOLID · COLLECTOR', meta: estimate.full.buildable ? `${estimate.full.parts.toLocaleString('en-US')} parts · filled core` : 'Not offered · cannot produce a safe guide', price: estimate.full.bundleEur, buildable: estimate.full.buildable },
   ];
 
   return (
@@ -236,12 +248,14 @@ export function PurchaseScreen({
             return (
               <Pressable
                 accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
+                accessibilityState={{ checked: selected, disabled: !option.buildable }}
+                disabled={!option.buildable}
                 key={option.id}
                 onPress={() => onBuildFillChange(option.id)}
                 style={({ pressed }) => [
                   styles.card,
                   selected ? styles.cardInk : styles.cardWhite,
+                  !option.buildable && styles.cardUnavailable,
                   pressed && styles.pressed,
                 ]}
               >
@@ -253,7 +267,7 @@ export function PurchaseScreen({
                   {option.meta}
                 </Text>
                 <Text style={[styles.cardPrice, { color: selected ? colors.white : colors.ink }]}>
-                  {money(option.price)}
+                  {option.buildable ? money(option.price) : '—'}
                 </Text>
               </Pressable>
             );
@@ -298,30 +312,8 @@ export function PurchaseScreen({
           </Text>
         </View>
 
-        <View style={styles.couponRow}>
-          <TextInput
-            accessibilityLabel="Coupon code"
-            autoCapitalize="characters"
-            onChangeText={setCoupon}
-            placeholder="Coupon code"
-            placeholderTextColor={inkAlpha(0.45)}
-            style={styles.couponInput}
-            value={coupon}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => undefined}
-            style={({ pressed }) => [styles.applyPill, pressed && styles.applyPillPressed]}
-          >
-            {({ pressed }) => (
-              <Text style={[styles.applyText, pressed && { color: colors.saffron }]}>APPLY</Text>
-            )}
-          </Pressable>
-        </View>
-
         <Text style={styles.fine}>
-          Includes a {Math.round(BUNDLE_MARKUP * 100)}% preparation service. Coupon rules are
-          placeholders.
+          Includes a {Math.round(BUNDLE_MARKUP * 100)}% preparation service.
         </Text>
       </ScrollView>
 
@@ -464,6 +456,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     shadowOpacity: 0.12,
   },
+  cardUnavailable: {
+    opacity: 0.45,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -551,40 +546,6 @@ const styles = StyleSheet.create({
   },
   deliveryDates: {
     fontFamily: fonts.display,
-  },
-  couponRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-  },
-  couponInput: {
-    ...shadow.card,
-    backgroundColor: colors.white,
-    borderRadius: radius.pill,
-    color: colors.ink,
-    flex: 1,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    minHeight: 46,
-    paddingHorizontal: spacing.lg,
-  },
-  applyPill: {
-    alignItems: 'center',
-    borderColor: colors.ink,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    justifyContent: 'center',
-    minHeight: 46,
-    paddingHorizontal: spacing.lg,
-  },
-  applyPillPressed: {
-    backgroundColor: colors.ink,
-  },
-  applyText: {
-    color: colors.ink,
-    fontFamily: fonts.extrabold,
-    fontSize: 12,
-    letterSpacing: 0.6,
   },
   fine: {
     color: inkAlpha(0.5),

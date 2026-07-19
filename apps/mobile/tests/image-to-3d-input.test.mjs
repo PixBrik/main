@@ -10,6 +10,7 @@ const imageTo3DSourceUrl = new URL('../src/lib/photoEngine/imageTo3D.ts', import
 const meshyHelpersSourceUrl = new URL('../api/_meshy.ts', import.meta.url);
 const meshySubmitSourceUrl = new URL('../api/meshy/submit.ts', import.meta.url);
 const tripoSubmitSourceUrl = new URL('../api/tripo/submit.ts', import.meta.url);
+const modelStreamSourceUrl = new URL('../api/_modelStream.ts', import.meta.url);
 const providerModelSourceUrls = [
   new URL('../api/meshy/model.ts', import.meta.url),
   new URL('../api/tripo/model.ts', import.meta.url),
@@ -59,6 +60,15 @@ function response(status, body) {
   };
 }
 
+test('comparison lab keeps genuinely different Mini, Classic and Showcase brick resolutions', async () => {
+  const source = await readFile(imageTo3DSourceUrl, 'utf8');
+  const tail = source.match(/async function generateAndVoxelize[\s\S]*?\n}\n/);
+  assert.ok(tail, 'shared generation tail must remain inspectable');
+  assert.match(tail[0], /voxelizeGlbUrl\(meshUrl,/);
+  assert.doesNotMatch(tail[0], /voxelizeGlbUrlOne\(meshUrl,\s*'balanced'/);
+  assert.match(tail[0], /models,\s*\n\s*style:/);
+});
+
 function enabledRuntime(fetch) {
   return {
     fetch,
@@ -82,8 +92,24 @@ function segmentation(coverage, mask) {
 
 test('full-frame panel masks are refreshed only for 3D input', async () => {
   let segmentCalls = 0;
+  let smartIsolationCalls = 0;
   const recovered = segmentation(0.5, new Array(16).fill(false).map((_, index) => index < 8));
+  const smartRecovered = {
+    ...recovered,
+    cutoutUri: 'blob:true-3d-subject',
+    maskSource: 'background-removal',
+  };
   const { needsSubjectMaskFor3D, prepareSegmentationFor3D } = await loadTypeScriptModule(imageTo3DSourceUrl, {
+    './backgroundRemoval': {
+      smartIsolateRegion: async (uri, region, grid, options) => {
+        smartIsolationCalls++;
+        assert.equal(uri, 'data:image/jpeg;base64,offline');
+        assert.deepEqual(region, { height: 1, width: 1, x: 0, y: 0 });
+        assert.equal(grid, 4);
+        assert.equal(options.subjectHint, 'person');
+        return smartRecovered;
+      },
+    },
     './segment': {
       segmentRegion: async (uri, region, grid) => {
         segmentCalls++;
@@ -113,12 +139,17 @@ test('full-frame panel masks are refreshed only for 3D input', async () => {
   assert.equal(isolated.preserveFeatures, false);
 
   const explicitPanel = { ...panel, maskSource: 'full-frame' };
-  const keptScene = await prepareSegmentationFor3D(
+  const isolatedScene = await prepareSegmentationFor3D(
     'data:image/jpeg;base64,offline',
     explicitPanel,
   );
-  assert.equal(keptScene, explicitPanel);
-  assert.equal(segmentCalls, 1, 'new keep-scene captures never invoke the legacy heuristic');
+  assert.notEqual(isolatedScene, explicitPanel);
+  assert.equal(isolatedScene.maskSource, 'background-removal');
+  assert.equal(isolatedScene.cutoutUri, 'blob:true-3d-subject');
+  assert.equal(isolatedScene.categoryLabel, 'person');
+  assert.equal(isolatedScene.preserveFeatures, false);
+  assert.equal(smartIsolationCalls, 1);
+  assert.equal(segmentCalls, 1, 'new keep-scene captures use smart isolation, not the legacy heuristic');
 
   const providerMask = { ...recovered, cutoutUri: 'blob:provider-cutout', maskSource: 'background-removal' };
   const keptProviderMask = await prepareSegmentationFor3D(
@@ -126,11 +157,89 @@ test('full-frame panel masks are refreshed only for 3D input', async () => {
     providerMask,
   );
   assert.equal(keptProviderMask, providerMask);
+  assert.equal(smartIsolationCalls, 1, 'an existing provider matte is reused without another upload');
   assert.equal(segmentCalls, 1, 'provider mattes are never replaced by the legacy heuristic');
 
   const unchanged = await prepareSegmentationFor3D('data:image/jpeg;base64,offline', recovered);
   assert.equal(unchanged, recovered);
   assert.equal(segmentCalls, 1);
+});
+
+test('True 3D never submits a keep-scene photo when smart isolation fails', async () => {
+  let fetchCalls = 0;
+  let smartIsolationCalls = 0;
+  const { generateMeshFromPhoto, SubjectIsolationRequiredError } =
+    await loadTypeScriptModule(
+      imageTo3DSourceUrl,
+      {
+        './backgroundRemoval': {
+          smartIsolateRegion: async () => {
+            smartIsolationCalls++;
+            throw new Error('the subject contour is incomplete');
+          },
+        },
+      },
+      enabledRuntime(async () => {
+        fetchCalls++;
+        throw new Error('a full scene must never reach a paid 3D provider');
+      }),
+    );
+  const keepScene = {
+    ...segmentation(1, new Array(16).fill(true)),
+    categoryLabel: 'object',
+    maskSource: 'full-frame',
+  };
+
+  await assert.rejects(
+    generateMeshFromPhoto('data:image/jpeg;base64,scene', keepScene),
+    (error) =>
+      error instanceof SubjectIsolationRequiredError &&
+      /subject contour is incomplete/i.test(error.message),
+  );
+  assert.equal(smartIsolationCalls, 1);
+  assert.equal(fetchCalls, 0);
+});
+
+test('True 3D submits the separate full-resolution matte, never the keep-scene source', async () => {
+  const source = 'data:image/jpeg;base64,full-scene';
+  const cutout = 'data:image/png;base64,isolated-subject';
+  const submittedImages = [];
+  const fetch = async (url, init) => {
+    if (url === '/api/meshy/submit') {
+      submittedImages.push(JSON.parse(init.body).image);
+      return response(200, { taskId: 'isolated-object' });
+    }
+    if (url === '/api/meshy/status?taskId=isolated-object') {
+      return response(200, { hasModel: true, progress: 100, status: 'success' });
+    }
+    throw new Error(`unexpected offline request: ${url}`);
+  };
+  const { generateMeshFromPhoto } = await loadTypeScriptModule(
+    imageTo3DSourceUrl,
+    {
+      './backgroundRemoval': {
+        smartIsolateRegion: async (_uri, region, grid) => ({
+          ...segmentation(0.5, new Array(grid * grid).fill(false).map((_, index) => index < (grid * grid) / 2)),
+          cutoutUri: cutout,
+          grid,
+          maskSource: 'background-removal',
+          region,
+        }),
+      },
+    },
+    enabledRuntime(fetch),
+  );
+  const keepScene = {
+    ...segmentation(1, new Array(16).fill(true)),
+    categoryLabel: 'object',
+    maskSource: 'full-frame',
+  };
+
+  const meshUrl = await generateMeshFromPhoto(source, keepScene);
+
+  assert.equal(meshUrl, '/api/meshy/model?taskId=isolated-object');
+  assert.deepEqual(submittedImages, [cutout]);
+  assert.notEqual(submittedImages[0], source);
 });
 
 test('Meshy likeness request preserves the highest-precision textured mesh', async () => {
@@ -362,6 +471,19 @@ test('Tripo multiview uses all four STS uploads and quality-first generation set
     taskBody.files.map((file) => file.file_token),
     ['view-1', 'view-2', 'view-3', 'view-4'],
   );
+});
+
+test('Tripo validates size and applies the paid guard before any provider upload', async () => {
+  const source = await readFile(tripoSubmitSourceUrl, 'utf8');
+  const handler = source.slice(source.indexOf('export default async function handler'));
+  const guardIndex = handler.indexOf('guardPaidGeneration(req)');
+  const uploadIndex = handler.indexOf('await uploadImage(');
+
+  assert.match(source, /MAX_REQUEST_JSON_CHARS = 3_600_000/);
+  assert.match(source, /bodyParser: \{ sizeLimit: '4mb' \}/);
+  assert.ok(guardIndex >= 0, 'paid generation guard is missing');
+  assert.ok(uploadIndex >= 0, 'Tripo upload is missing');
+  assert.ok(guardIndex < uploadIndex, 'the spend guard must run before the first provider upload');
 });
 
 test('Tripo multiview rejects an incomplete orbit before any upload', async () => {
@@ -750,9 +872,12 @@ test('provider task failures preserve their useful status error', async () => {
 });
 
 test('provider model proxies keep generated GLBs out of public caches', async () => {
+  const streamSource = await readFile(modelStreamSourceUrl, 'utf8');
+  assert.match(streamSource, /Cache-Control', 'private, no-store, max-age=0'/);
+  assert.doesNotMatch(streamSource, /Cache-Control', 'public/);
   for (const sourceUrl of providerModelSourceUrls) {
     const source = await readFile(sourceUrl, 'utf8');
-    assert.match(source, /Cache-Control', 'private, no-store, max-age=0'/);
+    assert.match(source, /streamProviderModel\(modelRes, res\)/);
     assert.doesNotMatch(source, /Cache-Control', 'public/);
   }
 });

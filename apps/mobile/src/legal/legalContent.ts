@@ -77,9 +77,14 @@ export interface ContactCopy {
   eyebrow: string;
   formPrivacyNote: string;
   invalidEmailMessage: string;
+  invalidNameMessage: string;
+  invalidOrderMessage: string;
   messageLabel: string;
+  messageLengthHelp: string;
+  messageLengthMessage: string;
   nameLabel: string;
   orderLabel: string;
+  privacyNoticeErrorMessage: string;
   requiredMessage: string;
   sendErrorMessage: string;
   sendLabel: string;
@@ -1015,8 +1020,13 @@ export const CONTACT_COPY: Record<LegalLocale, ContactCopy> = {
     sendingLabel: 'Sending…',
     sentMessage: 'Thank you. Your message has been sent.',
     sendErrorMessage: 'We could not send your message. Please try again or email hello@pixbrik.com.',
-    requiredMessage: 'Please complete your name, email and message.',
+    requiredMessage: 'Enter your name, a valid email address and a message of 20–5,000 characters, then review the privacy note. An optional order number may contain only letters, numbers, spaces, hyphens and underscores.',
     invalidEmailMessage: 'Please enter a valid email address.',
+    invalidNameMessage: 'Please enter your name (up to 100 characters).',
+    invalidOrderMessage: 'Use only letters, numbers, spaces, hyphens or underscores in the optional order number.',
+    messageLengthHelp: '20–5,000 characters',
+    messageLengthMessage: 'Please enter a message between 20 and 5,000 characters.',
+    privacyNoticeErrorMessage: 'We could not confirm the current privacy notice. Please review the privacy note and send again.',
     formPrivacyNote: 'We use this information to answer your request and keep a support record. Do not include card details or sensitive images in this form.',
     topics: {
       order: 'Order question',
@@ -1040,8 +1050,13 @@ export const CONTACT_COPY: Record<LegalLocale, ContactCopy> = {
     sendingLabel: 'Envoi…',
     sentMessage: 'Merci. Votre message a bien été envoyé.',
     sendErrorMessage: 'Le message n’a pas pu être envoyé. Réessayez ou écrivez à hello@pixbrik.com.',
-    requiredMessage: 'Renseignez votre nom, votre e-mail et votre message.',
+    requiredMessage: 'Indiquez votre nom, une adresse e-mail valide et un message de 20 à 5 000 caractères, puis lisez la note de confidentialité. Le numéro de commande facultatif ne peut contenir que des lettres, chiffres, espaces, tirets et traits de soulignement.',
     invalidEmailMessage: 'Saisissez une adresse e-mail valide.',
+    invalidNameMessage: 'Indiquez votre nom (100 caractères maximum).',
+    invalidOrderMessage: 'Le numéro de commande facultatif ne peut contenir que des lettres, chiffres, espaces, tirets ou traits de soulignement.',
+    messageLengthHelp: '20 à 5 000 caractères',
+    messageLengthMessage: 'Saisissez un message de 20 à 5 000 caractères.',
+    privacyNoticeErrorMessage: 'La notice de confidentialité actuelle n’a pas pu être confirmée. Relisez la note de confidentialité, puis renvoyez le message.',
     formPrivacyNote: 'Ces informations servent à répondre à votre demande et à conserver son suivi. Ne transmettez pas de données de carte ou d’images sensibles dans ce formulaire.',
     topics: {
       order: 'Question sur une commande',
@@ -1065,8 +1080,13 @@ export const CONTACT_COPY: Record<LegalLocale, ContactCopy> = {
     sendingLabel: 'Enviando…',
     sentMessage: 'Gracias. Tu mensaje se ha enviado.',
     sendErrorMessage: 'No pudimos enviar el mensaje. Inténtalo de nuevo o escribe a hello@pixbrik.com.',
-    requiredMessage: 'Completa tu nombre, correo y mensaje.',
+    requiredMessage: 'Introduce tu nombre, un correo válido y un mensaje de entre 20 y 5.000 caracteres; después, revisa la nota de privacidad. El número de pedido opcional solo puede contener letras, números, espacios, guiones y guiones bajos.',
     invalidEmailMessage: 'Introduce un correo electrónico válido.',
+    invalidNameMessage: 'Introduce tu nombre (100 caracteres como máximo).',
+    invalidOrderMessage: 'El número de pedido opcional solo puede contener letras, números, espacios, guiones o guiones bajos.',
+    messageLengthHelp: 'Entre 20 y 5.000 caracteres',
+    messageLengthMessage: 'Escribe un mensaje de entre 20 y 5.000 caracteres.',
+    privacyNoticeErrorMessage: 'No pudimos confirmar el aviso de privacidad actual. Revisa la nota de privacidad y vuelve a enviar el mensaje.',
     formPrivacyNote: 'Usamos estos datos para responder y conservar un registro de soporte. No incluyas datos de tarjeta ni imágenes sensibles.',
     topics: {
       order: 'Consulta de pedido',
@@ -1090,8 +1110,13 @@ export const CONTACT_COPY: Record<LegalLocale, ContactCopy> = {
     sendingLabel: 'Invio…',
     sentMessage: 'Grazie. Il messaggio è stato inviato.',
     sendErrorMessage: 'Non è stato possibile inviare il messaggio. Riprova o scrivi a hello@pixbrik.com.',
-    requiredMessage: 'Compila nome, email e messaggio.',
+    requiredMessage: 'Inserisci il nome, un indirizzo email valido e un messaggio da 20 a 5.000 caratteri, poi leggi la nota sulla privacy. Il numero d’ordine facoltativo può contenere solo lettere, numeri, spazi, trattini e trattini bassi.',
     invalidEmailMessage: 'Inserisci un indirizzo email valido.',
+    invalidNameMessage: 'Inserisci il nome (massimo 100 caratteri).',
+    invalidOrderMessage: 'Il numero d’ordine facoltativo può contenere solo lettere, numeri, spazi, trattini o trattini bassi.',
+    messageLengthHelp: 'Da 20 a 5.000 caratteri',
+    messageLengthMessage: 'Inserisci un messaggio da 20 a 5.000 caratteri.',
+    privacyNoticeErrorMessage: 'Non è stato possibile confermare l’informativa privacy attuale. Leggi la nota sulla privacy e invia nuovamente il messaggio.',
     formPrivacyNote: 'Usiamo questi dati per rispondere e conservare una registrazione dell’assistenza. Non inserire dati della carta o immagini sensibili.',
     topics: {
       order: 'Domanda sull’ordine',
@@ -1115,8 +1140,13 @@ export const CONTACT_COPY: Record<LegalLocale, ContactCopy> = {
     sendingLabel: 'جارٍ الإرسال…',
     sentMessage: 'شكراً. تم إرسال رسالتك.',
     sendErrorMessage: 'تعذر إرسال رسالتك. حاول مرة أخرى أو اكتب إلى hello@pixbrik.com.',
-    requiredMessage: 'يرجى إكمال الاسم والبريد والرسالة.',
+    requiredMessage: 'أدخل اسمك وبريداً إلكترونياً صحيحاً ورسالة من 20 إلى 5,000 حرف، ثم راجع ملاحظة الخصوصية. يمكن أن يحتوي رقم الطلب الاختياري على حروف وأرقام ومسافات وواصلات وشرطات سفلية فقط.',
     invalidEmailMessage: 'يرجى إدخال بريد إلكتروني صحيح.',
+    invalidNameMessage: 'يرجى إدخال اسمك (100 حرف كحد أقصى).',
+    invalidOrderMessage: 'يمكن أن يحتوي رقم الطلب الاختياري على حروف وأرقام ومسافات وواصلات أو شرطات سفلية فقط.',
+    messageLengthHelp: 'من 20 إلى 5,000 حرف',
+    messageLengthMessage: 'يرجى إدخال رسالة من 20 إلى 5,000 حرف.',
+    privacyNoticeErrorMessage: 'تعذر تأكيد إشعار الخصوصية الحالي. راجع ملاحظة الخصوصية ثم أرسل الرسالة مرة أخرى.',
     formPrivacyNote: 'نستخدم هذه المعلومات للرد على طلبك وحفظ سجل الدعم. لا تضف بيانات البطاقة أو صوراً حساسة.',
     topics: {
       order: 'سؤال عن طلب',

@@ -145,7 +145,7 @@ export function BomScreen({
       }
       onBack={onBack}
       progress={0.72}
-      subtitle="Every brick in your build, matched to real parts with real prices. We pack, sort and ship them as one kit — nothing to hunt down."
+      subtitle="Every brick in your build, matched to catalog references and snapshot prices. This prototype freezes the sorted kit plan; it does not take payment or start fulfilment."
       title="Everything in the box"
     >
       <View style={styles.summaryRibbon}>

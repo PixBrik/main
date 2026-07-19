@@ -11,6 +11,7 @@ import type { Segmentation } from './photoEngine/segment';
 const KEY = 'pixbrik.lastCapture.v1';
 /** Longest edge of the stored photo copy — keeps us well under quota. */
 const MAX_STORED_DIM = 900;
+export const RAW_CAPTURE_TTL_MS = 24 * 60 * 60 * 1_000;
 
 interface StoredCapture {
   at: string;
@@ -99,7 +100,16 @@ export async function saveLastCapture(photoUri: string, segmentation: Segmentati
 }
 
 export function hasLastCapture(): boolean {
-  return !!storage()?.getItem(KEY);
+  return loadLastCapture() !== null;
+}
+
+/** Delete the raw source photo and its derived segmentation from this browser. */
+export function clearLastCapture(): void {
+  try {
+    storage()?.removeItem(KEY);
+  } catch {
+    // nothing to clear
+  }
 }
 
 /** Rehydrate the stored capture, or null if none/corrupt. */
@@ -110,6 +120,11 @@ export function loadLastCapture(): { photoUri: string; segmentation: Segmentatio
     const raw = store.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredCapture;
+    const savedAt = Date.parse(parsed.at);
+    if (!Number.isFinite(savedAt) || Date.now() - savedAt > RAW_CAPTURE_TTL_MS) {
+      clearLastCapture();
+      return null;
+    }
     const segmentation: Segmentation = {
       aspectRatio: parsed.segmentation.aspectRatio,
       backgroundMode: parsed.segmentation.backgroundMode,
@@ -129,6 +144,7 @@ export function loadLastCapture(): { photoUri: string; segmentation: Segmentatio
     };
     return { photoUri: parsed.photoDataUrl, segmentation };
   } catch {
+    clearLastCapture();
     return null;
   }
 }

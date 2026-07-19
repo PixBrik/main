@@ -37,10 +37,12 @@ test('true 3D proposals are distinct gift-sized physical spans', () => {
 });
 
 test('proposal screen compares size and reinforced-hollow versus solid before checkout', async () => {
-  const [app, result, purchase] = await Promise.all([
+  const [app, result, purchase, checkout, assessment] = await Promise.all([
     readFile(path.join(root, 'App.tsx'), 'utf8'),
     readFile(path.join(root, 'src', 'screens', 'ResultScreen.tsx'), 'utf8'),
     readFile(path.join(root, 'src', 'screens', 'PurchaseScreen.tsx'), 'utf8'),
+    readFile(path.join(root, 'src', 'screens', 'CheckoutScreen.tsx'), 'utf8'),
+    readFile(path.join(root, 'src', 'lib', 'kitAssessment.ts'), 'utf8'),
   ]);
 
   assert.match(app, /buildFill=\{buildFill\}/);
@@ -53,7 +55,25 @@ test('proposal screen compares size and reinforced-hollow versus solid before ch
   assert.match(result, /card\.dimensions/);
   assert.match(result, /Calculating exact dimensions, parts, and price/);
   assert.match(result, /hollowSavesPieces/);
-  assert.match(result, /solid uses fewer pieces/);
   assert.match(result, /hollow=\{buildFill === 'hollow'\}/);
+  assert.match(
+    result,
+    /humanSubject && activeProduct === 'sculpture' && profile === 'efficient'/,
+    'person detection must remove the low-fidelity Mini sculpture option',
+  );
+  assert.match(result, /onSelectVariant\(availableVariants\[0\]!\.id\)/);
+  assert.match(result, /disabled=\{awaitingSculpture \|\| !quoteReady\}/);
+  assert.match(result, /Calculating exact catalog kit/);
+  assert.match(result, /selectedEstimate\?\.parts \?\? photoStats\?\.pieces/);
+  assert.match(result, /const dimensionsMetric = selectedCard\?\.dimensions/);
+  assert.match(result, /SOURCE \/ One front photo · no hidden surfaces are generated/);
+  assert.doesNotMatch(result, /ASSUMPTION \/ \{demoProject\.assumption\}/);
+  assert.match(result, /const quoteReady = !!selectedEstimate\?\.buildable/);
+  assert.match(result, /current\[otherFill\]\?\.buildable/);
+  assert.match(result, /disabled=\{unavailable\}/);
   assert.match(purchase, /two base layers plus internal ribs and/);
+  assert.match(purchase, /disabled=\{!option\.buildable\}/);
+  assert.match(purchase, /!side\.buildable && otherSide\?\.buildable/);
+  assert.match(checkout, /if \(!selectedSide\?\.buildable\)/);
+  assert.match(assessment, /computeBuildAssessment/);
 });

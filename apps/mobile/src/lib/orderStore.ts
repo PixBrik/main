@@ -5,7 +5,7 @@
  */
 
 import type { PanelStyle } from './photoEngine/voxelizePhoto';
-import { brickify, type BillOfMaterials } from './brickify';
+import { brickify, hollowBuildModel, type BillOfMaterials } from './brickify';
 import { isAssemblyBuildable } from './instructions/assemblyPlan';
 import { buildModelFromCells, type BuildProfile, type VoxelModel } from './voxelFox';
 import { voxelBaseColor } from './voxelRender';
@@ -207,7 +207,12 @@ export function getOrder(id: string): OrderRecord | null {
 export function createOrder(input: CreateOrderInput): OrderRecord | null {
   const store = storage();
   if (!store) return null;
-  const bom = brickify(input.model, input.accent);
+  // The input is always the approved exterior/full source model. Freeze the
+  // BOM with the exact fill option quoted upstream; packing an already-hollow
+  // reconstruction can move exposed seams and change the saved part count.
+  const hollow = input.fill === 'hollow';
+  const bom = brickify(input.model, input.accent, { hollow });
+  const orderedModel = hollow ? hollowBuildModel(input.model) : input.model;
   // A visual preview is not yet a sellable kit. Persist neither an order nor
   // its manual until every frozen catalog placement is physically connected.
   if (!isAssemblyBuildable(bom)) return null;
@@ -232,7 +237,7 @@ export function createOrder(input: CreateOrderInput): OrderRecord | null {
       .padStart(4, '0')
       .toUpperCase()}`,
     kitQuantity: 1,
-    model: snapshotOrderModel(input.model, input.accent),
+    model: snapshotOrderModel(orderedModel, input.accent),
     bom: {
       ...bom,
       lines: bom.lines.map((line) => ({ ...line })),

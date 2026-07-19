@@ -5,8 +5,8 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { countries } from '../data/mockData';
 import { accentForVariant, profileForVariant, resolveActiveModel } from '../lib/activeBuild';
-import { estimateBuild, hollowBuildModel, isCatalogStockError } from '../lib/brickify';
-import { saveBuild } from '../lib/buildGallery';
+import { isCatalogStockError } from '../lib/brickify';
+import { assessBuild } from '../lib/kitAssessment';
 import { useAppNavigation } from '../lib/navigationContext';
 import {
   createOrder,
@@ -21,6 +21,7 @@ import { colors, radius, spacing, type } from '../theme/tokens';
 import type { BuildFill, BuildProduct } from '../types/navigation';
 
 interface CheckoutScreenProps {
+  buildId: string | null;
   onBack: () => void;
   onDone: () => void;
   selectedVariant: string;
@@ -42,6 +43,7 @@ const currencyMeta: Readonly<Record<string, { rate: number; symbol: string }>> =
 };
 
 export function CheckoutScreen({
+  buildId,
   onBack,
   onDone,
   selectedVariant,
@@ -72,13 +74,18 @@ export function CheckoutScreen({
   const accent = accentForVariant(selectedVariant);
   const estimate = useMemo(() => {
     try {
-      return estimateBuild(model, accent);
+      return assessBuild(model, accent);
     } catch (error) {
       if (isCatalogStockError(error)) return null;
       throw error;
     }
   }, [accent, model]);
   const delivery = useMemo(() => estimateDelivery(countryCode), [countryCode]);
+  const selectedSide = estimate
+    ? buildFill === 'hollow'
+      ? estimate.hollow
+      : estimate.full
+    : null;
 
   if (!estimate) {
     return (
@@ -97,25 +104,34 @@ export function CheckoutScreen({
     );
   }
 
-  const side = buildFill === 'hollow' ? estimate.hollow : estimate.full;
+  if (!selectedSide?.buildable) {
+    return (
+      <ScreenFrame
+        accent="coral"
+        eyebrow="Buildability check"
+        footer={<PrimaryButton label="Choose another option" onPress={onBack} />}
+        onBack={onBack}
+        title="This combination cannot be ordered."
+        subtitle="PixBrik will not take an order unless the exact catalog packing can produce a safe step-by-step guide."
+      >
+        <View accessibilityRole="alert" style={styles.doneCard}>
+          <Text style={styles.doneTitle}>Choose a highlighted size or fill.</Text>
+          <Text style={styles.doneBody}>
+            {selectedSide?.assemblyIssue ?? 'One or more pieces cannot lock onto the assembled model.'}
+          </Text>
+        </View>
+      </ScreenFrame>
+    );
+  }
+
+  const side = selectedSide;
   const total = side.bundleEur + delivery.costEur;
 
   const placeOrder = () => {
     setStorageError('');
-    const orderedModel = buildFill === 'hollow' ? hollowBuildModel(model) : model;
-    const saved = saveBuild(buildName, orderedModel, accent, {
-      hasDepth: photoBuild?.hasDepth ?? buildProduct === 'sculpture',
-      mode: photoBuild?.mode ?? (buildProduct === 'sculpture' ? 'volume' : 'relief'),
-      product: buildProduct,
-      provenance: buildProduct === 'sculpture' ? 'provider-3d' : 'flat-photo',
-      ...(source3DMeshUrl
-        ? { source3DMeshUrl, source3DRetakesRemaining }
-        : {}),
-      style: photoBuild?.style ?? 'natural',
-    });
     const order = createOrder({
       accent,
-      buildId: saved?.id ?? null,
+      buildId,
       buildName,
       countryCode,
       currency: country?.currency ?? 'EUR',
@@ -126,8 +142,8 @@ export function CheckoutScreen({
       fill: buildFill,
       guest: true,
       kitPrice: Number((side.bundleEur * currency.rate).toFixed(2)),
-      model: orderedModel,
-      paletteMode: paletteMode ?? inferOrderPaletteMode(orderedModel),
+      model,
+      paletteMode: paletteMode ?? inferOrderPaletteMode(model),
       product: buildProduct,
       profile: profileForVariant(selectedVariant),
       selectedVariant,

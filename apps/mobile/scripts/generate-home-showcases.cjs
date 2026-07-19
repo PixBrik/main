@@ -67,17 +67,14 @@ const SOURCES = [
       // The two wheel regions are semantic foreground, even where polished
       // rims approach the neutral studio sweep in colour.
       protectedRegions: [
-        // Preserve the complete black lower valance. Its last antialiased row
-        // is darker than the warm sweep and touches the cast shadow, so a
-        // rectangular shadow cut makes the front bumper look broken.
-        { minX: 0.055, maxX: 0.52, minY: 0.665, maxY: 51 / 72 },
         { minX: 0.52, maxX: 0.72, minY: 0.53, maxY: 0.76 },
         { minX: 0.8, maxX: 0.96, minY: 0.48, maxY: 0.72 },
       ],
-      // The left field below the valance is genuinely only cast shadow. Keep
-      // it empty without applying that rectangular rule to either wheel.
+      // In the 964 reference the front lip ends on row 47. Rows 48 onward in
+      // the left half are the studio-floor shadow, while the wheel continues
+      // independently to the right of this boundary.
       dropRegions: [
-        { minX: 0, maxX: 0.52, minY: 51 / 72, maxY: 1 },
+        { minX: 0, maxX: 0.52, minY: 48 / 72, maxY: 1 },
       ],
     },
     // One conservative pass may drop only pale neutral antialias cells. The
@@ -154,12 +151,27 @@ function nearestCatalog(rgb, semanticRgb = rgb, options = {}) {
 function resizeForMask(png) {
   const size = GRID * MASK_SCALE;
   const pixels = new Float32Array(size * size * 3);
+  const scale = Math.min(size / png.width, size / png.height);
+  const fittedWidth = png.width * scale;
+  const fittedHeight = png.height * scale;
+  const offsetX = (size - fittedWidth) / 2;
+  const offsetY = (size - fittedHeight) / 2;
   for (let targetY = 0; targetY < size; targetY++) {
-    const y0 = Math.floor((targetY * png.height) / size);
-    const y1 = Math.max(y0 + 1, Math.floor(((targetY + 1) * png.height) / size));
     for (let targetX = 0; targetX < size; targetX++) {
-      const x0 = Math.floor((targetX * png.width) / size);
-      const x1 = Math.max(x0 + 1, Math.floor(((targetX + 1) * png.width) / size));
+      const target = (targetY * size + targetX) * 3;
+      if (
+        targetX + 1 <= offsetX || targetX >= offsetX + fittedWidth ||
+        targetY + 1 <= offsetY || targetY >= offsetY + fittedHeight
+      ) {
+        pixels[target] = 255;
+        pixels[target + 1] = 255;
+        pixels[target + 2] = 255;
+        continue;
+      }
+      const x0 = Math.max(0, Math.floor((targetX - offsetX) / scale));
+      const x1 = Math.min(png.width, Math.max(x0 + 1, Math.floor((targetX + 1 - offsetX) / scale)));
+      const y0 = Math.max(0, Math.floor((targetY - offsetY) / scale));
+      const y1 = Math.min(png.height, Math.max(y0 + 1, Math.floor((targetY + 1 - offsetY) / scale)));
       let red = 0;
       let green = 0;
       let blue = 0;
@@ -174,7 +186,6 @@ function resizeForMask(png) {
           weight++;
         }
       }
-      const target = (targetY * size + targetX) * 3;
       pixels[target] = red / weight;
       pixels[target + 1] = green / weight;
       pixels[target + 2] = blue / weight;
@@ -644,12 +655,27 @@ function encodeMosaic(mapped) {
 function inlineFallback(png) {
   const size = 128;
   const preview = new PNG({ height: size, width: size });
+  const scale = Math.min(size / png.width, size / png.height);
+  const fittedWidth = png.width * scale;
+  const fittedHeight = png.height * scale;
+  const offsetX = (size - fittedWidth) / 2;
+  const offsetY = (size - fittedHeight) / 2;
   for (let targetY = 0; targetY < size; targetY++) {
-    const sourceY = Math.min(png.height - 1, Math.floor(((targetY + 0.5) * png.height) / size));
     for (let targetX = 0; targetX < size; targetX++) {
-      const sourceX = Math.min(png.width - 1, Math.floor(((targetX + 0.5) * png.width) / size));
-      const sourceOffset = (sourceY * png.width + sourceX) * 4;
       const targetOffset = (targetY * size + targetX) * 4;
+      if (
+        targetX + 0.5 < offsetX || targetX + 0.5 >= offsetX + fittedWidth ||
+        targetY + 0.5 < offsetY || targetY + 0.5 >= offsetY + fittedHeight
+      ) {
+        preview.data[targetOffset] = 255;
+        preview.data[targetOffset + 1] = 255;
+        preview.data[targetOffset + 2] = 255;
+        preview.data[targetOffset + 3] = 255;
+        continue;
+      }
+      const sourceX = Math.min(png.width - 1, Math.max(0, Math.floor((targetX + 0.5 - offsetX) / scale)));
+      const sourceY = Math.min(png.height - 1, Math.max(0, Math.floor((targetY + 0.5 - offsetY) / scale)));
+      const sourceOffset = (sourceY * png.width + sourceX) * 4;
       preview.data[targetOffset] = png.data[sourceOffset];
       preview.data[targetOffset + 1] = png.data[sourceOffset + 1];
       preview.data[targetOffset + 2] = png.data[sourceOffset + 2];

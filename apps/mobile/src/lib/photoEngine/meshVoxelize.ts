@@ -10,6 +10,7 @@ export type MeshProfile = 'efficient' | 'balanced' | 'detailed';
 export type VoxelizeProgressFn = (fraction: number) => void;
 export interface MeshVoxelizeOptions {
   colorStyle?: MeshBrickColorStyle;
+  studSpans?: Partial<Record<MeshProfile, number>>;
 }
 
 export async function voxelizeGlb(

@@ -31,12 +31,31 @@ await execFileAsync(process.execPath, [
   '--ignoreDeprecations', '6.0',
 ]);
 
-const { voxelizeSegmentation } = require(path.join(
+const { quantizeNaturalPanelColor, voxelizeSegmentation } = require(path.join(
   compileDir,
   'lib',
   'photoEngine',
   'voxelizePhoto.js',
 ));
+const catalog = require(path.join(appRoot, 'src', 'data', 'brickCatalog.json'));
+
+const neutralCatalogColors = new Set([
+  '#000000',
+  '#646767',
+  '#a0a19f',
+  '#D9D9D6',
+  '#999999',
+  '#fffffa',
+  '#ffffff',
+].map((hex) => hex.toLowerCase()));
+const greenOrOliveCatalogColors = new Set(
+  catalog.colors
+    .filter((color) =>
+      /green|aqua/i.test(color.name) || ['Tarmac'].includes(color.name),
+    )
+    .map((color) => color.rgb.toLowerCase()),
+);
+const catalogColors = new Set(catalog.colors.map((color) => color.rgb.toLowerCase()));
 
 test.after(async () => {
   await rm(compileDir, { force: true, recursive: true });
@@ -59,6 +78,60 @@ function fullFrameSegmentation(grid, colorAt) {
 function frontCell(model, x, sourceY, height) {
   return model.cells.find((cell) => cell.i === x && cell.j === height - 1 - sourceY && cell.k === 0);
 }
+
+function hexLuma(hex) {
+  const value = hex.replace('#', '');
+  const r = Number.parseInt(value.slice(0, 2), 16);
+  const g = Number.parseInt(value.slice(2, 4), 16);
+  const b = Number.parseInt(value.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+test('natural panel catalog matching keeps neutral and warm source families coherent', () => {
+  const neutralSources = [
+    [28, 31, 24], // dark car paint with a slight green cast
+    [118, 121, 115], // neutral mid-tone under mixed light
+    [244, 238, 226], // warm-lit white clothing
+  ];
+  for (const source of neutralSources) {
+    const matched = quantizeNaturalPanelColor(...source);
+    assert.ok(catalogColors.has(matched.toLowerCase()), matched);
+    assert.ok(neutralCatalogColors.has(matched.toLowerCase()), `${source.join(',')} -> ${matched}`);
+  }
+
+  const warmSources = [
+    [205, 154, 122], // skin
+    [174, 112, 76], // skin in shadow
+    [113, 72, 48], // warm hair / wood
+  ];
+  for (const source of warmSources) {
+    const matched = quantizeNaturalPanelColor(...source);
+    assert.ok(catalogColors.has(matched.toLowerCase()), matched);
+    assert.ok(!greenOrOliveCatalogColors.has(matched.toLowerCase()), `${source.join(',')} -> ${matched}`);
+  }
+});
+
+test('natural relief applies family constraints without losing high-contrast details', () => {
+  const grid = 12;
+  const segmentation = fullFrameSegmentation(grid, (x, y) => {
+    if (x < 4) return [28, 31, 24];
+    if (x < 8) return y === 2 && x === 5 ? [9, 10, 8] : [205, 154, 122];
+    return [244, 238, 226];
+  });
+
+  const model = voxelizeSegmentation(segmentation, 'detailed', 'relief', 'natural');
+  const darkCar = frontCell(model, 1, 6, grid)?.colorHex;
+  const skin = frontCell(model, 6, 6, grid)?.colorHex;
+  const whiteShirt = frontCell(model, 10, 6, grid)?.colorHex;
+  const darkFeature = frontCell(model, 5, 2, grid)?.colorHex;
+
+  assert.ok(neutralCatalogColors.has(darkCar?.toLowerCase()), darkCar);
+  assert.ok(neutralCatalogColors.has(whiteShirt?.toLowerCase()), whiteShirt);
+  assert.ok(!greenOrOliveCatalogColors.has(skin?.toLowerCase()), skin);
+  assert.ok(catalogColors.has(skin?.toLowerCase()), skin);
+  assert.ok(neutralCatalogColors.has(darkFeature?.toLowerCase()), darkFeature);
+  assert.ok(hexLuma(whiteShirt) - hexLuma(darkCar) > 100, `${darkCar} -> ${whiteShirt}`);
+});
 
 test('classic relief preserves captured resolution, catalog tones, and determinism', () => {
   const grid = 12;

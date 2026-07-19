@@ -220,6 +220,32 @@ test('client and API reject an unbuildable frozen manual before network or Blob 
   assert.equal(putCalls, 0);
 });
 
+test('production guide storage stays fail-closed until quotas and retention are enabled', async () => {
+  const client = await loadClient();
+  let putCalls = 0;
+  const api = await loadTypeScriptModule(apiSourceUrl, {
+    env: {
+      BLOB_READ_WRITE_TOKEN: 'server-only-token',
+      NODE_ENV: 'production',
+    },
+    stubs: {
+      '../../src/lib/guideShare': client,
+      '@vercel/blob': { get: async () => null, put: async () => { putCalls++; } },
+      'node:crypto': { randomBytes: () => ({ toString: () => SHARE_ID }) },
+    },
+  });
+  const response = responseRecorder();
+  await api.default({
+    body: rawDraft(),
+    headers: { 'content-type': 'application/json', host: 'www.pixbrik.com' },
+    method: 'POST',
+  }, response);
+  assert.equal(response.statusCode, 503);
+  assert.match(response.body.error, /not enabled/i);
+  assert.equal(putCalls, 0);
+  assert.equal(api.guideSharingEnabled({ GUIDE_SHARE_ENABLED: '1', NODE_ENV: 'production' }), true);
+});
+
 test('strict parser rejects malformed geometry, BOM mismatch, duplicate order and expired snapshots', async () => {
   const client = await loadClient();
   assert.throws(

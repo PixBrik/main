@@ -143,6 +143,13 @@ export function guardBackgroundRemovalRequest(
   const allowedOrigins = allowedBackgroundRemovalOrigins(env);
   if (isProduction && allowedOrigins.size === 0) throw configurationError();
   const suppliedOrigin = headerValue(req.headers?.origin).trim();
+  if (isProduction && !suppliedOrigin) {
+    throw new HttpError(
+      'A verified PixBrik browser origin is required.',
+      403,
+      'background_removal_origin_required',
+    );
+  }
   if (suppliedOrigin) {
     const origin = canonicalOrigin(suppliedOrigin);
     if (!origin || !allowedOrigins.has(origin)) {
@@ -153,8 +160,6 @@ export function guardBackgroundRemovalRequest(
       );
     }
   }
-  // Native applications normally omit Origin. They remain eligible, but are
-  // still subject to the production flag, input checks, IP limit and budget.
 }
 
 function requestIp(req: any): string {

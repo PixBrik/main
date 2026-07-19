@@ -11,8 +11,8 @@ import { RotatableBuildPreview } from '../components/RotatableBuildPreview';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { isRealisticViewSupported, ThreeBrickView } from '../components/ThreeBrickView';
 import { demoProject, variants } from '../data/mockData';
-import { estimateBuild, type BuildEstimateSide } from '../lib/brickify';
 import { facesToPngDataUrl, fitFacesToBox, panelMosaicFaces } from '../lib/fitFaces';
+import { assessBuildAsync, type AssessedBuildSide } from '../lib/kitAssessment';
 import { physicalDimensions, SCULPTURE_SIZE_OPTIONS } from '../lib/kitSizing';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import { getVoxelModel, type VoxelModel } from '../lib/voxelFox';
@@ -21,8 +21,11 @@ import { colors, fonts, radius, shadow, spacing, type } from '../theme/tokens';
 import type { BuildFill, BuildProduct, DemoScreen } from '../types/navigation';
 
 interface ResultScreenProps {
+  activeSavedBuildId: string | null;
+  buildName: string;
   selectedVariant: string;
   onSelectVariant: (id: string) => void;
+  onBuildNameChange: (name: string) => void;
   onBack: () => void;
   onNavigate: (screen: DemoScreen) => void;
   photoUri?: string | null;
@@ -35,6 +38,7 @@ interface ResultScreenProps {
   onBuildFillChange: (fill: BuildFill) => void;
   onGuided3D?: () => void;
   onTrue3D?: () => Promise<void>;
+  onNavigationLockChange?: (locked: boolean) => void;
   /** Exact provider GLB awaiting approval. */
   pending3DMeshUrl?: string | null;
   /** Raw stills of the generated 3D model awaiting the buyer's approval. */
@@ -109,9 +113,11 @@ const SCULPTURE_PALETTE_OPTIONS = [
 const APPROVAL_VIEW_LABELS = ['FRONT', 'RIGHT', 'BACK', 'LEFT'] as const;
 
 interface ProfileCard {
+  assessmentError: string | null;
+  assessmentState: 'pending' | 'ready' | 'failed';
   dimensions: string;
-  full: BuildEstimateSide | null;
-  hollow: BuildEstimateSide | null;
+  full: AssessedBuildSide | null;
+  hollow: AssessedBuildSide | null;
   hollowSaving: number;
   png: string | null;
 }
@@ -122,8 +128,11 @@ function hollowSavesPieces(card: ProfileCard | null | undefined): boolean {
 
 type PreviewMode = 'likeness' | 'angle' | 'source3d';
 export function ResultScreen({
+  activeSavedBuildId,
+  buildName,
   selectedVariant,
   onSelectVariant,
+  onBuildNameChange,
   onBack,
   onNavigate,
   photoUri = null,
@@ -136,6 +145,7 @@ export function ResultScreen({
   onBuildFillChange,
   onGuided3D,
   onTrue3D,
+  onNavigationLockChange,
   pending3DMeshUrl = null,
   pending3DStills = null,
   onApprove3D,
@@ -163,6 +173,12 @@ export function ResultScreen({
     setPendingMeshError('');
   }, [pending3DMeshUrl]);
 
+  const paidResultProtected = true3DState === 'working' || !!pending3DMeshUrl;
+  useEffect(() => {
+    onNavigationLockChange?.(paidResultProtected);
+    return () => onNavigationLockChange?.(false);
+  }, [onNavigationLockChange, paidResultProtected]);
+
   useEffect(() => {
     if (previewMode === 'source3d' && (!approved3DMeshUrl || activeProduct !== 'sculpture')) {
       setPreviewMode(activeProduct === 'panel' ? 'likeness' : 'angle');
@@ -172,19 +188,44 @@ export function ResultScreen({
   const availableVariants = useMemo(
     () =>
       variants.filter((variant) => {
-        if (!photoBuild?.availableProfiles?.length) return true;
         const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
+        // A 20-stud human sculpture cannot retain recognisable facial and
+        // shoulder geometry. Once a person is detected, do not present Mini
+        // as though it were a credible likeness option.
+        if (humanSubject && activeProduct === 'sculpture' && profile === 'efficient') return false;
+        if (!photoBuild?.availableProfiles?.length) return true;
         return photoBuild.availableProfiles.includes(profile);
       }),
-    [photoBuild],
+    [activeProduct, humanSubject, photoBuild],
   );
 
-  // Each profile ticket previews ITS OWN outcome with real numbers, so the
-  // choice is visual instead of a leap of faith. Rasterized to one PNG per
-  // ticket (a detailed model as live SVG would be thousands of nodes).
+  useEffect(() => {
+    if (availableVariants.length && !availableVariants.some((variant) => variant.id === selectedVariant)) {
+      onSelectVariant(availableVariants[0]!.id);
+    }
+  }, [availableVariants, onSelectVariant, selectedVariant]);
+
+  // Render lightweight visual proposals first. Exact catalog packing runs in
+  // a worker below, so opening Result never spends several seconds on the UI
+  // thread before the buyer can see or operate the screen.
   useEffect(() => {
     let cancelled = false;
-    setProfileCards({});
+    // Seed every card before starting async work. Cached assessments can
+    // resolve in a microtask; without this seed their result could arrive
+    // before a later thumbnail card existed and be silently discarded.
+    setProfileCards(Object.fromEntries(availableVariants.map((variant) => {
+      const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
+      const model = photoBuild ? photoBuild.models[profile] : getVoxelModel(profile);
+      return [variant.id, {
+        assessmentError: null,
+        assessmentState: 'pending' as const,
+        dimensions: physicalDimensions(model).label,
+        full: null,
+        hollow: null,
+        hollowSaving: 0,
+        png: null,
+      }];
+    })));
     (async () => {
       for (const variant of availableVariants) {
         const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
@@ -201,24 +242,13 @@ export function ResultScreen({
                 TICKET_VIEW,
                 0.9,
               );
-        // Calculate both real constructions up front so size and fill can be
-        // compared together, before the buyer enters parts and checkout.
-        let estimate: ReturnType<typeof estimateBuild> | null = null;
-        try {
-          estimate = estimateBuild(model, variantAccent);
-        } catch {
-          estimate = null;
-        }
-        const card: ProfileCard = {
-          dimensions: physicalDimensions(model).label,
-          full: estimate?.full ?? null,
-          hollow: estimate?.hollow ?? null,
-          hollowSaving: estimate?.hollowSaving ?? 0,
-          png: facesToPngDataUrl(faces, TICKET_VIEW, TICKET_VIEW, 3),
-        };
+        const png = facesToPngDataUrl(faces, TICKET_VIEW, TICKET_VIEW, 3);
         if (cancelled) return;
-        setProfileCards((current) => ({ ...current, [variant.id]: card }));
-        // Yield between profiles so each exact proposal paints immediately.
+        setProfileCards((current) => {
+          const card = current[variant.id];
+          return card ? { ...current, [variant.id]: { ...card, png } } : current;
+        });
+        // Yield between previews so the selected proposal paints first.
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     })();
@@ -234,6 +264,61 @@ export function ResultScreen({
   const modelProfile = modelProfileById[selected?.id as keyof typeof modelProfileById] ?? 'balanced';
   const photoModel = photoBuild ? photoBuild.models[modelProfile] : null;
   const previewModel = photoModel ?? getVoxelModel(modelProfile);
+
+  // Release-gate the selected proposal first, then warm the remaining cards.
+  // On web, assessBuildAsync performs the expensive brick packing and guide
+  // simulation in a Metro-bundled worker. Until a result returns every option
+  // stays disabled (fail closed); Purchase/Checkout reuse the populated cache.
+  useEffect(() => {
+    let cancelled = false;
+    const selectedFirst = [
+      ...availableVariants.filter((variant) => variant.id === selectedVariant),
+      ...availableVariants.filter((variant) => variant.id !== selectedVariant),
+    ];
+
+    (async () => {
+      for (const variant of selectedFirst) {
+        const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
+        const model = photoBuild ? photoBuild.models[profile] : getVoxelModel(profile);
+        const variantAccent = accentByName[variant.accent] ?? colors.blue;
+        try {
+          const assessment = await assessBuildAsync(model, variantAccent);
+          if (cancelled) return;
+          setProfileCards((current) => {
+            const card = current[variant.id];
+            if (!card) return current;
+            return {
+              ...current,
+              [variant.id]: {
+                ...card,
+                ...assessment,
+                assessmentError: null,
+                assessmentState: 'ready',
+              },
+            };
+          });
+        } catch (error) {
+          if (cancelled) return;
+          const assessmentError = error instanceof Error
+            ? error.message
+            : 'Exact catalog validation did not complete. Reload to retry.';
+          setProfileCards((current) => {
+            const card = current[variant.id];
+            if (!card) return current;
+            return {
+              ...current,
+              [variant.id]: { ...card, assessmentError, assessmentState: 'failed' },
+            };
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [availableVariants, photoBuild, selectedVariant]);
+
   const likenessFaces = useMemo(
     () => panelMosaicFaces(previewModel, LIKENESS_VIEW_WIDTH, LIKENESS_VIEW_HEIGHT, 0.94),
     [previewModel],
@@ -258,13 +343,51 @@ export function ResultScreen({
   }, [likenessFaces]);
   const selectedCard = selected ? profileCards[selected.id] : null;
   const selectedEstimate = selectedCard?.[buildFill] ?? null;
+  const selectedUnsafe = !!selectedEstimate && !selectedEstimate.buildable;
   const photoStats = photoModel ? describeModel(photoModel, selectedEstimate?.parts) : null;
-  const namingBuild = photoBuild ?? panelBuild;
-  const buildName = namingBuild
-    ? namingBuild.label.charAt(0).toUpperCase() + namingBuild.label.slice(1)
-    : demoProject.name;
+  const quotePending = !selectedCard || selectedCard.assessmentState === 'pending';
+  const quoteUnavailable = selectedCard?.assessmentState === 'failed'
+    || (selectedCard?.assessmentState === 'ready' && !selectedEstimate);
+  const quoteReady = !!selectedEstimate?.buildable;
+  const pieceMetric = quotePending
+    ? 'CALCULATING…'
+    : quoteUnavailable
+      ? 'NEEDS REVIEW'
+      : (selectedEstimate?.parts ?? photoStats?.pieces ?? selected?.pieces ?? demoProject.pieceCount).toLocaleString('en-US');
+  const timeMetric = quotePending || quoteUnavailable
+    ? '—'
+    : selectedEstimate
+      ? buildTimeForParts(selectedEstimate.parts)
+      : photoStats?.time ?? selected?.estimatedTime ?? demoProject.estimatedTime;
+  const dimensionsMetric = selectedCard?.dimensions
+    ?? photoStats?.dimensions
+    ?? selected?.dimensions
+    ?? demoProject.dimensions;
   const awaitingSculpture = activeProduct === 'sculpture' && !sculptureBuild;
   const generatedSculpture = activeProduct === 'sculpture' && !!sculptureBuild;
+
+  // Never carry an unsafe profile/fill combination into parts or checkout.
+  // Prefer the same size with the other fill, then another size with the
+  // requested fill, and finally any sellable combination.
+  useEffect(() => {
+    const current = profileCards[selectedVariant];
+    if (!current || current.assessmentState !== 'ready' || current[buildFill]?.buildable) return;
+    const otherFill: BuildFill = buildFill === 'hollow' ? 'full' : 'hollow';
+    if (current[otherFill]?.buildable) {
+      onBuildFillChange(otherFill);
+      return;
+    }
+    const sameFill = availableVariants.find((variant) => profileCards[variant.id]?.[buildFill]?.buildable);
+    if (sameFill) {
+      onSelectVariant(sameFill.id);
+      return;
+    }
+    const fallback = availableVariants.find((variant) => profileCards[variant.id]?.[otherFill]?.buildable);
+    if (fallback) {
+      onSelectVariant(fallback.id);
+      onBuildFillChange(otherFill);
+    }
+  }, [availableVariants, buildFill, onBuildFillChange, onSelectVariant, profileCards, selectedVariant]);
 
   return (
     <ScreenFrame
@@ -272,17 +395,26 @@ export function ResultScreen({
       footer={
         <View style={styles.footerGap}>
           <PrimaryButton
-            disabled={awaitingSculpture}
-            label={awaitingSculpture ? 'Generate and approve the 3D first' : 'Get this kit'}
+            disabled={awaitingSculpture || !quoteReady}
+            label={
+              awaitingSculpture
+                ? 'Generate and approve the 3D first'
+                : quotePending
+                  ? 'Calculating exact catalog kit…'
+                  : quoteUnavailable || selectedUnsafe
+                    ? 'Choose a buildable option'
+                    : 'Get this kit'
+            }
             onPress={() => onNavigate('bom')}
           />
           <DemoDock
             active="result"
-            downstreamDisabled={awaitingSculpture}
+            downstreamDisabled={awaitingSculpture || !quoteReady}
             onNavigate={onNavigate}
           />
         </View>
       }
+      navigationDisabled={paidResultProtected}
       onBack={onBack}
       progress={0.62}
       subtitle={
@@ -296,7 +428,12 @@ export function ResultScreen({
       }
       title={`${buildName} / ${activeProduct === 'sculpture' ? 'True 3D sculpture' : 'Flat photo panel'}`}
     >
-      <BuildNameField enabled={!!photoBuild} />
+      <BuildNameField
+        buildId={activeSavedBuildId}
+        enabled={!!photoBuild}
+        name={buildName}
+        onNameChange={onBuildNameChange}
+      />
       {photoUri && panelBuild ? (
         <View accessibilityLabel="Build product" accessibilityRole="tablist" style={styles.productTabs}>
           <Pressable
@@ -656,20 +793,33 @@ export function ResultScreen({
       )}
       <View style={styles.stats}>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{photoStats?.pieces ?? selected?.pieces ?? demoProject.pieceCount}</Text>
+          <Text style={styles.statValue}>{pieceMetric}</Text>
           <Text style={[styles.statLabel, { color: colors.coral }]}>PIECES</Text>
         </View>
         <View style={styles.statSlant} />
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{photoStats?.dimensions ?? selected?.dimensions ?? demoProject.dimensions}</Text>
+          <Text style={styles.statValue}>{dimensionsMetric}</Text>
           <Text style={[styles.statLabel, { color: colors.mint }]}>FINISHED SIZE</Text>
         </View>
         <View style={styles.statSlant} />
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{photoStats?.time ?? selected?.estimatedTime ?? demoProject.estimatedTime}</Text>
+          <Text style={styles.statValue}>{timeMetric}</Text>
           <Text style={[styles.statLabel, { color: colors.saffron }]}>BUILD TIME</Text>
         </View>
       </View>
+
+      {selectedUnsafe || quoteUnavailable ? (
+        <View accessibilityRole="alert" style={styles.generationError}>
+          <Text style={styles.generationErrorTitle}>
+            {selectedUnsafe ? 'THIS COMBINATION IS NOT OFFERED' : 'EXACT KIT CHECK DID NOT COMPLETE'}
+          </Text>
+          <Text style={styles.generationErrorText}>
+            {selectedUnsafe
+              ? `${selectedEstimate.assemblyIssue} Choose a highlighted size or fill; PixBrik will not sell a kit that cannot produce a safe step-by-step guide.`
+              : selectedCard?.assessmentError ?? 'Reload to retry the exact catalog and assembly check.'}
+          </Text>
+        </View>
+      ) : null}
 
       {activeProduct === 'sculpture' ? (
         <>
@@ -679,7 +829,11 @@ export function ResultScreen({
               const isSelected = buildFill === fill;
               const side = selectedCard?.[fill];
               const saving = selectedCard ? Math.round(selectedCard.hollowSaving * 100) : 0;
-              const unavailable = fill === 'hollow' && !!selectedCard && !hollowSavesPieces(selectedCard);
+              const assessmentPending = !selectedCard || selectedCard.assessmentState === 'pending';
+              const unavailable = assessmentPending
+                || selectedCard.assessmentState === 'failed'
+                || !side?.buildable
+                || (fill === 'hollow' && !hollowSavesPieces(selectedCard));
               return (
                 <Pressable
                   aria-checked={isSelected}
@@ -699,11 +853,19 @@ export function ResultScreen({
                     {fill === 'hollow' ? 'REINFORCED HOLLOW' : 'SOLID CORE'}
                   </Text>
                   <Text style={[styles.fillChoiceBody, isSelected && styles.fillChoiceBodySelected]}>
-                    {fill === 'hollow'
+                    {assessmentPending
+                      ? 'Checking exact catalog pieces and assembly support…'
+                      : selectedCard.assessmentState === 'failed'
+                        ? selectedCard.assessmentError ?? 'Not offered — exact catalog validation did not complete'
+                      : fill === 'hollow'
                       ? unavailable
-                        ? 'Solid uses fewer pieces at this compact size'
+                        ? side && !side.buildable
+                          ? 'Not offered — this packing cannot produce a safe guide'
+                          : 'Solid uses fewer pieces at this compact size'
                         : `Same outside · internal supports${saving > 0 ? ` · ${saving}% fewer parts` : ''}`
-                      : 'Filled throughout · heaviest collector build'}
+                      : unavailable
+                        ? 'Not offered — this packing cannot produce a safe guide'
+                        : 'Filled throughout · heaviest collector build'}
                   </Text>
                   {side ? (
                     <Text style={[styles.fillChoiceMeta, isSelected && styles.fillChoiceTitleSelected]}>
@@ -727,16 +889,26 @@ export function ResultScreen({
           const card = profileCards[variant.id];
           const profile = modelProfileById[variant.id as keyof typeof modelProfileById] ?? 'balanced';
           const sizeOption = SCULPTURE_SIZE_OPTIONS[profile];
-          const effectiveFill =
-            activeProduct === 'sculpture' && buildFill === 'hollow' && card && !hollowSavesPieces(card)
-              ? 'full'
+          const requestedSide = card?.[buildFill];
+          const assessmentPending = !card || card.assessmentState === 'pending';
+          const otherFill: BuildFill = buildFill === 'hollow' ? 'full' : 'hollow';
+          const effectiveFill = requestedSide?.buildable && (
+            buildFill !== 'hollow' || activeProduct !== 'sculpture' || hollowSavesPieces(card)
+          )
+            ? buildFill
+            : card?.[otherFill]?.buildable
+              ? otherFill
               : buildFill;
           const side = card?.[effectiveFill] ?? null;
+          const unavailable = assessmentPending
+            || card.assessmentState === 'failed'
+            || !side?.buildable;
           return (
             <Pressable
               aria-checked={isSelected}
               accessibilityRole="radio"
-              accessibilityState={{ checked: isSelected }}
+              accessibilityState={{ checked: isSelected, disabled: unavailable }}
+              disabled={unavailable}
               key={variant.id}
               onPress={() => {
                 onSelectVariant(variant.id);
@@ -745,6 +917,7 @@ export function ResultScreen({
               style={({ pressed }) => [
                 styles.ticket,
                 isSelected && styles.ticketSelected,
+                unavailable && styles.fillChoiceUnavailable,
                 pressed && styles.ticketPressed,
               ]}
             >
@@ -765,14 +938,20 @@ export function ResultScreen({
                   {activeProduct === 'sculpture' ? sizeOption.name : variant.name}
                 </Text>
                 <Text style={styles.ticketNote}>
-                  {card && side
-                    ? `${activeProduct === 'sculpture' ? sizeOption.promise : variant.note} · ${card.dimensions} · ${side.parts.toLocaleString('en-US')} parts${effectiveFill !== buildFill ? ' · solid uses fewer pieces' : ''}`
-                    : 'Calculating exact dimensions, parts, and price…'}
+                  {assessmentPending
+                    ? 'Calculating exact dimensions, parts, and price…'
+                    : card.assessmentState === 'failed'
+                      ? card.assessmentError ?? 'Not offered — exact catalog validation did not complete'
+                    : side
+                    ? side.buildable
+                      ? `${activeProduct === 'sculpture' ? sizeOption.promise : variant.note} · ${card.dimensions} · ${side.parts.toLocaleString('en-US')} parts${effectiveFill !== buildFill ? ` · ${effectiveFill} only` : ''}`
+                      : `Not offered at this size · ${side.assemblyIssue}`
+                    : 'Not offered — no valid catalog packing was produced'}
                 </Text>
               </View>
               <View style={styles.ticketPrice}>
                 <Text style={styles.ticketPriceValue}>
-                  {side ? `€${side.bundleEur.toFixed(0)}` : '—'}
+                  {side?.buildable ? `€${side.bundleEur.toFixed(0)}` : '—'}
                 </Text>
                 <Text style={styles.ticketPriceLabel}>
                   {activeProduct === 'panel' ? 'panel kit' : effectiveFill === 'hollow' ? 'hollow kit' : 'solid kit'}
@@ -918,7 +1097,7 @@ export function ResultScreen({
         </Modal>
       ) : null}
 
-      {Platform.OS === 'web' && !awaitingSculpture ? (
+      {Platform.OS === 'web' && !awaitingSculpture && quoteReady ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => onNavigate('instructions')}
@@ -941,7 +1120,13 @@ export function ResultScreen({
             <Text style={styles.inspectMetaValue}>{demoProject.catalogVersion}</Text>
           </View>
         </View>
-        <Text style={styles.assumption}>ASSUMPTION / {demoProject.assumption}</Text>
+        <Text style={styles.assumption}>
+          {activeProduct === 'panel'
+            ? 'SOURCE / One front photo · no hidden surfaces are generated.'
+            : humanSubject
+              ? 'SOURCE / Four real views · no mirrored face or invented back view.'
+              : 'SOURCE / Approved generated 3D mesh · hidden sides may be AI-inferred.'}
+        </Text>
       </View>
       ) : null}
 

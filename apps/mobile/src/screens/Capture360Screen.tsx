@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { InkLoader } from '../components/InkLoader';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -7,10 +7,19 @@ import { RawMeshView, isInteractiveRawMeshViewSupported } from '../components/Ra
 import { ScreenFrame } from '../components/ScreenFrame';
 import {
   load360Capture,
+  load360Normalization,
   load360ProviderRuns,
   save360Capture,
+  save360Normalization,
   save360ProviderRuns,
+  type GuidedViewNormalization,
 } from '../lib/capture360Store';
+import { detectObjects } from '../lib/photoEngine/detect';
+import {
+  guidedSquareCrop,
+  selectGuidedSubject,
+  type GuidedCropKind,
+} from '../lib/guidedViewCrop';
 import { pickPhoto } from '../lib/pickPhoto';
 import {
   buildFromMeshUrlAllProfiles,
@@ -25,6 +34,7 @@ import { colors, fonts, inkAlpha, radius, spacing, type } from '../theme/tokens'
 interface Capture360ScreenProps {
   onBack: () => void;
   initialProviderRuns?: number;
+  onNavigationLockChange?: (locked: boolean) => void;
   onProviderRunsChange?: (runs: number) => void;
   /** Called with the finished build, source thumb, and the exact approved provider mesh. */
   onGenerated: (
@@ -54,6 +64,58 @@ function customerGenerationNote(note: string): string {
   return note;
 }
 
+interface NormalizedGuidedPhoto {
+  kind: GuidedCropKind;
+  uri: string;
+}
+
+function loadBrowserPhoto(uri: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const BrowserImage = (globalThis as unknown as {
+      Image: new () => HTMLImageElement;
+    }).Image;
+    const image = new BrowserImage();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('could not read guided photo'));
+    image.src = uri;
+  });
+}
+
+/** Crop only real pixels: no inferred or generated view is introduced here. */
+async function normalizeGuidedPhoto(uri: string): Promise<NormalizedGuidedPhoto> {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    return { kind: 'center', uri: await toCompactDataUrl(uri) };
+  }
+  const [image, detections] = await Promise.all([
+    loadBrowserPhoto(uri),
+    Promise.race([
+      detectObjects(uri),
+      new Promise<Awaited<ReturnType<typeof detectObjects>>>((resolve) =>
+        setTimeout(() => resolve([]), 7000),
+      ),
+    ]).catch(() => []),
+  ]);
+  const subject = selectGuidedSubject(detections);
+  const crop = guidedSquareCrop(image.naturalWidth, image.naturalHeight, subject);
+  const canvas = document.createElement('canvas');
+  canvas.width = 896;
+  canvas.height = 896;
+  const context = canvas.getContext('2d');
+  if (!context) return { kind: crop.kind, uri: await toCompactDataUrl(uri) };
+  context.drawImage(
+    image,
+    crop.x,
+    crop.y,
+    crop.size,
+    crop.size,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  return { kind: crop.kind, uri: canvas.toDataURL('image/jpeg', 0.9) };
+}
+
 /**
  * True 3D capture: four photos → the best configured multiview provider → bricks.
  * Real geometry from real photos on every side — the single-photo path has
@@ -63,12 +125,17 @@ export function Capture360Screen({
   initialProviderRuns = 0,
   onBack,
   onGenerated,
+  onNavigationLockChange,
   onProviderRunsChange,
 }: Capture360ScreenProps) {
   const live = isLive3DConfigured();
   const [shots, setShots] = useState<Partial<MultiviewShots>>(
     () => load360Capture() ?? {},
   );
+  const [normalization, setNormalization] = useState<GuidedViewNormalization>(
+    () => load360Normalization(),
+  );
+  const [normalizingViewId, setNormalizingViewId] = useState<ViewId | null>(null);
   const [activeViewId, setActiveViewId] = useState<ViewId>('front');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [genState, setGenState] = useState<GenerationState>('idle');
@@ -97,7 +164,14 @@ export function Capture360Screen({
   const activeViewIndex = Math.max(0, VIEWS.findIndex((view) => view.id === activeViewId));
   const activeView = VIEWS[activeViewIndex]!;
   const activeShot = shots[activeView.id];
-  const busy = genState === 'generating' || genState === 'converting';
+  const generationBusy = genState === 'generating' || genState === 'converting';
+  const paidResultProtected = generationBusy || pendingMeshUrl !== null;
+  const busy = generationBusy || normalizingViewId !== null;
+
+  useEffect(() => {
+    onNavigationLockChange?.(paidResultProtected);
+    return () => onNavigationLockChange?.(false);
+  }, [onNavigationLockChange, paidResultProtected]);
   const retakesRemaining = Math.max(0, MAX_PROVIDER_RUNS - providerRuns);
   const canGenerate =
     live &&
@@ -113,16 +187,27 @@ export function Capture360Screen({
     try {
       const uri = await pickPhoto();
       if (!uri) return;
-      // Compact immediately: keeps the request body small, the persisted set
-      // within localStorage quota, and the slot thumbnails cheap.
-      const compact = await toCompactDataUrl(uri).catch(() => uri);
-      const next = { ...shotsRef.current, [id]: compact };
+      setNormalizingViewId(id);
+      setError(null);
+      const prepared = await normalizeGuidedPhoto(uri);
+      const next = { ...shotsRef.current, [id]: prepared.uri };
+      const nextNormalization = { ...normalization, [id]: prepared.kind };
       shotsRef.current = next;
       setShots(next);
+      setNormalization(nextNormalization);
+      save360Normalization(nextNormalization);
       if (next.front) save360Capture(next as MultiviewShots);
+      setRightsConfirmed(false);
       const nextMissing = VIEWS.find((view) => !next[view.id]);
       if (nextMissing) setActiveViewId(nextMissing.id);
+    } catch (normalizationError) {
+      setError(
+        normalizationError instanceof Error
+          ? `Could not prepare that view: ${normalizationError.message}`
+          : 'Could not prepare that view. Try the photo again.',
+      );
     } finally {
+      setNormalizingViewId(null);
       photoPickerLock.current = false;
     }
   };
@@ -166,7 +251,26 @@ export function Capture360Screen({
     setError(null);
     setProgressNote('Starting');
     try {
-      const meshUrl = await generateBestMeshFromMultiview(shots as MultiviewShots, {
+      // Captures saved before square normalization are upgraded locally before
+      // any paid task. Every provider input remains one of the buyer's four
+      // real photos; this pass only crops and aligns it.
+      let preparedShots = { ...shots } as MultiviewShots;
+      let preparedNormalization = { ...normalization };
+      for (const view of VIEWS) {
+        if (preparedNormalization[view.id]) continue;
+        setProgressNote(`Preparing ${view.label.toLowerCase()} square crop`);
+        const prepared = await normalizeGuidedPhoto(preparedShots[view.id]!);
+        preparedShots = { ...preparedShots, [view.id]: prepared.uri };
+        preparedNormalization = { ...preparedNormalization, [view.id]: prepared.kind };
+      }
+      if (Object.keys(preparedNormalization).length !== Object.keys(normalization).length) {
+        shotsRef.current = preparedShots;
+        setShots(preparedShots);
+        setNormalization(preparedNormalization);
+        save360Capture(preparedShots);
+        save360Normalization(preparedNormalization);
+      }
+      const meshUrl = await generateBestMeshFromMultiview(preparedShots, {
         onProgress: (fraction, note) =>
           setProgressNote(`${Math.round(fraction * 100)}% · ${customerGenerationNote(note)}`),
         onProviderTaskCreated: () => {
@@ -240,7 +344,9 @@ export function Capture360Screen({
         ? !pendingMeshUrl
         : !canGenerate);
   const footerLabel =
-    genState === 'generating'
+    normalizingViewId
+      ? `Preparing ${normalizingViewId} square view…`
+      : genState === 'generating'
       ? 'Generating the raw 3D mesh…'
       : genState === 'converting'
         ? 'Building three distinct sizes…'
@@ -276,6 +382,7 @@ export function Capture360Screen({
         />
       }
       onBack={onBack}
+      navigationDisabled={paidResultProtected}
       progress={0.2 + shotCount * 0.075}
       subtitle="Add one clear photo from each side. Keep the subject centered and the distance unchanged; we combine the four views into one complete model."
       title="Show every side."
@@ -321,12 +428,23 @@ export function Capture360Screen({
           style={({ pressed }) => [styles.focusCapture, activeShot && styles.focusCaptureFilled, pressed && styles.pressed]}
         >
           {activeShot ? (
-            <Image
-              accessibilityLabel={`${activeView.label} view photo`}
-              resizeMode="cover"
-              source={{ uri: activeShot }}
-              style={styles.focusPhoto}
-            />
+            <>
+              <Image
+                accessibilityLabel={`${activeView.label} normalized square real photo`}
+                resizeMode="cover"
+                source={{ uri: activeShot }}
+                style={styles.focusPhoto}
+              />
+              <View pointerEvents="none" style={styles.normalizedBadge}>
+                <Text style={styles.normalizedBadgeText}>
+                  {normalization[activeView.id]
+                    ? normalization[activeView.id] === 'person'
+                      ? 'REAL PHOTO · HEAD + SHOULDERS SQUARE'
+                      : 'REAL PHOTO · NORMALIZED SQUARE'
+                    : 'REAL PHOTO · NORMALIZES BEFORE 3D'}
+                </Text>
+              </View>
+            </>
           ) : (
             <View style={styles.captureGuide}>
               <View style={styles.guideFrame}>
@@ -351,7 +469,7 @@ export function Capture360Screen({
         <Text style={styles.captureTip}>
           {activeView.id === 'back'
             ? 'The back photo is essential for people: include the hair and shoulders so the model never mirrors the face.'
-            : 'Use the same framing, lighting and subject position in every view. Plain backgrounds work best.'}
+            : 'Keep the distance and lighting consistent. PixBrik crops each real view to the same square framing; plain backgrounds still work best.'}
         </Text>
       </View>
 
@@ -362,11 +480,22 @@ export function Capture360Screen({
         </View>
       ) : null}
 
-      {busy ? (
+      {normalizingViewId ? (
+        <View style={styles.progress}>
+          <InkLoader size={26} stage={`Preparing ${normalizingViewId} view`} />
+          <Text style={styles.progressHint}>
+            Cropping this real photo to a consistent square. No AI view is generated and no 3D provider task has started.
+          </Text>
+        </View>
+      ) : null}
+
+      {generationBusy ? (
         <View style={styles.progress}>
           <InkLoader size={26} stage={progressNote || 'Generating'} />
           <Text style={styles.progressHint}>
-            {genState === 'generating'
+            {/square crop/i.test(progressNote)
+              ? 'Aligning a saved real photo locally before any paid provider task starts.'
+              : genState === 'generating'
               ? 'The generator reads all four views at once — this takes a minute or two.'
               : 'Only the 3D model you approved is being converted; no depth or relief shortcut is used.'}
           </Text>
@@ -560,6 +689,20 @@ const styles = StyleSheet.create({
   focusPhoto: {
     aspectRatio: 1,
     width: '100%',
+  },
+  normalizedBadge: {
+    backgroundColor: 'rgba(23,19,10,0.88)',
+    borderRadius: radius.pill,
+    left: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    position: 'absolute',
+    top: spacing.sm,
+  },
+  normalizedBadgeText: {
+    ...type.label,
+    color: colors.saffron,
+    fontSize: 8,
   },
   captureGuide: {
     alignItems: 'center',

@@ -10,6 +10,7 @@
  */
 
 import type { VoxelModel } from '../voxelFox';
+import { smartIsolateRegion } from './backgroundRemoval';
 import { segmentRegion, type Segmentation } from './segment';
 import { quantizeToCatalog, type PhotoModels } from './voxelizePhoto';
 import { voxelizeGlbUrl, voxelizeGlbUrlOne } from './meshVoxelize';
@@ -20,16 +21,21 @@ export type { MeshBrickColorStyle } from './meshFidelity';
 /**
  * Live image-to-3D runs through our Meshy and Tripo serverless proxies, so
  * provider keys stay server-side and never ship in the browser bundle. This
- * legacy public flag gates both provider paths; it is a UI capability toggle,
- * not a secret or an authorization boundary.
+ * public flag gates both provider paths; it is a UI capability toggle, not a
+ * secret or an authorization boundary. The older Tripo-named flag remains a
+ * compatibility fallback so existing deployments do not lose the feature.
  */
 export function isLive3DConfigured(): boolean {
-  return (process.env.EXPO_PUBLIC_TRIPO_ENABLED ?? '') === '1';
+  return (
+    (process.env.EXPO_PUBLIC_3D_GENERATION_ENABLED ?? '') === '1'
+    || (process.env.EXPO_PUBLIC_MESHY_ENABLED ?? '') === '1'
+    || (process.env.EXPO_PUBLIC_TRIPO_ENABLED ?? '') === '1'
+  );
 }
 
 export class NotConfiguredError extends Error {
   constructor() {
-    super('Live photo→3D is off. Set EXPO_PUBLIC_TRIPO_ENABLED=1 and TRIPO_API_KEY on the server.');
+    super('Live photo→3D is off. Enable 3D generation for this deployment and configure a server-side Meshy or Tripo key.');
     this.name = 'NotConfiguredError';
   }
 }
@@ -213,6 +219,29 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
 const FULL_FRAME_MASK_THRESHOLD = 0.98;
 const MIN_SUBJECT_COVERAGE = 0.02;
 
+export class SubjectIsolationRequiredError extends Error {
+  constructor(detail?: string) {
+    super(
+      detail
+        ? `PixBrik could not isolate the subject for True 3D: ${detail}`
+        : 'PixBrik could not isolate the subject for True 3D. Try Smart isolate again before generating the model.',
+    );
+    this.name = 'SubjectIsolationRequiredError';
+  }
+}
+
+function preserveSubjectMetadata(
+  isolated: Segmentation,
+  original: Segmentation,
+): Segmentation {
+  return {
+    ...isolated,
+    categoryLabel: original.categoryLabel,
+    face: original.face,
+    preserveFeatures: original.preserveFeatures,
+  };
+}
+
 /**
  * Capture keeps a full-frame mask for faithful panel previews. That mask is
  * correct for a mosaic, but wrong for image-to-3D providers: it tells the
@@ -231,20 +260,34 @@ export function needsSubjectMaskFor3D(segmentation: Segmentation): boolean {
 /**
  * Recover the subject silhouette only for the optional 3D path. The panel's
  * stored full-frame segmentation remains untouched, so its appearance does
- * not change. A failed/degenerate recovery falls back to the original framed
- * crop instead of manufacturing a misleading cutout.
+ * not change. A failed/degenerate recovery stops before a paid 3D request;
+ * sending the original scene would manufacture a misleading model.
  */
 export async function prepareSegmentationFor3D(
   photoUri: string,
   segmentation: Segmentation,
 ): Promise<Segmentation> {
-  // New captures are explicit: a full-frame mask means the buyer chose to
-  // keep the scene, while a background-removal mask already came from a
-  // production matting API. Never replace either with the old 68×68 border
-  // colour heuristic. The legacy recovery below remains only for saved
-  // captures that predate maskSource.
-  if (segmentation.maskSource === 'full-frame' || segmentation.maskSource === 'background-removal') {
+  // A provider matte is already the best available True-3D input. A full-frame
+  // mask, however, is only a panel preference: sending it to a 3D generator
+  // would model the wall/floor as part of the object. Obtain a separate smart
+  // matte without mutating the panel segmentation.
+  if (segmentation.maskSource === 'background-removal') {
     return segmentation;
+  }
+  if (segmentation.maskSource === 'full-frame') {
+    try {
+      const isolated = await smartIsolateRegion(
+        photoUri,
+        segmentation.region,
+        segmentation.grid,
+        { subjectHint: segmentation.categoryLabel },
+      );
+      return preserveSubjectMetadata(isolated, segmentation);
+    } catch (error) {
+      const message = (error as { message?: unknown } | null)?.message;
+      const detail = typeof message === 'string' ? message : undefined;
+      throw new SubjectIsolationRequiredError(detail);
+    }
   }
   if (!needsSubjectMaskFor3D(segmentation)) {
     return segmentation;
@@ -252,27 +295,31 @@ export async function prepareSegmentationFor3D(
 
   const isolated = await segmentRegion(photoUri, segmentation.region, segmentation.grid);
   if (isolated.coverage < MIN_SUBJECT_COVERAGE || isolated.coverage >= FULL_FRAME_MASK_THRESHOLD) {
-    return segmentation;
+    throw new SubjectIsolationRequiredError();
   }
 
-  return {
-    ...isolated,
-    categoryLabel: segmentation.categoryLabel,
-    face: segmentation.face,
-    preserveFeatures: segmentation.preserveFeatures,
-  };
+  return preserveSubjectMetadata(isolated, segmentation);
+}
+
+interface Prepared3DPhoto {
+  preserveAlpha: boolean;
+  uri: string;
 }
 
 /** Prepare a neutral-background subject image without mutating panel data. */
-async function cutoutFor3D(photoUri: string, segmentation: Segmentation): Promise<string> {
+async function cutoutFor3D(
+  photoUri: string,
+  segmentation: Segmentation,
+): Promise<Prepared3DPhoto> {
+  const isolated = await prepareSegmentationFor3D(photoUri, segmentation);
   // Preserve the provider's high-resolution RGBA edge matte for 3D. Rebuilding
   // it from the 68-cell brick mask would reintroduce the blocky halo the smart
-  // isolate service was added to avoid.
-  if (segmentation.maskSource === 'background-removal' && segmentation.cutoutUri) {
-    return segmentation.cutoutUri;
+  // isolate service was added to avoid. This also covers a keep-scene panel
+  // whose separate True-3D matte was obtained just above.
+  if (isolated.maskSource === 'background-removal' && isolated.cutoutUri) {
+    return { preserveAlpha: true, uri: isolated.cutoutUri };
   }
-  const isolated = await prepareSegmentationFor3D(photoUri, segmentation);
-  return compositeCutout(photoUri, isolated);
+  return { preserveAlpha: false, uri: await compositeCutout(photoUri, isolated) };
 }
 
 /**
@@ -681,8 +728,8 @@ async function submitRememberedTask(
 
 /**
  * Shared generation tail: submit a task body to a generator proxy, poll
- * until the mesh is ready, then voxelize it into bricks at 'balanced' (the
- * lab's comparison fidelity). The single-photo and multiview paths both end
+ * until the mesh is ready, then voxelize it into all three genuinely
+ * different brick resolutions. The single-photo and multiview paths both end
  * here — only the submit body and engine differ.
  */
 async function generateAndVoxelize(
@@ -703,7 +750,7 @@ async function generateAndVoxelize(
   );
   onProgress?.(0.9, 'Converting to bricks');
   options.onMeshUrl?.(meshUrl);
-  const model = await voxelizeGlbUrlOne(meshUrl, 'balanced', (fraction) =>
+  const models = await voxelizeGlbUrl(meshUrl, (fraction) =>
     onProgress?.(0.9 + fraction * 0.1, 'Converting to bricks'),
   );
   onProgress?.(1, 'Done');
@@ -711,7 +758,7 @@ async function generateAndVoxelize(
     hasDepth: true,
     label: 'Your object',
     mode: 'volume',
-    models: { balanced: model, detailed: model, efficient: model },
+    models,
     style: 'natural',
   };
 }
@@ -735,10 +782,12 @@ export async function generateMeshFromPhoto(
   }
   const onProgress = options.onProgress;
   onProgress?.(0.05, 'Preparing photo');
-  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation) : photoSrc;
+  const prepared = segmentation
+    ? await cutoutFor3D(photoSrc, segmentation)
+    : { preserveAlpha: false, uri: photoSrc };
   const image = await compactSingleWithinBudget(
-    cutout,
-    segmentation?.maskSource === 'background-removal' && !!segmentation.cutoutUri,
+    prepared.uri,
+    prepared.preserveAlpha,
   );
 
   onProgress?.(0.12, 'Uploading to generator');
@@ -814,12 +863,14 @@ export async function buildFromPhoto(
   options.onProgress?.(0.05, 'Preparing photo');
   // Send the generator the isolated object (cropped + background removed)
   // whenever we already have a segmentation for this photo, not the raw scene.
-  const cutout = segmentation ? await cutoutFor3D(photoSrc, segmentation) : photoSrc;
+  const prepared = segmentation
+    ? await cutoutFor3D(photoSrc, segmentation)
+    : { preserveAlpha: false, uri: photoSrc };
   const image = await toCompactDataUrl(
-    cutout,
+    prepared.uri,
     1024,
     0.92,
-    segmentation?.maskSource === 'background-removal' && !!segmentation.cutoutUri,
+    prepared.preserveAlpha,
   );
   const engine = options.engine ?? 'tripo';
   const body =
@@ -911,7 +962,7 @@ export async function buildFromMultiview(
   const meshUrl = await generateMeshFromMultiview(shots, options);
   options.onMeshUrl?.(meshUrl);
   options.onProgress?.(0.9, 'Converting to bricks');
-  const model = await voxelizeGlbUrlOne(meshUrl, 'balanced', (fraction) =>
+  const models = await voxelizeGlbUrl(meshUrl, (fraction) =>
     options.onProgress?.(0.9 + fraction * 0.1, 'Converting to bricks'),
   );
   options.onProgress?.(1, 'Done');
@@ -919,7 +970,7 @@ export async function buildFromMultiview(
     hasDepth: true,
     label: 'Your object',
     mode: 'volume',
-    models: { balanced: model, detailed: model, efficient: model },
+    models,
     style: 'natural',
   };
 }

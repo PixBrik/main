@@ -47,6 +47,19 @@ test('paid generation rejects foreign browser origins', async () => {
   );
 });
 
+test('paid generation rejects originless production requests before provider work', async () => {
+  const { guardPaidGeneration } = await loadSecurity();
+  assert.throws(
+    () =>
+      guardPaidGeneration(
+        { headers: { 'x-forwarded-for': '192.0.2.9' } },
+        { GENERATION_API_ENABLED: '1', NODE_ENV: 'production' },
+        1_000,
+      ),
+    (error) => error.status === 403 && error.code === 'generation_origin_required',
+  );
+});
+
 test('paid generation enforces per-IP and global circuit breakers', async () => {
   const { clearGenerationSecurityForTests, guardPaidGeneration } = await loadSecurity();
   const env = {
@@ -56,14 +69,14 @@ test('paid generation enforces per-IP and global circuit breakers', async () => 
     NODE_ENV: 'production',
   };
   clearGenerationSecurityForTests();
-  guardPaidGeneration({ headers: { 'x-forwarded-for': '192.0.2.1' } }, env, 1_000);
+  guardPaidGeneration({ headers: { origin: 'https://www.pixbrik.com', 'x-forwarded-for': '192.0.2.1' } }, env, 1_000);
   assert.throws(
-    () => guardPaidGeneration({ headers: { 'x-forwarded-for': '192.0.2.1' } }, env, 1_001),
+    () => guardPaidGeneration({ headers: { origin: 'https://www.pixbrik.com', 'x-forwarded-for': '192.0.2.1' } }, env, 1_001),
     (error) => error.status === 429 && error.retryAfterSeconds > 0,
   );
-  guardPaidGeneration({ headers: { 'x-forwarded-for': '192.0.2.2' } }, env, 1_002);
+  guardPaidGeneration({ headers: { origin: 'https://www.pixbrik.com', 'x-forwarded-for': '192.0.2.2' } }, env, 1_002);
   assert.throws(
-    () => guardPaidGeneration({ headers: { 'x-forwarded-for': '192.0.2.3' } }, env, 1_003),
+    () => guardPaidGeneration({ headers: { origin: 'https://www.pixbrik.com', 'x-forwarded-for': '192.0.2.3' } }, env, 1_003),
     (error) => error.status === 429 && error.code === 'generation_rate_limited',
   );
 });

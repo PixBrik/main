@@ -4,7 +4,11 @@
   "installCommand": "npm install",
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
-  "functions": { "api/**/*.ts": { "maxDuration": 30 } },
+  "functions": {
+    "api/meshy/model.ts": { "maxDuration": 300, "supportsCancellation": true },
+    "api/tripo/model.ts": { "maxDuration": 300, "supportsCancellation": true },
+    "api/**/*.ts": { "maxDuration": 30 }
+  },
   "headers": [
     {
       "source": "/backoffice",

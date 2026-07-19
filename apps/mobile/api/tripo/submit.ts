@@ -13,7 +13,10 @@ import {
   sendGenerationSecurityError,
 } from '../_generationSecurity';
 
-const DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp);base64,(.+)$/;
+const DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp);base64,([a-z0-9+/]+={0,2})$/i;
+const MAX_REQUEST_JSON_CHARS = 3_600_000;
+
+export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
 /** Multiview file order per the Tripo API: front, left, back, right. */
 const VIEW_ORDER = ['front', 'left', 'back', 'right'] as const;
@@ -50,9 +53,14 @@ export default async function handler(req: any, res: any): Promise<void> {
   }
 
   try {
+    if (JSON.stringify(req.body ?? {}).length > MAX_REQUEST_JSON_CHARS) {
+      res.status(413).json({ error: 'Prepared photos are too large; crop closer and try again' });
+      return;
+    }
+
     const image: unknown = req.body?.image;
     const views: unknown = req.body?.views;
-    const isMultiview = !!views && typeof views === 'object';
+    const isMultiview = !!views && typeof views === 'object' && !Array.isArray(views);
     if (!isMultiview && typeof image !== 'string') {
       res.status(400).json({ error: 'Body must be { image } or { views: { front, … } }' });
       return;
@@ -108,7 +116,8 @@ export default async function handler(req: any, res: any): Promise<void> {
       pbr: false,
     };
 
-    let taskBody: Record<string, unknown>;
+    let validatedImage: string | null = null;
+    let validatedViews: Record<(typeof VIEW_ORDER)[number], string> | null = null;
     if (isMultiview) {
       const viewMap = views as Record<string, unknown>;
       if (typeof viewMap.front !== 'string') {
@@ -120,9 +129,31 @@ export default async function handler(req: any, res: any): Promise<void> {
         res.status(400).json({ error: 'multiview needs all four views: front, left, back and right' });
         return;
       }
+      const invalid = VIEW_ORDER.filter((name) => !DATA_URL_PATTERN.test(viewMap[name] as string));
+      if (invalid.length) {
+        res.status(400).json({ error: `invalid base64 image data for ${invalid.join(', ')}` });
+        return;
+      }
+      validatedViews = Object.fromEntries(
+        VIEW_ORDER.map((name) => [name, viewMap[name] as string]),
+      ) as Record<(typeof VIEW_ORDER)[number], string>;
+    } else if (!DATA_URL_PATTERN.test(image as string)) {
+      res.status(400).json({ error: 'image must be a base64 data URL (png/jpg/webp)' });
+      return;
+    } else {
+      validatedImage = image as string;
+    }
+
+    // Reject disabled, foreign or over-quota requests before the first Tripo
+    // upload. Uploads are provider work too and must never bypass the spend
+    // guard merely because task creation happens in a later request.
+    guardPaidGeneration(req);
+
+    let taskBody: Record<string, unknown>;
+    if (validatedViews) {
       const uploads: Record<string, { ext: string; token: string }> = {};
-      for (const name of provided) {
-        const result = await uploadImage(viewMap[name] as string);
+      for (const name of VIEW_ORDER) {
+        const result = await uploadImage(validatedViews[name]);
         if ('error' in result) {
           res.status(502).json({ error: `${name} view: ${result.error}`, code: result.code });
           return;
@@ -138,7 +169,7 @@ export default async function handler(req: any, res: any): Promise<void> {
         ),
       };
     } else {
-      const result = await uploadImage(image as string);
+      const result = await uploadImage(validatedImage as string);
       if ('error' in result) {
         res.status(502).json({ error: result.error, code: result.code });
         return;
@@ -150,9 +181,6 @@ export default async function handler(req: any, res: any): Promise<void> {
       };
     }
 
-    // All uploads and settings are valid. Apply the paid-task circuit breaker
-    // immediately before asking Tripo to create a chargeable task.
-    guardPaidGeneration(req);
     const taskRes = await fetch(`${TRIPO_BASE}/task`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
