@@ -32,8 +32,14 @@ async function roleView(role: RuntimeDatabaseRole): Promise<Record<string, unkno
               AND category.enabled
           ) AS catalog_rows
       `;
-      const [sample] = await sql<{ library: unknown }[]>`
-        SELECT build_version.configuration_snapshot -> 'library' AS library
+      const [sample] = await sql<{ library: unknown; snap_keys: string[] | null; snap_type: string | null }[]>`
+        SELECT
+          build_version.configuration_snapshot -> 'library' AS library,
+          jsonb_typeof(build_version.configuration_snapshot) AS snap_type,
+          CASE WHEN jsonb_typeof(build_version.configuration_snapshot) = 'object'
+            THEN (SELECT array_agg(k) FROM jsonb_object_keys(build_version.configuration_snapshot) AS k)
+            ELSE NULL
+          END AS snap_keys
         FROM pixbrik.model_library_item item
         JOIN pixbrik.model_library_version version ON version.item_id = item.id
         JOIN pixbrik.build_version build_version ON build_version.id = version.build_version_id
@@ -58,6 +64,8 @@ async function roleView(role: RuntimeDatabaseRole): Promise<Record<string, unkno
             }
           })(),
           preview: typeof library === "string" ? (library as string).slice(0, 80) : null,
+          snapKeys: sample?.snap_keys ?? null,
+          snapType: sample?.snap_type ?? null,
           type: typeof library
         }
       };
