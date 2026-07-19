@@ -42,6 +42,8 @@ export default async function handler(req: any, res: any): Promise<void> {
       checkedAt: new Date().toISOString(),
       connected: true,
       contractVersion: readiness.contractVersion,
+      // Temporary passthrough while diagnosing the empty public catalogue.
+      diagnostics: (readiness as { diagnostics?: unknown }).diagnostics,
       service: 'operations',
     });
   } catch (error) {
