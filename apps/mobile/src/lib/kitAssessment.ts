@@ -143,7 +143,12 @@ export function assessBuildAsync(model: VoxelModel, accent: string): Promise<Bui
   const existing = pendingAssessmentCache.get(model)?.get(accent);
   if (existing) return existing;
 
-  const pending = (assessInWorker(model, accent) ?? assessAfterPaint(model, accent))
+  // The worker only exists to keep the UI thread smooth; the exact same pure
+  // module runs inline. A worker failure (stale chunk 404 after a deploy, an
+  // extension blocking workers, a crash) must never fail the buyer's build —
+  // fall back to the in-thread computation instead.
+  const viaWorker = assessInWorker(model, accent);
+  const pending = (viaWorker ? viaWorker.catch(() => assessAfterPaint(model, accent)) : assessAfterPaint(model, accent))
     .then((assessment) => cacheAssessment(model, accent, assessment))
     .finally(() => {
       const byAccent = pendingAssessmentCache.get(model);
