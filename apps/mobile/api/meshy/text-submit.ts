@@ -95,6 +95,7 @@ export default async function handler(req: any, res: any): Promise<void> {
       sendGenerationSecurityError(res, err);
       return;
     }
-    res.status(500).json({ error: err?.message || 'text submit failed' });
+    const status = Number.isSafeInteger(err?.status) ? err.status : 500;
+    res.status(status).json({ code: err?.code, error: err?.message || 'text submit failed' });
   }
 }

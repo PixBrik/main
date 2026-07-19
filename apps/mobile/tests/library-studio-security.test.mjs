@@ -37,6 +37,8 @@ test('paid text generation and publishing require the backoffice Studio session'
     readFile(new URL('../src/lib/libraryStore.ts', import.meta.url), 'utf8'),
   ]);
   assert.match(submit, /requireStudioSession\(req\)/);
+  assert.match(submit, /Number\.isSafeInteger\(err\?\.status\)/);
+  assert.match(submit, /code: err\?\.code/);
   assert.match(publish, /requireStudioSession\(req\)/);
   assert.match(publish, /publishBackendLibraryMaster/);
   assert.match(bridge, /libraryPublishHandler/);
