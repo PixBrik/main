@@ -13,6 +13,7 @@ export const APP_ROUTES = {
   signIn: "/sign-in",
   changePassword: "/change-password",
   users: "/settings/users",
+  marketing: "/marketing",
   clerkProxy: "/__clerk"
 } as const;
 
@@ -36,4 +37,12 @@ export const PUBLIC_ROUTES = {
 
 export function adminSectionRoute(section: string): string {
   return `/${encodeURIComponent(section)}`;
+}
+
+export function customerDetailRoute(customerId: string): string {
+  return `/customers/${encodeURIComponent(customerId)}`;
+}
+
+export function orderDetailRoute(orderId: string): string {
+  return `/orders/${encodeURIComponent(orderId)}`;
 }

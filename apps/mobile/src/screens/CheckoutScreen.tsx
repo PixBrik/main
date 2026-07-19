@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -9,8 +9,14 @@ import { isCatalogStockError } from '../lib/brickify';
 import { assessBuild } from '../lib/kitAssessment';
 import { useAppNavigation } from '../lib/navigationContext';
 import {
+  removeCheckoutDraft,
+  saveCheckoutDraft,
+  type CheckoutDraftSnapshot,
+} from '../lib/checkoutDraftStore';
+import {
   createOrder,
   inferOrderPaletteMode,
+  snapshotOrderModel,
   type OrderPaletteMode,
   type OrderRecord,
 } from '../lib/orderStore';
@@ -34,6 +40,9 @@ interface CheckoutScreenProps {
   onOrderPlaced: (order: OrderRecord) => void;
   source3DMeshUrl?: string | null;
   source3DRetakesRemaining?: number;
+  source3DSubject?: 'object' | 'person';
+  checkoutDraftId?: string | null;
+  onCheckoutDraftSaved?: (draft: CheckoutDraftSnapshot) => void;
 }
 
 const currencyMeta: Readonly<Record<string, { rate: number; symbol: string }>> = {
@@ -56,9 +65,14 @@ export function CheckoutScreen({
   onOrderPlaced,
   source3DMeshUrl = null,
   source3DRetakesRemaining = 0,
+  source3DSubject = 'object',
+  checkoutDraftId = null,
+  onCheckoutDraftSaved,
 }: CheckoutScreenProps) {
   const [placed, setPlaced] = useState<OrderRecord | null>(null);
   const [storageError, setStorageError] = useState('');
+  const [savedDraftId, setSavedDraftId] = useState(checkoutDraftId);
+  const [draftStorageState, setDraftStorageState] = useState<'saving' | 'saved' | 'unavailable'>('saving');
   const auth = usePixBrikAuth();
   const navigate = useAppNavigation();
   const authLoading = auth.configured && !auth.loaded;
@@ -86,6 +100,78 @@ export function CheckoutScreen({
       ? estimate.hollow
       : estimate.full
     : null;
+
+  useEffect(() => {
+    if (!selectedSide?.buildable) {
+      setDraftStorageState('unavailable');
+      return;
+    }
+    const palette = paletteMode ?? inferOrderPaletteMode(model);
+    const saved = saveCheckoutDraft({
+      id: savedDraftId ?? checkoutDraftId,
+      build: {
+        accent,
+        buildId,
+        fill: buildFill,
+        hasDepth: photoBuild?.hasDepth ?? buildProduct === 'sculpture',
+        mode: photoBuild?.mode ?? (buildProduct === 'sculpture' ? 'volume' : 'relief'),
+        name: buildName.trim() || 'PixBrik build',
+        paletteMode: palette,
+        product: buildProduct,
+        selectedVariant,
+        source3DMeshUrl,
+        source3DRetakesRemaining,
+        source3DSubject,
+        style: photoBuild?.style ?? 'natural',
+      },
+      delivery: {
+        countryCode,
+        rangeLabel: delivery.rangeLabel,
+      },
+      model: snapshotOrderModel(model, accent),
+      quote: {
+        currency: country?.currency ?? 'EUR',
+        currencySymbol: currency.symbol,
+        kitPrice: Number((selectedSide.bundleEur * currency.rate).toFixed(2)),
+        quotedAt: new Date().toISOString(),
+        requiresServerReprice: true,
+        shippingPrice: Number((delivery.costEur * currency.rate).toFixed(2)),
+        totalPrice: Number(((selectedSide.bundleEur + delivery.costEur) * currency.rate).toFixed(2)),
+      },
+    });
+    if (!saved) {
+      setDraftStorageState('unavailable');
+      return;
+    }
+    setSavedDraftId(saved.id);
+    setDraftStorageState('saved');
+    onCheckoutDraftSaved?.(saved);
+  }, [
+    accent,
+    buildFill,
+    buildId,
+    buildName,
+    buildProduct,
+    checkoutDraftId,
+    country?.currency,
+    countryCode,
+    currency.rate,
+    currency.symbol,
+    delivery.costEur,
+    delivery.rangeLabel,
+    model,
+    onCheckoutDraftSaved,
+    paletteMode,
+    photoBuild?.hasDepth,
+    photoBuild?.mode,
+    photoBuild?.style,
+    savedDraftId,
+    selectedSide,
+    selectedVariant,
+    source3DMeshUrl,
+    source3DRetakesRemaining,
+    source3DSubject,
+  ]);
 
   if (!estimate) {
     return (
@@ -157,6 +243,7 @@ export function CheckoutScreen({
       setStorageError('We could not save this order on this device. Check browser storage and try again.');
       return;
     }
+    if (savedDraftId) removeCheckoutDraft(savedDraftId);
     setPlaced(order);
   };
 
@@ -241,6 +328,13 @@ export function CheckoutScreen({
             : signedIn
             ? 'Your Clerk session is active. This prototype order still stays on this device and stores no account name or email until the PostgreSQL order service is connected.'
             : 'Saving this demo does not create an account. Production checkout will collect contact, delivery and payment details before placing a real order.'}
+        </Text>
+        <Text accessibilityLiveRegion="polite" style={styles.draftNote}>
+          {draftStorageState === 'saved'
+            ? 'Your exact model, size, fill, colours and delivery choice are saved in this browser for 30 days. This is device-only; no recovery email will be sent.'
+            : draftStorageState === 'saving'
+            ? 'Saving this exact checkout in this browser…'
+            : 'This browser could not save a resumable checkout. Keep this page open if you want to return to it.'}
         </Text>
       </View>
       {!signedIn && auth.configured && auth.loaded ? (
@@ -367,6 +461,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     marginTop: spacing.xs,
+  },
+  draftNote: {
+    ...type.micro,
+    borderTopColor: '#D8DCE7',
+    borderTopWidth: 1,
+    color: colors.inkSoft,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
   },
   doneCard: {
     alignItems: 'center',

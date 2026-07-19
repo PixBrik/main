@@ -9,6 +9,8 @@ This application is the isolated foundation for PixBrik's desktop admin and secu
 - Server-side permission checks for every protected layout.
 - PostgreSQL migrations for identity, RBAC, markets, shipping, EUR-based FX, builds and immutable build versions, orders, payments, invoices, coupons, checkout recovery, contact requests, localized messaging, analytics and audit events.
 - Append-only inventory movements and reservations, affiliate attribution/commissions/payouts, consent-aware visitor/session/page-view facts, and auditable private export jobs.
+- Searchable customer records with authoritative order history, localized newsletter campaigns, consent history, suppressions, and a leased Resend delivery queue.
+- Prebuilt PixBrik lifecycle and newsletter templates in English, French, Spanish, Italian and Arabic. Every lifecycle automation is installed disabled and must be deliberately enabled by an authorized operator.
 - Seed data for English, French, Spanish, Italian and Arabic; EUR, GBP, USD, CAD and AUD; the requested markets and shipping zones; and the invited owner `sam@benisty.ca`.
 - Runtime environment inspection that never returns secret values.
 
@@ -24,10 +26,15 @@ Copy-Item .env.example .env.local
 npm install
 ```
 
-Provision the five separate database roles described in `docs/database-security.md`. Set `ADMIN_DATABASE_URL`, `CUSTOMER_DATABASE_URL`, `IDENTITY_DATABASE_URL`, `SERVICE_DATABASE_URL`, and deployment-only `MIGRATION_DATABASE_URL`, then apply migrations:
+Provision the five separate database roles described in
+`docs/database-security.md`. Put the four least-privilege runtime URLs in
+`.env.local`. In a separate controlled operator process, inject the direct
+`MIGRATION_DATABASE_URL`, apply migrations, and remove that variable before
+starting the app. Do not save the migrator URL in `.env.local`.
 
 ```powershell
 npm run db:migrate
+Remove-Item Env:MIGRATION_DATABASE_URL -ErrorAction SilentlyContinue
 ```
 
 For a brand-new provider database, the controlled role provisioner can create
@@ -169,7 +176,10 @@ The seeded owner row for `sam@benisty.ca` starts as an unbound invitation. On th
 
 ## Vercel environment variables
 
-Add secret values in Vercel Project Settings, separately for Preview and Production. Do not paste keys into source control.
+Add the runtime values below in Vercel Project Settings. Scope Production
+credentials to Production, and use separate non-production providers, databases,
+senders and recipients for Preview. Do not paste keys into source control and do
+not give a Preview deployment access to Production data.
 
 Required before live traffic:
 
@@ -177,18 +187,88 @@ Required before live traffic:
 - `CUSTOMER_DATABASE_URL` (dedicated `pixbrik_customer_runtime` login; buyer handlers only)
 - `IDENTITY_DATABASE_URL` (dedicated `pixbrik_identity_runtime` login; execute-only owner invitation claim)
 - `SERVICE_DATABASE_URL` (dedicated `pixbrik_service_runtime` login; jobs/webhooks only)
-- `MIGRATION_DATABASE_URL` using the provider's direct (non-pooler) endpoint, only in the controlled migration/deployment environment; never expose it to runtime functions
 - `APP_URL=https://pixbrik-backoffice.vercel.app/backoffice` (or the future dedicated admin hostname)
+- `CUSTOMER_APP_URL=https://www.pixbrik.com` (the only origin permitted for customer-facing email links)
+- `PUBLIC_EMAIL_APP_URL=https://www.pixbrik.com/backoffice` (public base for unsubscribe and one-click unsubscribe URLs)
 - `AUTH_MODE=password`, `AUTH_PASSWORD_PEPPER`, and `AUTH_SESSION_HMAC_KEY` for the built-in staff login; the two authentication keys must be independently generated versioned 32-byte base64url values
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`
 - `RESEND_FROM_EMAIL=PixBrik <hello@pixbrik.com>`
 - `RESEND_REPLY_TO_EMAIL=hello@pixbrik.com`
+- `EMAIL_DELIVERY_APPROVED=true` only after sender DNS, the signed webhook, and a production smoke email have been verified
+- `CUSTOMER_PORTAL_EMAIL_LINKS_READY=true` only after customer order/payment links work end to end
+- `CHECKOUT_RECOVERY_EMAIL_READY=true` only after persisted carts and exact resume links work end to end
+- `CUSTOMER_APP_EMAIL_LINKS_READY=true` only after create/contact email deep links work on a fresh browser
 - `BLOB_READ_WRITE_TOKEN`
 - `FX_PROVIDER_URL` and, when required, `FX_PROVIDER_TOKEN`
-- `CRON_SECRET`
+- `CRON_SECRET` (an independently generated secret containing at least 32 random bytes)
 
-The Resend API key value starts with `re_`; create a restricted sending key for this project. Verify the selected sending domain and configure SPF, DKIM and DMARC before production. The app stores email locale, template version and provider event history so transactional messages can be audited without storing API keys.
+`MIGRATION_DATABASE_URL` is deliberately absent from that Vercel runtime list.
+It is a privileged direct (non-pooler) Neon connection for the controlled
+operator shell only. Inject it into the shell that runs `npm run db:migrate`,
+then remove it from the process. Never add it to Vercel Project Settings,
+Preview or Production, and never use it for a build or runtime function. A
+normal Vercel deployment does not apply migrations automatically; apply every
+new numbered migration through this controlled workflow before deploying code
+that reads its schema.
+
+## Resend lifecycle email setup
+
+1. Verify `pixbrik.com` (or an approved mail subdomain) in Resend and publish
+   the required SPF and DKIM records. Configure DMARC before sending to live
+   customers.
+2. Create a restricted Resend sending key for this project and set
+   `RESEND_API_KEY`. Set the verified sender and reply-to values shown above.
+3. In Resend, create a webhook pointing directly to
+   `https://pixbrik-backoffice.vercel.app/backoffice/api/webhooks/resend`.
+   Subscribe to `email.sent`, `email.delivered`, `email.failed`,
+   `email.bounced`, `email.complained`, `email.suppressed`, and
+   `contact.updated`, then put its `whsec_` signing secret in
+   `RESEND_WEBHOOK_SECRET`. Use the direct admin deployment URL so provider
+   callbacks do not depend on the storefront redirect.
+4. Generate `CRON_SECRET` independently and set it only as a server-side Vercel
+   variable. Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` to
+   `/backoffice/api/cron/email-dispatch`; do not put it in the URL or a public
+   environment variable.
+5. Leave all readiness flags false while configuring. Set
+   `EMAIL_DELIVERY_APPROVED=true` only after the DNS, webhook, and smoke-send
+   checks pass. The portal and checkout-recovery flags are separate capability
+   gates; never use them to bypass an unfinished customer journey.
+6. Apply migration `0009_customer_marketing_operations.sql`, deploy, and open
+   **Backoffice > Marketing**. The runtime checklist must be fully ready before
+   a campaign can be queued or an automation can be enabled.
+
+The committed cron runs once daily at 09:00 UTC so the current Vercel Hobby
+project can deploy it. Hobby timing can drift within that hour, so this cadence
+is suitable only while every lifecycle automation remains disabled. Before
+enabling welcome, transactional or checkout-recovery delivery, upgrade the
+project to Vercel Pro (or install an approved external scheduler), change the
+schedule to at least every 15 minutes, and verify executions and failures in
+the Production function logs.
+
+The seeded templates cover welcome, abandoned checkout, order confirmation,
+payment failure, shipment, delivery review, gift ideas and new builds in all
+five supported languages. They are content snapshots, not arbitrary admin
+HTML. Marketing sends require explicit subscription and include preference-page
+and RFC 8058 one-click unsubscribe links. Hard bounces, complaints and provider
+suppressions are recorded before further marketing delivery.
+
+All automation rules are deliberately seeded **disabled**. Configuration alone
+never starts sending, and activation starts at that moment rather than sweeping
+historical events. Review the localized copy, test each template with
+controlled addresses, confirm webhook delivery and suppression handling, then
+enable only the approved rules in the Marketing screen. Disabling a rule stops
+new messages from being created; inspect the delivery queue separately for
+messages already queued.
+
+Two integrations remain deliberately incomplete and must not be inferred from
+the database schema. The migration exposes an evidence-required,
+service-role-only `record_marketing_subscription` command, but the buyer and
+checkout applications do not yet call it, so there is no live public newsletter
+opt-in flow. The backoffice also has no provider test-send action or rendered
+inbox preview. Keep delivery approval and the affected automation capability
+flags false until those buyer integrations and an end-to-end controlled send
+have been implemented and verified.
 
 The `/backoffice` base path is compiled into the Next.js client bundles. Deploy
 this directory as the admin application on an origin isolated from the buyer

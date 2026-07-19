@@ -4,6 +4,11 @@ The public contact form posts JSON to `POST /api/contact`. The server validates
 the message and sends a branded plain-text and HTML notification to PixBrik
 through Resend. No Resend credential is compiled into the Expo application.
 
+This is the buyer-app contact notification, not the backoffice lifecycle email
+queue. The backoffice has its own database role, signed Resend webhook,
+suppression handling, cron secret and disabled-by-default automations; configure
+those separately using the [admin email runbook](../apps/admin/README.md#resend-lifecycle-email-setup).
+
 ## Vercel environment variables
 
 Add these values to the Vercel **Production** environment:
@@ -17,7 +22,8 @@ PIXBRIK_APP_URL=https://pixbrik.com
 EXPO_PUBLIC_APP_URL=https://pixbrik.com
 ```
 
-`RESEND_API_KEY` is the only secret. It must never use an `EXPO_PUBLIC_` prefix.
+For this contact endpoint, `RESEND_API_KEY` is the only secret in the list
+above. It must never use an `EXPO_PUBLIC_` prefix.
 `EXPO_PUBLIC_APP_URL` is intentionally public and is required by native Expo
 builds so they can call the absolute `https://pixbrik.com/api/contact` URL. A
 native build fails closed if it is missing or invalid; web builds use the

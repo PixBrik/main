@@ -2,7 +2,7 @@
 
 PixBrik uses five independently rotated PostgreSQL credentials:
 
-- `MIGRATION_DATABASE_URL`: a privileged schema owner used only by controlled deployment migrations.
+- `MIGRATION_DATABASE_URL`: a privileged schema owner injected only into a controlled operator process while it applies migrations; it is never an application runtime or build credential.
 - `ADMIN_DATABASE_URL`: the `pixbrik_admin_runtime` login used only by the authenticated desktop admin.
 - `CUSTOMER_DATABASE_URL`: the `pixbrik_customer_runtime` login used only by buyer-facing server handlers.
 - `IDENTITY_DATABASE_URL`: the `pixbrik_identity_runtime` login used only to execute narrow audited identity functions for owner bootstrap, password sessions and staff access management. It has no direct table privileges.
@@ -10,7 +10,10 @@ PixBrik uses five independently rotated PostgreSQL credentials:
 
 All runtime roles must be `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`. Never use the retired `pixbrik_runtime` credential: migration `0005_security_hardening.sql` revokes it completely.
 
-Never reuse the migration credential in Vercel runtime variables. Prefer a provider that supports independently rotated database roles and point-in-time recovery.
+Never store the migration credential in Vercel Project Settings, build
+variables, `.env.local`, Preview or Production runtime variables. Prefer a
+provider that supports independently rotated database roles and point-in-time
+recovery.
 
 ## One-time role provisioning
 
@@ -65,7 +68,7 @@ The built-in password bootstrap accepts only the existing invited staff row for 
 
 Bootstrap and emergency owner recovery must run from a controlled, non-CI shell
 with explicit target and temporary-output confirmations. Recovery uses only the
-deployment-held `MIGRATION_DATABASE_URL`, requires a human-readable reason,
+operator-process `MIGRATION_DATABASE_URL`, requires a human-readable reason,
 revokes all owner sessions, and writes a system/deployment-attributed audit
 event. Neither function is executable by any runtime database role. Never put a
 temporary password in Vercel environment variables, build output, tickets, or
@@ -85,7 +88,7 @@ Migration `0005` therefore blocks new checkout/payment-provider references and a
 ## Operational controls
 
 - Rotate admin, customer, identity, service, and migration credentials independently.
-- Restrict migration execution to the deployment workflow and serialize it with the advisory lock in `scripts/migrate.mjs`.
+- Restrict migration execution to a controlled operator workflow outside Vercel runtime and serialize it with the advisory lock in `scripts/migrate.mjs`.
 - Keep Preview and Production databases, credentials and object stores separate.
 - Export database audit logs to immutable retention storage.
 - Test backups and point-in-time recovery before live checkout.

@@ -30,13 +30,15 @@ test("generic section data uses the isolated admin database context", () => {
   ]) {
     assert.match(data, new RegExp(`pixbrik\\.${table}`));
   }
-  assert.equal((data.match(/settled_capture/g) ?? []).length, 15);
+  assert.match(data, /FROM pixbrik\.payment_transaction settled_capture/);
+  assert.match(data, /settled_capture\.kind = 'capture'/);
+  assert.match(data, /settled_capture\.status = 'succeeded'/);
   assert.doesNotMatch(data, /payment\.kind IN \('payment', 'capture'\)/);
 });
 
 test("specialized CRUD sections cannot fall back to the generic route", () => {
   assert.match(data, /GENERIC_SECTION_KEYS/);
-  for (const section of ["inventory", "models", "discounts", "affiliates"]) {
+  for (const section of ["customers", "inventory", "models", "discounts", "affiliates", "marketing"]) {
     assert.doesNotMatch(
       data.match(/GENERIC_SECTION_KEYS\s*=\s*\[([\s\S]*?)\]/)?.[1] ?? "",
       new RegExp(`"${section}"`)

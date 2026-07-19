@@ -4,7 +4,6 @@ import { withDatabaseRequestContext } from "@/lib/db";
 
 export const GENERIC_SECTION_KEYS = [
   "orders",
-  "customers",
   "builds",
   "markets",
   "analytics",
@@ -147,88 +146,6 @@ export async function getSectionSnapshot(
         })),
         emptyTitle: "No orders yet",
         emptyDescription: "Checkout drafts and placed orders will appear here with their customer, price, production status and fulfilment history."
-      };
-    }
-
-    if (section === "customers") {
-      const [summary] = await sql<{
-        total: string;
-        active: string;
-        ordered: string;
-        new_30_days: string;
-      }[]>`
-        SELECT
-          count(*)::text AS total,
-          count(*) FILTER (WHERE status = 'active')::text AS active,
-          count(*) FILTER (WHERE EXISTS (
-            SELECT 1
-            FROM pixbrik.commerce_order orders
-            WHERE orders.customer_user_id = app_user.id AND orders.placed_at IS NOT NULL
-          ))::text AS ordered,
-          count(*) FILTER (WHERE created_at >= now() - interval '30 days')::text AS new_30_days
-        FROM pixbrik.app_user
-        WHERE kind = 'customer'
-      `;
-      const rows = await sql<{
-        id: string;
-        email: string;
-        display_name: string | null;
-        status: string;
-        orders: string;
-        lifetime_value_minor: string;
-        created_at: Date | string;
-      }[]>`
-        SELECT users.id::text, users.email, users.display_name, users.status::text,
-          count(orders.id) FILTER (WHERE orders.placed_at IS NOT NULL)::text AS orders,
-          (
-            SELECT coalesce(sum(
-              CASE
-                WHEN payment.status = 'succeeded' AND (
-                  payment.kind = 'capture'
-                  OR (payment.kind = 'payment' AND NOT EXISTS (
-                    SELECT 1
-                    FROM pixbrik.payment_transaction settled_capture
-                    WHERE settled_capture.provider = payment.provider
-                      AND settled_capture.provider_payment_id = payment.provider_payment_id
-                      AND settled_capture.kind = 'capture'
-                      AND settled_capture.status = 'succeeded'
-                  ))
-                )
-                  THEN payment.amount_eur_minor
-                WHEN payment.status = 'succeeded' AND payment.kind IN ('refund', 'credit', 'chargeback')
-                  THEN -payment.amount_eur_minor
-                ELSE 0
-              END
-            ), 0)::text
-            FROM pixbrik.payment_transaction payment
-            JOIN pixbrik.commerce_order paid_order ON paid_order.id = payment.order_id
-            WHERE paid_order.customer_user_id = users.id
-          ) AS lifetime_value_minor,
-          users.created_at
-        FROM pixbrik.app_user users
-        LEFT JOIN pixbrik.commerce_order orders ON orders.customer_user_id = users.id
-        WHERE users.kind = 'customer'
-        GROUP BY users.id
-        ORDER BY users.created_at DESC
-        LIMIT 50
-      `;
-      return {
-        eyebrow: "Customers / Live records",
-        title: "Customers",
-        description: "Find customer accounts, order activity and lifetime value without exposing private payment data.",
-        metrics: [
-          { label: "Customers", value: integer(summary?.total), detail: "registered accounts" },
-          { label: "Active", value: integer(summary?.active), detail: "accounts with access" },
-          { label: "With orders", value: integer(summary?.ordered), detail: "customers with a placed order" },
-          { label: "New (30d)", value: integer(summary?.new_30_days), detail: "recent registrations" }
-        ],
-        columns: ["Customer", "Status", "Orders", "Net value", "Joined"],
-        rows: rows.map((row) => ({
-          id: row.id,
-          values: [row.display_name ? `${row.display_name} · ${row.email}` : row.email, row.status, integer(row.orders), money(row.lifetime_value_minor), date(row.created_at)]
-        })),
-        emptyTitle: "No customer accounts yet",
-        emptyDescription: "Customers will appear after they create an account or begin a server-backed checkout."
       };
     }
 

@@ -35,6 +35,7 @@ export const ADMIN_SECTIONS = [
   { key: "markets", label: "Markets & shipping", description: "Locales, currencies, zones, rates and origins" },
   { key: "discounts", label: "Discounts", description: "Coupons, recovery campaigns and usage" },
   { key: "affiliates", label: "Affiliates", description: "Attribution, commissions and payout holds" },
+  { key: "marketing", label: "Marketing", description: "Templates, newsletters, automations and delivery" },
   { key: "analytics", label: "Analytics", description: "Funnels, orders, AOV, margin and operations" },
   { key: "settings", label: "Settings", description: "Staff, permissions, integrations and audit" }
 ] as const;

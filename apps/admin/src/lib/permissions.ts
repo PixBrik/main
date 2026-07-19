@@ -16,6 +16,9 @@ export const PERMISSIONS = [
   "discounts.manage",
   "affiliates.read",
   "affiliates.manage",
+  "marketing.read",
+  "marketing.manage",
+  "marketing.send",
   "analytics.read",
   "exports.create",
   "settings.read",
@@ -35,6 +38,7 @@ export const SECTION_PERMISSION = {
   markets: "markets.read",
   discounts: "discounts.read",
   affiliates: "affiliates.read",
+  marketing: "marketing.read",
   analytics: "analytics.read",
   settings: "settings.read"
 } satisfies Record<string, Permission>;

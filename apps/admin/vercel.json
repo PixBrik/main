@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/backoffice/api/cron/email-dispatch",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

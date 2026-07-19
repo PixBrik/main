@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { signOutPasswordAction } from "@/app/auth-actions";
 import { BricklingAvatar } from "@/components/brickling-avatar";
+import { AdminNavigation, type AdminNavigationItem } from "@/components/admin-navigation";
 import { hasPermission, type Principal } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/lib/launch-config";
 import { SECTION_PERMISSION } from "@/lib/permissions";
@@ -14,6 +15,15 @@ type AdminShellProps = {
 };
 
 export function AdminShell({ principal, children }: AdminShellProps) {
+  const navigation: AdminNavigationItem[] = [
+    { href: APP_ROUTES.dashboard, label: "Launch control" },
+    ...ADMIN_SECTIONS.flatMap((section) => hasPermission(principal, SECTION_PERMISSION[section.key])
+      ? [{ href: adminSectionRoute(section.key), label: section.label }]
+      : []),
+    ...(principal.provider === "password" && hasPermission(principal, "staff.manage")
+      ? [{ href: APP_ROUTES.users, label: "Manage users" }]
+      : [])
+  ];
   return (
     <div className="admin-frame">
       <aside className="sidebar">
@@ -22,24 +32,7 @@ export function AdminShell({ principal, children }: AdminShellProps) {
           <small>OPERATIONS</small>
         </Link>
 
-        <nav className="nav-stack" aria-label="Administration">
-          <Link className="nav-link" href={APP_ROUTES.dashboard}>
-            <span className="nav-dot" />
-            Launch control
-          </Link>
-          {ADMIN_SECTIONS.map((section) => hasPermission(principal, SECTION_PERMISSION[section.key]) ? (
-            <Link className="nav-link" href={adminSectionRoute(section.key)} key={section.key}>
-              <span className="nav-dot" />
-              {section.label}
-            </Link>
-          ) : null)}
-          {principal.provider === "password" && hasPermission(principal, "staff.manage") ? (
-            <Link className="nav-link" href={APP_ROUTES.users}>
-              <span className="nav-dot" />
-              Manage users
-            </Link>
-          ) : null}
-        </nav>
+        <AdminNavigation items={navigation} />
 
         <div className="sidebar-footer">
           <BricklingAvatar
@@ -61,9 +54,9 @@ export function AdminShell({ principal, children }: AdminShellProps) {
             <strong>Commerce, builds and fulfilment</strong>
           </div>
           <div className="topbar-actions">
-            <Link className="quiet-button" href={APP_ROUTES.portal}>
-              Customer portal
-            </Link>
+            <a className="quiet-button" href="https://www.pixbrik.com">
+              Storefront
+            </a>
             {principal.provider === "password" ? (
               <Link className="quiet-button" href={APP_ROUTES.changePassword}>
                 Password

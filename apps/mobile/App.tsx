@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -37,9 +37,22 @@ import { loadModel, saveBuild, updateBuild } from './src/lib/buildGallery';
 import { accentForVariant, profileForVariant, resolveActiveModel } from './src/lib/activeBuild';
 import { clear360Capture, clear360ProviderRuns } from './src/lib/capture360Store';
 import { clearLastCapture } from './src/lib/captureStore';
+import {
+  CHECKOUT_DRAFT_PATH,
+  checkoutDraftIdFromLocation,
+  checkoutDraftPath,
+  loadCheckoutDraft,
+  type CheckoutDraftSnapshot,
+} from './src/lib/checkoutDraftStore';
 import { NavigationContext } from './src/lib/navigationContext';
 import { PixBrikAuthProvider } from './src/lib/pixbrikAuth';
 import { LEGAL_CONTENT_AVAILABLE } from './src/lib/legalAvailability';
+import {
+  STOREFRONT_DEEP_LINK_SCREENS,
+  storefrontPathForScreen,
+  storefrontPathMatchesScreen,
+  storefrontScreenFromPathname,
+} from './src/lib/storefrontRoutes';
 import { loadOrderModel, type OrderRecord } from './src/lib/orderStore';
 import {
   loadGuideModel,
@@ -73,6 +86,8 @@ const PUBLIC_INFORMATION_SCREENS = new Set<DemoScreen>([
 const ADDRESSABLE_SCREENS = new Set<DemoScreen>([
   ...PUBLIC_INFORMATION_SCREENS,
   'account',
+  'checkout',
+  ...STOREFRONT_DEEP_LINK_SCREENS,
 ]);
 const DEMO_SCREENS = new Set<DemoScreen>([
   'home', 'account', 'legal', 'terms', 'privacy', 'contact', 'mode', 'capture',
@@ -108,17 +123,46 @@ function accountScreenFromLocation(): DemoScreen | null {
   return /^\/account(?:\/|$)/.test(window.location.pathname) ? 'account' : null;
 }
 
+function storefrontScreenFromLocation(): DemoScreen | null {
+  if (typeof window === 'undefined') return null;
+  return storefrontScreenFromPathname(window.location.pathname);
+}
+
+function checkoutDraftFromLocation(): CheckoutDraftSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  const id = checkoutDraftIdFromLocation(window.location);
+  return id ? loadCheckoutDraft(id) : null;
+}
+
+function photoBuildFromCheckoutDraft(draft: CheckoutDraftSnapshot): PhotoModels {
+  const model = loadOrderModel(draft.model);
+  const profile = profileForVariant(draft.build.selectedVariant);
+  return {
+    availableProfiles: [profile],
+    hasDepth: draft.build.hasDepth,
+    label: draft.build.name,
+    mode: draft.build.mode,
+    models: { balanced: model, detailed: model, efficient: model },
+    style: draft.build.style,
+  };
+}
+
 function locationForScreen(screen: DemoScreen): string {
   if (typeof window === 'undefined') return '/';
   const search = window.location.search;
+  const storefrontPath = storefrontPathForScreen(screen);
+  if (storefrontPath) return `${storefrontPath}${search}`;
   if (screen === 'account') return `/account${search}`;
+  if (screen === 'checkout') return CHECKOUT_DRAFT_PATH;
   if (PUBLIC_INFORMATION_SCREENS.has(screen)) return `/${screen}${search}`;
   return `/${search}`;
 }
 
 function locationMatchesScreen(screen: DemoScreen): boolean {
   if (typeof window === 'undefined') return false;
+  if (storefrontPathMatchesScreen(screen, window.location.pathname)) return true;
   if (screen === 'account') return /^\/account(?:\/|$)/.test(window.location.pathname);
+  if (screen === 'checkout') return /^\/checkout\/?$/.test(window.location.pathname);
   if (!PUBLIC_INFORMATION_SCREENS.has(screen)) return false;
   return (
     window.location.pathname.replace(/^\/+|\/+$/g, '') === screen ||
@@ -146,6 +190,9 @@ function initialScreen(): DemoScreen {
   if (typeof window !== 'undefined' && readGuideShareId(window.location.href)) {
     return 'instructions';
   }
+  if (checkoutDraftFromLocation()) return 'checkout';
+  const storefrontScreen = storefrontScreenFromLocation();
+  if (storefrontScreen) return storefrontScreen;
   const accountScreen = accountScreenFromLocation();
   if (accountScreen) return accountScreen;
   const legalScreen = legalScreenFromLocation();
@@ -205,28 +252,60 @@ function PixBrikApp() {
     ArchivoBlack_400Regular,
   });
   const [screen, setScreen] = useState<DemoScreen>(initialScreen);
+  const [restoredCheckout] = useState(() => {
+    const draft = checkoutDraftFromLocation();
+    return { draft, photoBuild: draft ? photoBuildFromCheckoutDraft(draft) : null };
+  });
   const [history, setHistory] = useState<DemoScreen[]>([]);
   const screenRef = useRef(screen);
   const navigationLockedRef = useRef(false);
   screenRef.current = screen;
   const [legalLocale, setLegalLocale] = useState<LegalLocale>(initialLegalLocale);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
-  const [captureTarget, setCaptureTarget] = useState<BuildProduct>('panel');
-  const [captureSubjectKind, setCaptureSubjectKind] = useState<SculptureSubjectKind | null>(null);
-  const [guidedCaptureSubject, setGuidedCaptureSubject] = useState<SculptureSubjectKind>('object');
+  const [captureTarget, setCaptureTarget] = useState<BuildProduct>(
+    restoredCheckout.draft?.build.product ?? 'panel',
+  );
+  const [captureSubjectKind, setCaptureSubjectKind] = useState<SculptureSubjectKind | null>(
+    restoredCheckout.draft?.build.product === 'sculpture'
+      ? restoredCheckout.draft.build.source3DSubject
+      : null,
+  );
+  const [guidedCaptureSubject, setGuidedCaptureSubject] = useState<SculptureSubjectKind>(
+    restoredCheckout.draft?.build.source3DSubject ?? 'object',
+  );
   const [capture360ReturnsToSubjectChoice, setCapture360ReturnsToSubjectChoice] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoBuild, setPhotoBuild] = useState<PhotoModels | null>(null);
-  const [panelBuild, setPanelBuild] = useState<PhotoModels | null>(null);
-  const [sculptureBuild, setSculptureBuild] = useState<PhotoModels | null>(null);
+  const [photoBuild, setPhotoBuild] = useState<PhotoModels | null>(restoredCheckout.photoBuild);
+  const [panelBuild, setPanelBuild] = useState<PhotoModels | null>(
+    restoredCheckout.draft?.build.product === 'panel' ? restoredCheckout.photoBuild : null,
+  );
+  const [sculptureBuild, setSculptureBuild] = useState<PhotoModels | null>(
+    restoredCheckout.draft?.build.product === 'sculpture' ? restoredCheckout.photoBuild : null,
+  );
   // Keep the untouched natural conversion as the source of truth. Palette
   // previews clone colours only, so toggling can never re-voxelize or deform it.
-  const [naturalSculptureBuild, setNaturalSculptureBuild] = useState<PhotoModels | null>(null);
-  const [sculpturePalette, setSculpturePalette] = useState<MeshBrickColorStyle>('natural');
-  const [approved3D, setApproved3D] = useState<Approved3DRecord | null>(null);
+  const [naturalSculptureBuild, setNaturalSculptureBuild] = useState<PhotoModels | null>(
+    restoredCheckout.draft?.build.product === 'sculpture' ? restoredCheckout.photoBuild : null,
+  );
+  const [sculpturePalette, setSculpturePalette] = useState<MeshBrickColorStyle>(
+    restoredCheckout.draft?.build.paletteMode === 'black-white' ? 'bw' : 'natural',
+  );
+  const [approved3D, setApproved3D] = useState<Approved3DRecord | null>(() => {
+    const draft = restoredCheckout.draft;
+    if (draft?.build.product !== 'sculpture' || !draft.build.source3DMeshUrl) return null;
+    return {
+      capture: 'saved',
+      meshUrl: draft.build.source3DMeshUrl,
+      retakesRemaining: draft.build.source3DRetakesRemaining,
+      stills: [],
+      subject: draft.build.source3DSubject,
+    };
+  });
   const [true3DProviderRuns, setTrue3DProviderRuns] = useState(0);
   const [captureProviderRunsStart, setCaptureProviderRunsStart] = useState(0);
-  const [buildProduct, setBuildProduct] = useState<BuildProduct>('panel');
+  const [buildProduct, setBuildProduct] = useState<BuildProduct>(
+    restoredCheckout.draft?.build.product ?? 'panel',
+  );
   const [photoSegmentation, setPhotoSegmentation] = useState<Segmentation | null>(null);
   const humanSubjectRequiresGuided3D = requiresGuidedMultiview(photoSegmentation);
   const [rightsConfirmedUri, setRightsConfirmedUri] = useState<string | null>(null);
@@ -236,19 +315,41 @@ function PixBrikApp() {
   // fixed footer stuck on "Add a photo first" over the real next action.
   const captured = photoUri !== null || photoBuild !== null || sampleUsed;
   const [size, setSize] = useState<TargetSize>('shelf');
-  const [selectedVariant, setSelectedVariant] = useState('balanced');
-  const [activeSavedBuildId, setActiveSavedBuildId] = useState<string | null>(null);
-  const [buildName, setBuildName] = useState('PixBrik build');
-  const savedBuildIdentitiesRef = useRef<Partial<Record<BuildProduct, SavedBuildIdentity>>>({});
-  const [countryCode, setCountryCode] = useState('FR');
+  const [selectedVariant, setSelectedVariant] = useState(
+    restoredCheckout.draft?.build.selectedVariant ?? 'balanced',
+  );
+  const [activeSavedBuildId, setActiveSavedBuildId] = useState<string | null>(
+    restoredCheckout.draft?.build.buildId ?? null,
+  );
+  const [buildName, setBuildName] = useState(
+    restoredCheckout.draft?.build.name ?? 'PixBrik build',
+  );
+  const savedBuildIdentitiesRef = useRef<Partial<Record<BuildProduct, SavedBuildIdentity>>>(
+    restoredCheckout.draft
+      ? {
+          [restoredCheckout.draft.build.product]: {
+            id: restoredCheckout.draft.build.buildId,
+            name: restoredCheckout.draft.build.name,
+          },
+        }
+      : {},
+  );
+  const [countryCode, setCountryCode] = useState(
+    restoredCheckout.draft?.delivery.countryCode ?? 'FR',
+  );
+  const [checkoutDraftId, setCheckoutDraftId] = useState(restoredCheckout.draft?.id ?? null);
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   const [sharedGuideId, setSharedGuideId] = useState<string | null>(initialGuideId);
   const [sharedGuide, setSharedGuide] = useState<PublishedGuideSnapshot | null>(null);
   const [sharedGuideError, setSharedGuideError] = useState('');
   // Hollow is the standard kit: identical from the outside, a fraction of
   // the parts and price. Solid is the collector upsell, not the default.
-  const [buildFill, setBuildFill] = useState<BuildFill>('hollow');
-  const [true3DState, setTrue3DState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
+  const [buildFill, setBuildFill] = useState<BuildFill>(
+    restoredCheckout.draft?.build.fill ?? 'hollow',
+  );
+  const [true3DState, setTrue3DState] = useState<'idle' | 'working' | 'done' | 'failed'>(
+    restoredCheckout.draft?.build.product === 'sculpture' ? 'done' : 'idle',
+  );
   const [true3DNote, setTrue3DNote] = useState('');
   const [true3DError, setTrue3DError] = useState('');
   // Approve-first flow: the generated 3D model waits here (with its raw
@@ -357,7 +458,11 @@ function PixBrikApp() {
       let destination =
         isDemoScreen(stateScreen)
           ? stateScreen
-          : accountScreenFromLocation() ?? legalScreenFromLocation() ?? 'home';
+          : storefrontScreenFromLocation() ??
+            (checkoutDraftFromLocation() ? 'checkout' : null) ??
+            accountScreenFromLocation() ??
+            legalScreenFromLocation() ??
+            'home';
       if (destination === 'instructions' && !instructionsAvailableRef.current) {
         destination = 'home';
         window.history.replaceState(
@@ -842,6 +947,7 @@ function PixBrikApp() {
     setTrue3DState('idle');
     setTrue3DNote('');
     setTrue3DError('');
+    setCheckoutDraftId(null);
     setSelectedOrder(null);
     setSharedGuideId(null);
     setSharedGuide(null);
@@ -872,6 +978,19 @@ function PixBrikApp() {
       );
     }
   };
+
+  const handleCheckoutDraftSaved = useCallback((draft: CheckoutDraftSnapshot) => {
+    setCheckoutDraftId(draft.id);
+    if (typeof window === 'undefined') return;
+    const path = checkoutDraftPath(draft.id);
+    if (!path || window.location.pathname !== CHECKOUT_DRAFT_PATH) return;
+    if (`${window.location.pathname}${window.location.search}` === path) return;
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), pixbrikScreen: 'checkout' },
+      '',
+      path,
+    );
+  }, []);
 
   const renderScreen = () => {
     const activeBuild = buildProduct === 'panel' ? panelBuild : sculptureBuild;
@@ -1343,12 +1462,14 @@ function PixBrikApp() {
             buildName={buildName}
             buildProduct={buildProduct}
             countryCode={countryCode}
+            checkoutDraftId={checkoutDraftId}
             onBack={goBack}
             onDone={restart}
             onOrderPlaced={(order) => {
               setSelectedOrder(order);
               navigate('account');
             }}
+            onCheckoutDraftSaved={handleCheckoutDraftSaved}
             paletteMode={
               buildProduct === 'sculpture' && sculpturePalette === 'bw'
                 ? 'black-white'
@@ -1358,6 +1479,7 @@ function PixBrikApp() {
             selectedVariant={selectedVariant}
             source3DMeshUrl={approved3D?.meshUrl ?? null}
             source3DRetakesRemaining={approved3D?.retakesRemaining ?? 0}
+            source3DSubject={approved3D?.subject ?? 'object'}
           />
         );
       case 'instructions':

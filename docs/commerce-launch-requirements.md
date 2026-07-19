@@ -126,11 +126,31 @@ delivery, remedy updates, and consented checkout recovery. Each send uses a
 deterministic idempotency key and records Resend delivery/bounce/complaint/
 suppression events.
 
+The first operations release seeds localized, branded templates for welcome,
+abandoned checkout, order confirmation, payment failure, shipment, delivery
+review, gift ideas and new builds. The other required message families above
+remain launch work until their triggering domain events and approved copy are
+implemented. The lifecycle rules are installed disabled: a staff member with
+`marketing.send` permission must review the runtime checklist and deliberately
+enable each approved rule. No subscription is inferred from an account, order
+or checkout; newsletter sends require an active recorded marketing consent.
+
+Resend posts signed provider events directly to
+`https://pixbrik-backoffice.vercel.app/backoffice/api/webhooks/resend`. The
+application verifies the raw payload signature before changing delivery state,
+records hard bounces/complaints/provider suppressions, and honours both a
+preference page and RFC 8058 one-click unsubscribe. The scheduled delivery
+worker is protected by an independently generated `CRON_SECRET` and currently
+runs daily at 09:00 UTC so the Hobby deployment remains valid. Keep lifecycle
+automations disabled at that cadence. Upgrade to Vercel Pro or install an
+approved external scheduler, then change it to at least every 15 minutes before
+enabling transactional or checkout-recovery delivery.
+
 The public contact form sends to `hello@pixbrik.com`, validates and limits input,
 uses a honeypot and provider-independent rate-limit hook, and never exposes the
 Resend key. Replies use the verified customer address as `Reply-To`, not `From`.
 
-## Vercel environment variables
+## Vercel runtime environment variables
 
 Values must be entered in Vercel, never pasted into chat or committed.
 
@@ -138,11 +158,20 @@ Values must be entered in Vercel, never pasted into chat or committed.
 | --- | --- | --- |
 | `ADMIN_DATABASE_URL` | PostgreSQL URL for `pixbrik_admin_runtime` | server only |
 | `CUSTOMER_DATABASE_URL` | PostgreSQL URL for `pixbrik_customer_runtime` | server only |
+| `IDENTITY_DATABASE_URL` | PostgreSQL URL for `pixbrik_identity_runtime` | server only |
 | `SERVICE_DATABASE_URL` | PostgreSQL URL for `pixbrik_service_runtime` | server only |
-| `MIGRATION_DATABASE_URL` | Direct PostgreSQL URL for `pixbrik_migrator`; deployment only | server only |
+| `APP_URL` | `https://pixbrik-backoffice.vercel.app/backoffice` | server only |
+| `CUSTOMER_APP_URL` | `https://www.pixbrik.com`; trusted origin for customer email CTAs | server only |
+| `PUBLIC_EMAIL_APP_URL` | `https://www.pixbrik.com/backoffice`; public unsubscribe base | server only |
 | `RESEND_API_KEY` | Resend API key beginning `re_` | server only |
 | `RESEND_WEBHOOK_SECRET` | Signing secret created for the Resend webhook | server only |
 | `RESEND_FROM_EMAIL` | `PixBrik <hello@pixbrik.com>` after domain verification | server only |
+| `RESEND_REPLY_TO_EMAIL` | `hello@pixbrik.com` | server only |
+| `CRON_SECRET` | Independently generated value with at least 32 random bytes | server only |
+| `EMAIL_DELIVERY_APPROVED` | `true` only after DNS, signed-webhook and production smoke-send verification | server only |
+| `CUSTOMER_PORTAL_EMAIL_LINKS_READY` | `true` only after customer order/payment links pass an end-to-end test | server only |
+| `CHECKOUT_RECOVERY_EMAIL_READY` | `true` only after persisted carts and exact resume links pass an end-to-end test | server only |
+| `CUSTOMER_APP_EMAIL_LINKS_READY` | `true` only after create/contact email deep links work in a fresh browser | server only |
 | `CONTACT_RECIPIENT_EMAIL` | `hello@pixbrik.com` | server only |
 | `CONTACT_ALLOWED_ORIGINS` | `https://pixbrik.com,https://www.pixbrik.com` | server only |
 | `PIXBRIK_APP_URL` | `https://pixbrik.com` | server only |
@@ -152,6 +181,14 @@ Values must be entered in Vercel, never pasted into chat or committed.
 | `EXPO_PUBLIC_APP_URL` | `https://pixbrik.com`; canonical API origin for native builds | public |
 | `EXPO_PUBLIC_DEPLOYMENT_ENV` | `production` in Production; `preview` only in isolated Preview builds | public |
 | `EXPO_PUBLIC_LEGAL_DRAFTS_ENABLED` | `0` in Production; Preview-only review gate | public |
+
+`MIGRATION_DATABASE_URL` is not a Vercel runtime variable. It is the privileged
+direct, non-pooler URL for `pixbrik_migrator` and belongs only in the controlled
+operator process while `npm run db:migrate` is running from `apps/admin`.
+Remove it from the process immediately afterward. Never save it in `.env.local`
+or add it to Vercel Project Settings, Preview, Production, a build command or
+an application function. Runtime and webhook code must use only their dedicated
+least-privilege database roles.
 
 Stripe's documented card numbers are test payment inputs, not a substitute for
 PixBrik's own sandbox API keys. QA may use Stripe's documented `4242 4242 4242

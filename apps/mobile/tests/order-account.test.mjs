@@ -40,8 +40,10 @@ test('build naming follows the exact active gallery record into checkout without
     source('src/screens/CheckoutScreen.tsx'),
   ]);
 
-  assert.match(app, /const \[activeSavedBuildId, setActiveSavedBuildId\] = useState<string \| null>\(null\)/);
-  assert.match(app, /const \[buildName, setBuildName\] = useState\('PixBrik build'\)/);
+  assert.match(app, /const \[activeSavedBuildId, setActiveSavedBuildId\] = useState<string \| null>\(/);
+  assert.match(app, /restoredCheckout\.draft\?\.build\.buildId \?\? null/);
+  assert.match(app, /const \[buildName, setBuildName\] = useState\(/);
+  assert.match(app, /restoredCheckout\.draft\?\.build\.name \?\? 'PixBrik build'/);
   assert.match(app, /activateSavedBuild\('panel', \{ id: saved\?\.id \?\? null, name: savedName \}\)/);
   assert.match(app, /activateSavedBuild\('sculpture', \{ id: saved\?\.id \?\? null, name: savedName \}\)/);
   assert.match(app, /activeSavedBuildId=\{activeSavedBuildId\}/);
