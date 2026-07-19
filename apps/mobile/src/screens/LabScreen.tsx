@@ -18,6 +18,11 @@ import {
   type FeedbackEntry,
 } from '../lib/feedbackStore';
 import type { LibraryCategory } from '../data/carLibrary';
+import {
+  FREE_CATALOG_CATEGORIES,
+  FREE_MODEL_CATALOG,
+  type FreeModelEntry,
+} from '../data/freeModelCatalog';
 import type { ObjectCategory } from '../lib/photoEngine/classify';
 import {
   buildFromMeshUrlOne,
@@ -497,6 +502,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
   const [catalogLine, setCatalogLine] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState<LibraryCategory>('animal');
+  const [catalogFilter, setCatalogFilter] = useState<LibraryCategory | 'all'>('all');
 
   const convert = async (mesh: PublishSource & { meshUrl: string }) => {
     setState('converting');
@@ -568,6 +574,23 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
     }
   };
 
+  /** Import a curated CC0 master: free preview; publishing stays gated. */
+  const importFromCatalog = async (entry: FreeModelEntry) => {
+    if (state === 'generating' || state === 'converting') return;
+    setError(null);
+    setBrick(null);
+    setKit(null);
+    setPreviewDataUrl(null);
+    setName(entry.name);
+    setCategory(entry.category);
+    try {
+      await convert({ meshUrl: entry.sourceUrl, sourceUrl: entry.sourceUrl });
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'import failed');
+      setState('failed');
+    }
+  };
+
   const publish = async () => {
     if (!source || !kit || !studioSession || !name.trim() || state === 'publishing') return;
     setState('publishing');
@@ -589,58 +612,99 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
 
   const busy = state === 'generating' || state === 'converting' || state === 'publishing';
 
-  if (!studioSession) {
-    return (
-      <View style={styles.coach}>
-        <Text style={styles.coachTitle}>LIBRARY STUDIO</Text>
-        <Text style={styles.coachIntro}>
-          Publishing and paid generation are locked. Open Model Library in the authenticated
-          backoffice, then choose OPEN SECURE LIBRARY STUDIO.
-        </Text>
-      </View>
-    );
-  }
+  const filteredCatalog =
+    catalogFilter === 'all'
+      ? FREE_MODEL_CATALOG
+      : FREE_MODEL_CATALOG.filter((entry) => entry.category === catalogFilter);
 
   return (
     <View style={styles.coach}>
       <Text style={styles.coachTitle}>LIBRARY STUDIO</Text>
       <Text style={styles.coachIntro}>
-        Build REALISTIC library masters: describe the subject, Meshy-6 sculpts a real 3D model
-        (two paid stages on your credits), you inspect the raw mesh and the brick kit, then
-        publish. Published items appear in the buyer library with all three sizes and colour
-        options. Keep car prompts generic — no brands or trade dress.
+        {studioSession
+          ? 'Build REALISTIC library masters: import a free CC0 model or describe a subject for ' +
+            'Meshy-6 (two paid stages on your credits), inspect the raw mesh and the brick kit, ' +
+            'then publish. Published items appear in the buyer library with all three sizes and ' +
+            'colour options. Keep car prompts generic — no brands or trade dress.'
+          : 'Browse the free catalogue and preview any model in bricks below. Publishing and ' +
+            'paid generation are locked — open Model Library in the authenticated backoffice, ' +
+            'then choose OPEN SECURE LIBRARY STUDIO.'}
       </Text>
 
-      <Text style={styles.coachLabel}>DESCRIBE THE SUBJECT</Text>
-      <TextInput
-        accessibilityLabel="Library subject prompt"
-        multiline
-        onChangeText={setPrompt}
-        placeholder="e.g. ultra realistic golden retriever sitting, studio product photo, neutral pose"
-        placeholderTextColor={inkAlpha(0.45)}
-        style={[styles.coachInput, styles.coachTextarea]}
-        value={prompt}
-      />
-      <View style={styles.coachRow}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy || !prompt.trim() || !isLive3DConfigured()}
-          onPress={generate}
-          style={({ pressed }) => [styles.coachSubmit, styles.studioGrow, (busy || !prompt.trim()) && styles.coachDisabled, pressed && styles.pressed]}
-        >
-          <Text style={styles.coachSubmitText}>
-            {state === 'generating' ? 'GENERATING…' : 'GENERATE MASTER (PAID)'}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={useSample}
-          style={({ pressed }) => [styles.coachChip, busy && styles.coachDisabled, pressed && styles.pressed]}
-        >
-          <Text style={styles.coachChipText}>FREE SAMPLE TEST</Text>
-        </Pressable>
+      {/* ——— Free CC0 import catalogue: browsing and previews cost nothing ——— */}
+      <Text style={styles.coachLabel}>FREE CATALOGUE — CC0 · COMMERCIAL-SAFE · NO ATTRIBUTION</Text>
+      <View style={styles.coachRowWrap}>
+        {(['all', ...FREE_CATALOG_CATEGORIES] as const).map((option) => (
+          <Pressable
+            accessibilityRole="button"
+            key={option}
+            onPress={() => setCatalogFilter(option)}
+            style={({ pressed }) => [styles.coachChip, catalogFilter === option && styles.studioChipActive, pressed && styles.pressed]}
+          >
+            <Text style={[styles.coachChipText, catalogFilter === option && styles.studioChipTextActive]}>
+              {option.toUpperCase()}
+            </Text>
+          </Pressable>
+        ))}
       </View>
+      {filteredCatalog.map((entry) => (
+        <View key={entry.id} style={styles.freeRow}>
+          <View style={styles.freeCopy}>
+            <Text style={styles.freeName}>
+              {entry.name} <Text style={styles.freeMeta}>· {entry.category.toUpperCase()} · {Math.round(entry.sizeKb / 1024)} MB</Text>
+            </Text>
+            <Text style={styles.freeDescription}>{entry.description}</Text>
+          </View>
+          <Pressable
+            accessibilityLabel={`Import and preview ${entry.name}`}
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => importFromCatalog(entry)}
+            style={({ pressed }) => [styles.coachChip, busy && styles.coachDisabled, pressed && styles.pressed]}
+          >
+            <Text style={styles.coachChipText}>IMPORT</Text>
+          </Pressable>
+        </View>
+      ))}
+      <Text style={styles.freeFootnote}>
+        Curated from the Khronos glTF sample library — CC0 only, third-party marks excluded.
+        Realistic animals and cars are scarce under CC0; generate those with Meshy below.
+      </Text>
+
+      {studioSession ? (
+        <>
+          <Text style={styles.coachLabel}>DESCRIBE THE SUBJECT</Text>
+          <TextInput
+            accessibilityLabel="Library subject prompt"
+            multiline
+            onChangeText={setPrompt}
+            placeholder="e.g. ultra realistic golden retriever sitting, studio product photo, neutral pose"
+            placeholderTextColor={inkAlpha(0.45)}
+            style={[styles.coachInput, styles.coachTextarea]}
+            value={prompt}
+          />
+          <View style={styles.coachRow}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy || !prompt.trim() || !isLive3DConfigured()}
+              onPress={generate}
+              style={({ pressed }) => [styles.coachSubmit, styles.studioGrow, (busy || !prompt.trim()) && styles.coachDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.coachSubmitText}>
+                {state === 'generating' ? 'GENERATING…' : 'GENERATE MASTER (PAID)'}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={useSample}
+              style={({ pressed }) => [styles.coachChip, busy && styles.coachDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.coachChipText}>FREE SAMPLE TEST</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
 
       {busy ? (
         <View style={styles.running}>
@@ -665,41 +729,50 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
             </>
           ) : null}
 
-          <Text style={styles.coachLabel}>NAME &amp; CATEGORY</Text>
-          <TextInput
-            accessibilityLabel="Library entry name"
-            onChangeText={setName}
-            placeholder="e.g. Golden Retriever"
-            placeholderTextColor={inkAlpha(0.45)}
-            style={styles.coachInput}
-            value={name}
-          />
-          <View style={styles.coachRowWrap}>
-            {STUDIO_CATEGORIES.map((option) => (
-              <Pressable
-                accessibilityRole="button"
-                key={option}
-                onPress={() => setCategory(option)}
-                style={({ pressed }) => [styles.coachChip, category === option && styles.studioChipActive, pressed && styles.pressed]}
-              >
-                <Text style={[styles.coachChipText, category === option && styles.studioChipTextActive]}>
-                  {option.toUpperCase()}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {state !== 'published' ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={!name.trim() || !kit || state === 'publishing'}
-              onPress={publish}
-              style={({ pressed }) => [styles.coachSubmit, (!name.trim() || !kit || state === 'publishing') && styles.coachDisabled, pressed && styles.pressed]}
-            >
-              <Text style={styles.coachSubmitText}>
-                {state === 'publishing' ? 'PUBLISHING…' : 'PUBLISH TO LIBRARY'}
-              </Text>
-            </Pressable>
-          ) : null}
+          {studioSession ? (
+            <>
+              <Text style={styles.coachLabel}>NAME &amp; CATEGORY</Text>
+              <TextInput
+                accessibilityLabel="Library entry name"
+                onChangeText={setName}
+                placeholder="e.g. Golden Retriever"
+                placeholderTextColor={inkAlpha(0.45)}
+                style={styles.coachInput}
+                value={name}
+              />
+              <View style={styles.coachRowWrap}>
+                {STUDIO_CATEGORIES.map((option) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={option}
+                    onPress={() => setCategory(option)}
+                    style={({ pressed }) => [styles.coachChip, category === option && styles.studioChipActive, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.coachChipText, category === option && styles.studioChipTextActive]}>
+                      {option.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {state !== 'published' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!name.trim() || !kit || state === 'publishing'}
+                  onPress={publish}
+                  style={({ pressed }) => [styles.coachSubmit, (!name.trim() || !kit || state === 'publishing') && styles.coachDisabled, pressed && styles.pressed]}
+                >
+                  <Text style={styles.coachSubmitText}>
+                    {state === 'publishing' ? 'PUBLISHING…' : 'PUBLISH TO LIBRARY'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
+          ) : (
+            <Text style={styles.freeFootnote}>
+              Like it? To publish it to the buyer library, open the studio from the
+              authenticated backoffice (Model Library → OPEN SECURE LIBRARY STUDIO).
+            </Text>
+          )}
         </>
       ) : null}
 
@@ -1157,6 +1230,41 @@ const styles = StyleSheet.create({
   },
   studioGrow: {
     flexGrow: 1,
+  },
+  freeRow: {
+    alignItems: 'center',
+    borderBottomColor: inkAlpha(0.1),
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  freeCopy: {
+    flex: 1,
+  },
+  freeName: {
+    ...type.body,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  freeMeta: {
+    ...type.micro,
+    color: inkAlpha(0.5),
+    fontSize: 9,
+  },
+  freeDescription: {
+    ...type.body,
+    color: inkAlpha(0.6),
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  freeFootnote: {
+    ...type.body,
+    color: inkAlpha(0.55),
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: spacing.md,
   },
   studioChipActive: {
     backgroundColor: colors.ink,
