@@ -8,7 +8,9 @@ test("environment inspection reports presence without returning values", () => {
   const checks = inspectEnvironment({
     ADMIN_DATABASE_URL: secret,
     CUSTOMER_DATABASE_URL: secret,
+    CUSTOMER_APP_URL: "https://www.pixbrik.com",
     IDENTITY_DATABASE_URL: secret,
+    PIXBRIK_BACKEND_SHARED_SECRET: Buffer.alloc(32, 0x42).toString("base64url"),
     SERVICE_DATABASE_URL: secret,
     STRIPE_SECRET_KEY: secret,
     AUTH_MODE: "trusted-gateway"
@@ -18,6 +20,8 @@ test("environment inspection reports presence without returning values", () => {
   assert.equal(checks.find((check) => check.key === "CUSTOMER_DATABASE_URL")?.configured, true);
   assert.equal(checks.find((check) => check.key === "IDENTITY_DATABASE_URL")?.configured, true);
   assert.equal(checks.find((check) => check.key === "SERVICE_DATABASE_URL")?.configured, true);
+  assert.equal(checks.find((check) => check.key === "CUSTOMER_APP_URL")?.configured, true);
+  assert.equal(checks.find((check) => check.key === "PIXBRIK_BACKEND_SHARED_SECRET")?.configured, true);
   assert.equal(checks.find((check) => check.key === "STRIPE_SECRET_KEY")?.configured, true);
   assert.equal(JSON.stringify(checks).includes(secret), false);
 });

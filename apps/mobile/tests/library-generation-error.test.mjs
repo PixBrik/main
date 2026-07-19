@@ -22,3 +22,13 @@ test('library generation failures stay visible and can be retried', () => {
   assert.match(library, /const requestBuild=\(\)=>\{[\s\S]*?onClearGenerationError\(\);[\s\S]*?void onGenerate\(selected,buildColor,customOptions\)/);
   assert.match(library, /const select=\(entry:LibraryEntry\)=>\{\s*onClearGenerationError\(\)/);
 });
+
+test('the complete idea catalogue stays visible while uncertified kits remain fail-closed', () => {
+  const library = source('src/screens/LibraryScreen.tsx');
+
+  assert.match(library, /useState<LibraryEntry\[\]>\(\(\)=>listLibrary\(\)\)/);
+  assert.doesNotMatch(library, /listLibrary\(\)\.filter\(isLibraryEntryReleased\)/);
+  assert.match(library, /const canBuild=!!selected&&releasedSizes\.length>0/);
+  assert.match(library, /Preview · certification pending/);
+  assert.match(library, /Ordering unlocks after its physical brick packing/);
+});

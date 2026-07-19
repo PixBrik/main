@@ -190,6 +190,7 @@ Required before live traffic:
 - `APP_URL=https://pixbrik-backoffice.vercel.app/backoffice` (or the future dedicated admin hostname)
 - `CUSTOMER_APP_URL=https://www.pixbrik.com` (the only origin permitted for customer-facing email links)
 - `PUBLIC_EMAIL_APP_URL=https://www.pixbrik.com/backoffice` (public base for unsubscribe and one-click unsubscribe URLs)
+- `PIXBRIK_BACKEND_SHARED_SECRET` (same independent 32-byte base64url secret as the customer-app project; server only)
 - `AUTH_MODE=password`, `AUTH_PASSWORD_PEPPER`, and `AUTH_SESSION_HMAC_KEY` for the built-in staff login; the two authentication keys must be independently generated versioned 32-byte base64url values
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`

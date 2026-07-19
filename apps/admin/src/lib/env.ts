@@ -47,6 +47,31 @@ function hasSafeAppOrigin(source: NodeJS.ProcessEnv): boolean {
   }
 }
 
+function hasSafeCustomerAppOrigin(source: NodeJS.ProcessEnv): boolean {
+  const configured = readEnv("CUSTOMER_APP_URL", source);
+  if (!configured) return false;
+  try {
+    const parsed = new URL(configured);
+    return parsed.protocol === "https:"
+      && !parsed.username
+      && !parsed.password
+      && !parsed.search
+      && !parsed.hash
+      && (parsed.pathname === "/" || parsed.pathname === "");
+  } catch {
+    return false;
+  }
+}
+
+function hasBackendBridgeSecret(source: NodeJS.ProcessEnv): boolean {
+  const secret = readEnv("PIXBRIK_BACKEND_SHARED_SECRET", source);
+  return Boolean(
+    secret
+    && Buffer.byteLength(secret, "utf8") >= 32
+    && /^[A-Za-z0-9_-]+$/.test(secret)
+  );
+}
+
 type VersionedSecretMetadata = Readonly<{ version: number; key: Buffer }>;
 
 function versionedSecretMetadata(value: string | undefined): VersionedSecretMetadata | undefined {
@@ -126,6 +151,20 @@ export function inspectEnvironment(source: NodeJS.ProcessEnv = process.env): Env
       key: "SERVICE_DATABASE_URL",
       label: "Service PostgreSQL role",
       configured: nonEmpty(source.SERVICE_DATABASE_URL),
+      requiredForLaunch: true,
+      group: "core"
+    },
+    {
+      key: "CUSTOMER_APP_URL",
+      label: "Customer application origin",
+      configured: hasSafeCustomerAppOrigin(source),
+      requiredForLaunch: true,
+      group: "core"
+    },
+    {
+      key: "PIXBRIK_BACKEND_SHARED_SECRET",
+      label: "Customer application backend bridge",
+      configured: hasBackendBridgeSecret(source),
       requiredForLaunch: true,
       group: "core"
     },

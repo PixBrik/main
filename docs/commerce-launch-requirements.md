@@ -163,6 +163,7 @@ Values must be entered in Vercel, never pasted into chat or committed.
 | `APP_URL` | `https://pixbrik-backoffice.vercel.app/backoffice` | server only |
 | `CUSTOMER_APP_URL` | `https://www.pixbrik.com`; trusted origin for customer email CTAs | server only |
 | `PUBLIC_EMAIL_APP_URL` | `https://www.pixbrik.com/backoffice`; public unsubscribe base | server only |
+| `PIXBRIK_BACKEND_SHARED_SECRET` | Same independent 32-byte base64url secret in the backoffice and customer-app projects | server only |
 | `RESEND_API_KEY` | Resend API key beginning `re_` | server only |
 | `RESEND_WEBHOOK_SECRET` | Signing secret created for the Resend webhook | server only |
 | `RESEND_FROM_EMAIL` | `PixBrik <hello@pixbrik.com>` after domain verification | server only |
@@ -179,6 +180,8 @@ Values must be entered in Vercel, never pasted into chat or committed.
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Matching sandbox key beginning `pk_test_` | public |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret beginning `whsec_` | server only |
 | `EXPO_PUBLIC_APP_URL` | `https://pixbrik.com`; canonical API origin for native builds | public |
+| `PIXBRIK_BACKEND_URL` | `https://pixbrik-backoffice.vercel.app`; server-to-server only | server only |
+| `PIXBRIK_BACKEND_SHARED_SECRET` | Same independent 32-byte base64url secret in the customer-app and backoffice projects | server only |
 | `EXPO_PUBLIC_DEPLOYMENT_ENV` | `production` in Production; `preview` only in isolated Preview builds | public |
 | `EXPO_PUBLIC_LEGAL_DRAFTS_ENABLED` | `0` in Production; Preview-only review gate | public |
 
