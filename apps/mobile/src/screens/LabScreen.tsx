@@ -504,6 +504,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<LibraryCategory>('animal');
   const [catalogFilter, setCatalogFilter] = useState<LibraryCategory | 'all'>('all');
+  const [customGlbUrl, setCustomGlbUrl] = useState('');
 
   const convert = async (mesh: PublishSource & { meshUrl: string }) => {
     setState('converting');
@@ -602,6 +603,25 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
     }
   };
 
+  /** A/B harness: convert any engine's GLB output through the exact
+   * production pipeline. Client-side and free; publish gating unchanged. */
+  const importCustomUrl = async () => {
+    const url = customGlbUrl.trim();
+    if (!/^https:\/\/.+/.test(url) || state === 'generating' || state === 'converting') return;
+    setError(null);
+    setBrick(null);
+    setKit(null);
+    setPreviewDataUrl(null);
+    setBrickPreviews([]);
+    if (!name) setName('Engine A/B model');
+    try {
+      await convert({ meshUrl: url, sourceUrl: url });
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'import failed');
+      setState('failed');
+    }
+  };
+
   const publish = async () => {
     if (!source || !kit || !studioSession || !name.trim() || state === 'publishing') return;
     setState('publishing');
@@ -681,6 +701,32 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
       <Text style={styles.freeFootnote}>
         Curated from the Khronos glTF sample library — CC0 only, third-party marks excluded.
         Realistic animals and cars are scarce under CC0; generate those with Meshy below.
+      </Text>
+
+      {/* ——— A/B harness: preview ANY engine's GLB output in bricks, free ——— */}
+      <Text style={styles.coachLabel}>COMPARE ANY ENGINE — PASTE A GLB URL</Text>
+      <TextInput
+        accessibilityLabel="Custom GLB URL"
+        autoCapitalize="none"
+        onChangeText={setCustomGlbUrl}
+        placeholder="https://… a .glb produced by TRELLIS.2, Pixal3D, Meshy or any engine"
+        placeholderTextColor={inkAlpha(0.45)}
+        style={styles.coachInput}
+        value={customGlbUrl}
+      />
+      <Pressable
+        accessibilityLabel="Import custom GLB URL"
+        accessibilityRole="button"
+        disabled={busy || !/^https:\/\/.+/.test(customGlbUrl.trim())}
+        onPress={importCustomUrl}
+        style={({ pressed }) => [styles.coachSubmit, (busy || !/^https:\/\/.+/.test(customGlbUrl.trim())) && styles.coachDisabled, pressed && styles.pressed]}
+      >
+        <Text style={styles.coachSubmitText}>CONVERT TO BRICKS — FREE</Text>
+      </Pressable>
+      <Text style={styles.freeFootnote}>
+        The file is fetched by your browser and converted locally: raw preview, brick kit and
+        pricing use the exact production engine. Publishing still requires a studio session and
+        an allowlisted source.
       </Text>
 
       {studioSession ? (
