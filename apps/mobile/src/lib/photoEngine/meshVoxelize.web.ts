@@ -916,4 +916,99 @@ export async function voxelizeGlbUrl(
   return voxelizeGlb(buffer, onProgress, options);
 }
 
+/**
+ * One placed instance in a composed build (bouquets: N flowers + a vase).
+ * Every source mesh is first normalized to a 1-unit longest axis, so scale,
+ * position and lift are all expressed in that shared normalized frame —
+ * composing a 30 cm scan with a 3 m scan Just Works.
+ */
+export interface ComposedPart {
+  url: string;
+  /** Uniform scale in the normalized frame (1 = same longest axis). */
+  scale?: number;
+  /** XZ placement in normalized units (Y up comes from `lift`). */
+  x?: number;
+  z?: number;
+  /** Raise the instance's base above the ground plane (normalized units). */
+  lift?: number;
+  /** Which way the instance leans (degrees around Y). */
+  leanDirectionDeg?: number;
+  /** How far it leans from vertical (degrees). */
+  leanDeg?: number;
+  /** Spin the instance around its own vertical axis (degrees). */
+  spinDeg?: number;
+}
+
+async function prepareComposedParts(parts: ComposedPart[]): Promise<PreparedMesh[]> {
+  if (!parts.length) throw new Error('nothing to compose');
+  const buffers = new Map<string, ArrayBuffer>();
+  for (const part of parts) {
+    if (!buffers.has(part.url)) buffers.set(part.url, await fetchGlb(part.url));
+  }
+  const loader = new GLTFLoader();
+  const prepared: PreparedMesh[] = [];
+  for (const part of parts) {
+    // Parse per instance: each placement needs its own scene graph.
+    const gltf = await loader.parseAsync(buffers.get(part.url)!.slice(0), '');
+    const scene = gltf.scene;
+
+    // Normalize: longest axis → 1 unit, base resting on y=0.
+    const bounds = new THREE.Box3().setFromObject(scene);
+    const size = new THREE.Vector3();
+    bounds.getSize(size);
+    const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+    const normalize = (1 / maxAxis) * (part.scale ?? 1);
+    const inner = new THREE.Group();
+    inner.add(scene);
+    scene.scale.setScalar(normalize);
+    scene.position.set(
+      -((bounds.min.x + bounds.max.x) / 2) * normalize,
+      -bounds.min.y * normalize,
+      -((bounds.min.z + bounds.max.z) / 2) * normalize,
+    );
+
+    // Spin about its own axis, then lean, then place.
+    inner.rotation.y = ((part.spinDeg ?? 0) * Math.PI) / 180;
+    const leaner = new THREE.Group();
+    leaner.add(inner);
+    leaner.rotation.z = ((part.leanDeg ?? 0) * Math.PI) / 180;
+    const placer = new THREE.Group();
+    placer.add(leaner);
+    placer.rotation.y = ((part.leanDirectionDeg ?? 0) * Math.PI) / 180;
+    const root = new THREE.Group();
+    placer.position.set(part.x ?? 0, part.lift ?? 0, part.z ?? 0);
+    root.add(placer);
+
+    // prepare() per instance so sanitization never compares across instances.
+    prepared.push(...prepare(root));
+  }
+  if (!prepared.length) throw new Error('no meshes in composed model');
+  return prepared;
+}
+
+/** Voxelize a composed multi-instance scene at all three profiles. */
+export async function voxelizeComposedUrl(
+  parts: ComposedPart[],
+  onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
+): Promise<Record<MeshProfile, VoxelModel>> {
+  const prepared = await prepareComposedParts(parts);
+  return {
+    efficient: await voxelizeMeshes(prepared, 'efficient', (f) => onProgress?.(f * 0.08), options),
+    balanced: await voxelizeMeshes(prepared, 'balanced', (f) => onProgress?.(0.08 + f * 0.24), options),
+    detailed: await voxelizeMeshes(prepared, 'detailed', (f) => onProgress?.(0.32 + f * 0.68), options),
+  };
+}
+
+/** Voxelize a composed multi-instance scene at a single profile. */
+export async function voxelizeComposedUrlOne(
+  parts: ComposedPart[],
+  profile: MeshProfile,
+  onProgress?: VoxelizeProgressFn,
+  options: MeshVoxelizeOptions = {},
+): Promise<VoxelModel> {
+  const prepared = await prepareComposedParts(parts);
+  return voxelizeMeshes(prepared, profile, onProgress, options);
+}
+
 export const isMeshVoxelizeSupported = true;

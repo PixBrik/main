@@ -506,6 +506,41 @@ function PixBrikApp() {
     if (buildProduct === 'sculpture') setPhotoBuild(recolored);
   };
 
+  // Dev verification hook (web): compose a bouquet and dump compact cells so
+  // layout changes can be LOOKED AT via offline projections before shipping
+  // (docs/brick-engine-brief.md ground rules). Never called by app code.
+  useEffect(() => {
+    (globalThis as unknown as { __bouquet?: unknown }).__bouquet = async (
+      count: 1 | 3 | 5 = 3,
+      vaseId = 'ceramic',
+      profile: 'efficient' | 'balanced' = 'efficient',
+      entryIndex = 0,
+    ) => {
+      const { COMPOSED_SEED } = await import('./src/data/carLibrary');
+      const { composeBouquetParts, resolveVaseUrl } = await import('./src/lib/photoEngine/bouquetComposer');
+      const { voxelizeComposedUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
+      const entry = COMPOSED_SEED[entryIndex] ?? COMPOSED_SEED[0]!;
+      const model = await voxelizeComposedUrlOne(
+        composeBouquetParts(entry.meshUrl!, count, resolveVaseUrl(entry, vaseId)),
+        profile,
+      );
+      const palette: string[] = [];
+      const paletteIndex = new Map<string, number>();
+      const cells: number[][] = [];
+      for (const cell of model.cells) {
+        const hex = cell.colorHex ?? '#cccccc';
+        let pi = paletteIndex.get(hex);
+        if (pi === undefined) {
+          pi = palette.length;
+          palette.push(hex);
+          paletteIndex.set(hex, pi);
+        }
+        cells.push([cell.i, cell.j, cell.k, pi]);
+      }
+      return { cells, palette, size: model.size };
+    };
+  }, []);
+
   const generateFromLibrary = async (
     entry: LibraryEntry,
     colorHex: string,
@@ -524,9 +559,13 @@ function PixBrikApp() {
         ? await (await import('./src/lib/proceduralLibrary')).buildProceduralLibraryEntry(
             entry, colorHex, options, setLibraryGenerationProgress,
           )
-        : await (await import('./src/lib/photoEngine/imageTo3D')).buildFromLibrary(
-            entry.meshUrl!, entry.name, colorHex, setLibraryGenerationProgress,
-          );
+        : entry.bouquet
+          ? await (await import('./src/lib/photoEngine/bouquetComposer')).buildBouquetFromLibrary(
+              entry, options?.flowerCount ?? 5, options?.vase, setLibraryGenerationProgress,
+            )
+          : await (await import('./src/lib/photoEngine/imageTo3D')).buildFromLibrary(
+              entry.meshUrl!, entry.name, colorHex, setLibraryGenerationProgress,
+            );
       setPhotoUri(null);
       setRightsConfirmedUri(null);
       setSampleUsed(false);

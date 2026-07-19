@@ -5,12 +5,14 @@
  * animals, flowers or objects.
  */
 
-import { LIBRARY_SEED, type LibraryEntry } from '../data/carLibrary';
+import { COMPOSED_SEED, LIBRARY_SEED, type LibraryEntry } from '../data/carLibrary';
 
 const KEY = 'fotobrik.library.v1';
 const CURATED_PROCEDURAL = LIBRARY_SEED.filter(
   (entry) => entry.supportsHolder || entry.id === 'love-sign',
-);
+  // Composed bouquet products (real-mesh masters, buyer-chosen count/vase)
+  // join the curated set; COMPOSED_SEED stays empty until stem masters exist.
+).concat(COMPOSED_SEED);
 
 function cleanCatalog(entries: LibraryEntry[]): LibraryEntry[] {
   const seen = new Set<string>();

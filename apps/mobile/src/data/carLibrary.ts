@@ -24,6 +24,14 @@ export interface LibraryEntry {
   presetMessage?: string;
   supportsHolder?: boolean;
   flowerSlots?: number;
+  /**
+   * Composed bouquet product: meshUrl is the single-flower master and the
+   * buyer picks a stem count (1/3/5) plus one of these vase options. The
+   * composer arranges the instances into one build at order time.
+   */
+  bouquet?: {
+    vases: ReadonlyArray<{ id: string; name: string; url: string | null }>;
+  };
   seed?: boolean;
 }
 
@@ -233,3 +241,43 @@ export const LIBRARY_COLORS = [
   '#D7263D', '#F05A7E', '#F4C430', '#F28C28', '#237A3B', '#1769AA',
   '#6C3DBA', '#F4F4F1', '#8B5A2B', '#1B1B1B',
 ];
+
+/**
+ * Composed bouquet products built from packed CC0 photoreal masters
+ * (assets/library-masters/v1, see tools/library/pack-polyhaven.mjs). The
+ * buyer chooses stem count and vase; the composer arranges the build.
+ */
+const MASTERS = 'https://raw.githubusercontent.com/PixBrik/main/main/assets/library-masters/v1';
+
+const BOUQUET_VASES = [
+  { id: 'none', name: 'Hand-tied', url: null },
+  { id: 'ceramic', name: 'Ceramic vase', url: `${MASTERS}/antique_ceramic_vase_01.glb` },
+  { id: 'brass', name: 'Brass vase', url: `${MASTERS}/brass_vase_01.glb` },
+] as const;
+
+/**
+ * DELIBERATELY EMPTY until proper single-stem masters exist. The composer,
+ * options UI and build path are live and verified — but visual checks
+ * proved the free Poly Haven "flowers" are ground-hugging whole-plant
+ * scans (wide leaf rosettes), which compose into mats, not bouquets. The
+ * activation path: generate a single-stem flower in Library Studio (see
+ * docs/meshy-generation-batch.md, Priority 5 — "single red rose with stem,
+ * upright"), publish it, then add one entry here:
+ *
+ *   {
+ *     bouquet: { vases: BOUQUET_VASES },
+ *     category: 'flower',
+ *     defaultColor: '#D7263D',
+ *     id: 'bouquet-rose',
+ *     meshUrl: '<published stem master URL>',
+ *     name: 'Rose Bouquet',
+ *     seed: true,
+ *     tags: ['flower', 'bouquet', 'realistic', 'gift'],
+ *   }
+ */
+export const COMPOSED_SEED: LibraryEntry[] = [];
+
+// Referenced by the future bouquet entries above; kept exported-adjacent so
+// the activation snippet works verbatim.
+void BOUQUET_VASES;
+void MASTERS;

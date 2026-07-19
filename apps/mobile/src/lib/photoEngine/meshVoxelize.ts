@@ -38,4 +38,32 @@ export async function voxelizeGlbUrlOne(
   throw new Error('mesh voxelization is web-only');
 }
 
+export interface ComposedPart {
+  url: string;
+  scale?: number;
+  x?: number;
+  z?: number;
+  lift?: number;
+  leanDirectionDeg?: number;
+  leanDeg?: number;
+  spinDeg?: number;
+}
+
+export async function voxelizeComposedUrl(
+  _parts: ComposedPart[],
+  _onProgress?: VoxelizeProgressFn,
+  _options?: MeshVoxelizeOptions,
+): Promise<Record<MeshProfile, VoxelModel>> {
+  throw new Error('mesh voxelization is web-only');
+}
+
+export async function voxelizeComposedUrlOne(
+  _parts: ComposedPart[],
+  _profile: MeshProfile,
+  _onProgress?: VoxelizeProgressFn,
+  _options?: MeshVoxelizeOptions,
+): Promise<VoxelModel> {
+  throw new Error('mesh voxelization is web-only');
+}
+
 export const isMeshVoxelizeSupported = false;

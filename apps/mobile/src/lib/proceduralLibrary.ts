@@ -13,6 +13,8 @@ export interface LibraryBuildOptions {
   holder?: MessageHolder;
   flowerColors?: string[];
   flowerCount?: 1 | 3 | 5;
+  /** Composed bouquet entries: id of the chosen vase option ('none' = hand-tied). */
+  vase?: string;
 }
 
 const RELEASE_PENDING_IDS=new Set([
