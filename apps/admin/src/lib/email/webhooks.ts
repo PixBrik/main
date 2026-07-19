@@ -134,7 +134,7 @@ export async function processResendWebhook(
           ) VALUES (
             ${message?.id ?? null}::uuid, ${evidence.id}::uuid, ${headers.id},
             ${event.data.email_id}, ${event.type}, ${eventCreatedAt},
-            ${JSON.stringify(eventMetadata(event))}::jsonb
+            ${JSON.stringify(eventMetadata(event))}::text::jsonb
           )
         `;
 
