@@ -89,9 +89,9 @@ async function audit(
     ) VALUES (
       ${principal.userId}::uuid, ${principal.subject}, ${action}, ${targetType}, ${targetId},
       ${request.requestId}::uuid, ${request.ipDigest}, ${request.userAgentDigest},
-      ${before === null ? null : JSON.stringify(before)}::jsonb,
-      ${JSON.stringify(after)}::jsonb,
-      ${JSON.stringify({ permission })}::jsonb
+      ${before === null ? null : JSON.stringify(before)}::text::jsonb,
+      ${JSON.stringify(after)}::text::jsonb,
+      ${JSON.stringify({ permission })}::text::jsonb
     )
   `;
 }

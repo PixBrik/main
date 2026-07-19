@@ -226,7 +226,7 @@ async function ensureAsset(
     ) VALUES (
       ${actorUserId}::uuid, 'vercel_blob', ${pathname}, ${pathname.split("/").at(-1) ?? pathname},
       ${contentType}, ${asset.bytes}, ${asset.sha256}, 'clean', false,
-      ${JSON.stringify({ public_url: asset.url, purpose: "model_library_master" })}::jsonb
+      ${JSON.stringify({ public_url: asset.url, purpose: "model_library_master" })}::text::jsonb
     )
     ON CONFLICT (object_key) DO NOTHING
     RETURNING id::text
@@ -269,9 +269,12 @@ export async function publishLibraryMaster(
 
     const slug = slugify(input.name);
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`library-studio:${slug}`}, 0))`;
+    // Stringified JSON params must be typed ::text before the ::jsonb cast.
+    // If the parameter itself is typed jsonb, postgres.js JSON-encodes the
+    // string a second time and the column stores a jsonb string, not an object.
     const category = await sql<{ id: string }[]>`
       INSERT INTO pixbrik.model_category (slug, localized_name, sort_order, enabled)
-      VALUES (${input.category}, ${JSON.stringify({ en: categoryLabel(input.category) })}::jsonb, 100, true)
+      VALUES (${input.category}, ${JSON.stringify({ en: categoryLabel(input.category) })}::text::jsonb, 100, true)
       ON CONFLICT (slug) DO UPDATE SET enabled = true
       RETURNING id::text
     `;
@@ -328,8 +331,8 @@ export async function publishLibraryMaster(
       ) VALUES (
         ${buildId}::uuid, 1, 'published', ${meshAssetId}::uuid, ${thumbnailAssetId}::uuid,
         ${input.provider}, ${input.providerJobId ?? null}, 'mesh-fidelity-2026-07', '2026-07',
-        ${JSON.stringify(configuration)}::jsonb,
-        ${JSON.stringify({ fill: "reinforced-hollow", parts: input.kit.parts, colorCount: input.kit.colorCount })}::jsonb,
+        ${JSON.stringify(configuration)}::text::jsonb,
+        ${JSON.stringify({ fill: "reinforced-hollow", parts: input.kit.parts, colorCount: input.kit.colorCount })}::text::jsonb,
         ${input.kit.widthMm}, ${input.kit.heightMm}, ${input.kit.depthMm}, ${input.kit.parts},
         ${Math.round(input.kit.priceEur * 100)}, ${claims.sub}::uuid, ${claims.sub}::uuid, now(), now()
       )
@@ -343,8 +346,8 @@ export async function publishLibraryMaster(
       INSERT INTO pixbrik.model_library_item (
         category_id, slug, localized_title, localized_description, status, created_by, published_at
       ) VALUES (
-        ${categoryId}::uuid, ${slug}, ${JSON.stringify({ en: input.name })}::jsonb,
-        ${JSON.stringify({ en: "A realistic 3D master, inspected and converted into a customizable PixBrik kit." })}::jsonb,
+        ${categoryId}::uuid, ${slug}, ${JSON.stringify({ en: input.name })}::text::jsonb,
+        ${JSON.stringify({ en: "A realistic 3D master, inspected and converted into a customizable PixBrik kit." })}::text::jsonb,
         'published', ${claims.sub}::uuid, now()
       )
       ON CONFLICT (slug) DO UPDATE SET
@@ -378,8 +381,8 @@ export async function publishLibraryMaster(
       ) VALUES (
         ${claims.sub}::uuid, ${permission[0]?.subject ?? "library-studio"},
         'model_library.studio_published', 'model_library_item', ${itemId},
-        ${JSON.stringify({ item: publicEntry, libraryVersion: libraryVersion[0]?.version_number ?? 1 })}::jsonb,
-        ${JSON.stringify({ admin_module: "model_library", build_version_id: buildVersionId, session_nonce: claims.nonce })}::jsonb
+        ${JSON.stringify({ item: publicEntry, libraryVersion: libraryVersion[0]?.version_number ?? 1 })}::text::jsonb,
+        ${JSON.stringify({ admin_module: "model_library", build_version_id: buildVersionId, session_nonce: claims.nonce })}::text::jsonb
       )
     `;
     return publicEntry;

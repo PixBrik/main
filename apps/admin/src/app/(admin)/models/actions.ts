@@ -147,9 +147,9 @@ async function writeAuditEvent(
       ${context.requestId},
       ${context.ipDigest},
       ${context.userAgentDigest},
-      ${beforeJson}::jsonb,
-      ${afterJson}::jsonb,
-      ${JSON.stringify({ admin_module: "model_library", ...metadata })}::jsonb
+      ${beforeJson}::text::jsonb,
+      ${afterJson}::text::jsonb,
+      ${JSON.stringify({ admin_module: "model_library", ...metadata })}::text::jsonb
     )
   `;
 }
@@ -177,7 +177,7 @@ export async function createModelCategoryAction(
         VALUES (
           ${parentId}::uuid,
           ${slug},
-          ${JSON.stringify(names)}::jsonb,
+          ${JSON.stringify(names)}::text::jsonb,
           ${sortOrder}
         )
         RETURNING id::text
@@ -235,8 +235,8 @@ export async function createModelItemAction(
         ) VALUES (
           ${categoryId}::uuid,
           ${slug},
-          ${JSON.stringify(titles)}::jsonb,
-          ${JSON.stringify(descriptions)}::jsonb,
+          ${JSON.stringify(titles)}::text::jsonb,
+          ${JSON.stringify(descriptions)}::text::jsonb,
           ${actorUserId(principal)}::uuid
         )
         RETURNING id::text

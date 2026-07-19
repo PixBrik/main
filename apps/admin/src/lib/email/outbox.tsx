@@ -646,8 +646,8 @@ async function freezeProviderEnvelope(
     UPDATE pixbrik.outbound_message
     SET sender_snapshot = ${configuration.from}, reply_to_snapshot = ${configuration.replyTo},
       rendered_html_snapshot = ${html}, rendered_text_snapshot = ${text},
-      headers_snapshot = ${JSON.stringify(headers)}::jsonb,
-      provider_tags_snapshot = ${JSON.stringify(tags)}::jsonb
+      headers_snapshot = ${JSON.stringify(headers)}::text::jsonb,
+      provider_tags_snapshot = ${JSON.stringify(tags)}::text::jsonb
     WHERE id = ${message.id}::uuid AND status = 'sending'
       AND lease_token = ${message.lease_token}::uuid
       AND lease_expires_at > now()

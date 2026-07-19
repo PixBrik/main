@@ -209,9 +209,9 @@ async function recordCouponAudit(
       ${context.requestId},
       ${context.ipDigest},
       ${context.userAgentDigest},
-      ${beforeState === null ? null : JSON.stringify(beforeState)}::jsonb,
-      ${JSON.stringify(afterState)}::jsonb,
-      ${JSON.stringify({ permission: "discounts.manage" })}::jsonb
+      ${beforeState === null ? null : JSON.stringify(beforeState)}::text::jsonb,
+      ${JSON.stringify(afterState)}::text::jsonb,
+      ${JSON.stringify({ permission: "discounts.manage" })}::text::jsonb
     )
   `;
 }

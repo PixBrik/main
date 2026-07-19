@@ -198,9 +198,9 @@ async function recordAudit(
       ${context.requestId},
       ${context.ipDigest},
       ${context.userAgentDigest},
-      ${record.beforeState === null ? null : JSON.stringify(record.beforeState)}::jsonb,
-      ${JSON.stringify(record.afterState)}::jsonb,
-      ${JSON.stringify({ permission: "affiliates.manage", ...record.metadata })}::jsonb
+      ${record.beforeState === null ? null : JSON.stringify(record.beforeState)}::text::jsonb,
+      ${JSON.stringify(record.afterState)}::text::jsonb,
+      ${JSON.stringify({ permission: "affiliates.manage", ...record.metadata })}::text::jsonb
     )
   `;
 }
