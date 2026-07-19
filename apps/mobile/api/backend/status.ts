@@ -2,6 +2,8 @@ import {
   BackendConfigurationError,
   fetchBackendReadiness,
 } from '../_backend';
+import libraryCatalogHandler from '../_libraryCatalog';
+import libraryPublishHandler from '../_libraryPublish';
 
 const responseHeaders = {
   'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300',
@@ -16,6 +18,18 @@ function sendJson(res: any, status: number, body: unknown): void {
   res.status(status).json(body);
 }
 export default async function handler(req: any, res: any): Promise<void> {
+  const libraryRoute = Array.isArray(req.query?.library)
+    ? req.query.library[0]
+    : req.query?.library;
+  if (libraryRoute === 'catalog') {
+    await libraryCatalogHandler(req, res);
+    return;
+  }
+  if (libraryRoute === 'publish') {
+    await libraryPublishHandler(req, res);
+    return;
+  }
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     sendJson(res, 405, { code: 'method_not_allowed', connected: false });

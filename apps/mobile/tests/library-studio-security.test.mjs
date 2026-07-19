@@ -28,15 +28,21 @@ test('Library Studio sessions are signed, actor-bound, short-lived and tamper-ev
 });
 
 test('paid text generation and publishing require the backoffice Studio session', async () => {
-  const [submit, publish, lab, store] = await Promise.all([
+  const [submit, publish, bridge, vercel, lab, store] = await Promise.all([
     readFile(new URL('../api/meshy/text-submit.ts', import.meta.url), 'utf8'),
-    readFile(new URL('../api/library/publish.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../api/_libraryPublish.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../api/backend/status.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../vercel.json', import.meta.url), 'utf8'),
     readFile(new URL('../src/screens/LabScreen.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/lib/libraryStore.ts', import.meta.url), 'utf8'),
   ]);
   assert.match(submit, /requireStudioSession\(req\)/);
   assert.match(publish, /requireStudioSession\(req\)/);
   assert.match(publish, /publishBackendLibraryMaster/);
+  assert.match(bridge, /libraryPublishHandler/);
+  assert.match(bridge, /libraryCatalogHandler/);
+  assert.match(vercel, /\/api\/library\/publish/);
+  assert.match(vercel, /\/api\/library\/catalog/);
   assert.match(lab, /Open Library Studio from the authenticated backoffice/);
   assert.match(store, /CURATED_PROCEDURAL/);
   assert.match(store, /\/api\/library\/catalog/);

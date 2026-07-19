@@ -1,4 +1,4 @@
-import { BackendConfigurationError, fetchBackendLibrary } from '../_backend';
+import { BackendConfigurationError, fetchBackendLibrary } from './_backend';
 
 const headers = {
   'Cache-Control': 'no-store',

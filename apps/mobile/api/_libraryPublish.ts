@@ -16,11 +16,11 @@ import { createHash } from 'node:crypto';
 
 import { put } from '@vercel/blob';
 
-import { allowedGenerationOrigins } from '../_generationSecurity';
-import { publishBackendLibraryMaster } from '../_backend';
-import { fetchMeshyTask, parseMeshyTaskKind } from '../_meshy';
-import { MAX_PROVIDER_MODEL_BYTES } from '../_modelStream';
-import { requireStudioSession, studioSessionToken } from '../_studioSession';
+import { allowedGenerationOrigins } from './_generationSecurity';
+import { publishBackendLibraryMaster } from './_backend';
+import { fetchMeshyTask, parseMeshyTaskKind } from './_meshy';
+import { MAX_PROVIDER_MODEL_BYTES } from './_modelStream';
+import { requireStudioSession, studioSessionToken } from './_studioSession';
 
 const SAMPLE_URL_HOSTS = new Set(['raw.githubusercontent.com']);
 const TASK_ID_PATTERN = /^[a-zA-Z0-9-_]{8,64}$/;

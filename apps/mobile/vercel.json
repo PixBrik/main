@@ -43,6 +43,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/library/catalog", "destination": "/api/backend/status?library=catalog" },
+    { "source": "/api/library/publish", "destination": "/api/backend/status?library=publish" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
