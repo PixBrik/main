@@ -16,13 +16,21 @@ import {
   submitFeedback,
   type FeedbackEntry,
 } from '../lib/feedbackStore';
+import { addLibraryEntry } from '../lib/libraryStore';
+import type { LibraryCategory } from '../data/carLibrary';
 import type { ObjectCategory } from '../lib/photoEngine/classify';
 import {
+  buildFromMeshUrlOne,
   DEMO_MESHES,
   isLive3DConfigured,
   TRIPO_VERSIONS,
   type TripoVersionId,
 } from '../lib/photoEngine/imageTo3D';
+import {
+  generateMeshFromPrompt,
+  publishLibraryMesh,
+  type PublishSource,
+} from '../lib/photoEngine/textTo3D';
 import type { Segmentation } from '../lib/photoEngine/segment';
 import type { PhotoModels } from '../lib/photoEngine/voxelizePhoto';
 import type { VoxelModel } from '../lib/voxelFox';
@@ -448,12 +456,231 @@ export function LabScreen({ photoUri, segmentation, onBack, onRestore }: LabScre
         </View>
       ) : null}
 
+      <LibraryStudio />
+
       <Coach detectedLabel={segmentation?.categoryLabel ?? null} />
     </ScreenFrame>
   );
 }
 
 const CATEGORY_CHOICES: ObjectCategory[] = ['portrait', 'person', 'animal', 'vehicle', 'building', 'plant', 'food', 'object'];
+
+const STUDIO_CATEGORIES: LibraryCategory[] = ['animal', 'car', 'object', 'plant', 'flower', 'aircraft'];
+type StudioState = 'idle' | 'generating' | 'converting' | 'ready' | 'publishing' | 'published' | 'failed';
+
+/**
+ * Library Studio — the owner's pipeline for REALISTIC library masters.
+ * Procedural voxel generators can only produce toy-style models; sellable
+ * library items come from real meshes through the proven converter. Type a
+ * prompt → Meshy-6 text-to-3D (two paid stages) → inspect the raw mesh AND
+ * the brick proposal → publish to durable storage → the entry appears in the
+ * buyer library with all three sizes and colour customization.
+ */
+function LibraryStudio() {
+  const [prompt, setPrompt] = useState('');
+  const [state, setState] = useState<StudioState>('idle');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<(PublishSource & { meshUrl: string }) | null>(null);
+  const [brick, setBrick] = useState<VoxelModel | null>(null);
+  const [catalogLine, setCatalogLine] = useState('');
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<LibraryCategory>('animal');
+  const [seedJson, setSeedJson] = useState('');
+
+  const convert = async (mesh: PublishSource & { meshUrl: string }) => {
+    setState('converting');
+    setNote('Converting to bricks');
+    const models = await buildFromMeshUrlOne(mesh.meshUrl, 'library master', 'balanced');
+    const model = models.models.balanced;
+    try {
+      const estimate = estimateBuild(model, colors.alarm).hollow;
+      setCatalogLine(
+        `STANDARD KIT: ${estimate.parts.toLocaleString('en-US')} PARTS · ${estimate.colorCount} COLOURS · ≈€${estimate.bundleEur.toFixed(0)}`,
+      );
+    } catch {
+      setCatalogLine('');
+    }
+    setBrick(model);
+    setSource(mesh);
+    setState('ready');
+  };
+
+  const generate = async () => {
+    if (!prompt.trim() || state === 'generating' || state === 'converting') return;
+    setError(null);
+    setSeedJson('');
+    setBrick(null);
+    setState('generating');
+    try {
+      const result = await generateMeshFromPrompt(prompt.trim(), (fraction, stage) =>
+        setNote(`${Math.round(fraction * 100)}% · ${stage}`),
+      );
+      await convert({ meshUrl: result.meshUrl, taskId: result.taskId, taskKind: result.taskKind });
+    } catch (generationError) {
+      setError(generationError instanceof Error ? generationError.message : 'generation failed');
+      setState('failed');
+    }
+  };
+
+  const useSample = async () => {
+    if (state === 'generating' || state === 'converting') return;
+    setError(null);
+    setSeedJson('');
+    setBrick(null);
+    try {
+      const demo = DEMO_MESHES[0];
+      await convert({ meshUrl: demo.url, sourceUrl: demo.url });
+      if (!name) setName(demo.label);
+    } catch (sampleError) {
+      setError(sampleError instanceof Error ? sampleError.message : 'sample failed');
+      setState('failed');
+    }
+  };
+
+  const publish = async () => {
+    if (!source || !name.trim() || state === 'publishing') return;
+    setState('publishing');
+    setError(null);
+    try {
+      const durableUrl = await publishLibraryMesh(source, name.trim());
+      const entry = addLibraryEntry({
+        category,
+        defaultColor: '#F4C430',
+        meshUrl: durableUrl,
+        name: name.trim(),
+        tags: [category, 'studio', 'realistic'],
+      });
+      setSeedJson(
+        JSON.stringify(
+          { category, defaultColor: '#F4C430', id: entry.id, meshUrl: durableUrl, name: name.trim(), seed: true, tags: [category, 'realistic'] },
+          null,
+          2,
+        ),
+      );
+      setState('published');
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : 'publish failed');
+      setState('ready');
+    }
+  };
+
+  const busy = state === 'generating' || state === 'converting' || state === 'publishing';
+
+  return (
+    <View style={styles.coach}>
+      <Text style={styles.coachTitle}>LIBRARY STUDIO</Text>
+      <Text style={styles.coachIntro}>
+        Build REALISTIC library masters: describe the subject, Meshy-6 sculpts a real 3D model
+        (two paid stages on your credits), you inspect the raw mesh and the brick kit, then
+        publish. Published items appear in the buyer library with all three sizes and colour
+        options. Keep car prompts generic — no brands or trade dress.
+      </Text>
+
+      <Text style={styles.coachLabel}>DESCRIBE THE SUBJECT</Text>
+      <TextInput
+        accessibilityLabel="Library subject prompt"
+        multiline
+        onChangeText={setPrompt}
+        placeholder="e.g. ultra realistic golden retriever sitting, studio product photo, neutral pose"
+        placeholderTextColor={inkAlpha(0.45)}
+        style={[styles.coachInput, styles.coachTextarea]}
+        value={prompt}
+      />
+      <View style={styles.coachRow}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy || !prompt.trim() || !isLive3DConfigured()}
+          onPress={generate}
+          style={({ pressed }) => [styles.coachSubmit, styles.studioGrow, (busy || !prompt.trim()) && styles.coachDisabled, pressed && styles.pressed]}
+        >
+          <Text style={styles.coachSubmitText}>
+            {state === 'generating' ? 'GENERATING…' : 'GENERATE MASTER (PAID)'}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={useSample}
+          style={({ pressed }) => [styles.coachChip, busy && styles.coachDisabled, pressed && styles.pressed]}
+        >
+          <Text style={styles.coachChipText}>FREE SAMPLE TEST</Text>
+        </Pressable>
+      </View>
+
+      {busy ? (
+        <View style={styles.running}>
+          <InkLoader size={22} stage={note || 'Working'} />
+        </View>
+      ) : null}
+      {error ? <Text style={styles.error}>✕ {error}</Text> : null}
+
+      {state === 'ready' || state === 'published' || state === 'publishing' ? (
+        <>
+          {source ? (
+            <>
+              <Text style={styles.coachLabel}>RAW 3D — INSPECT BEFORE PUBLISHING</Text>
+              <RawMeshView label="Library master raw 3D model" modelUrl={source.meshUrl} />
+            </>
+          ) : null}
+          {brick && isRealisticViewSupported ? (
+            <>
+              <Text style={styles.coachLabel}>BRICK PROPOSAL</Text>
+              <ThreeBrickView accent={colors.alarm} label="Library master brick proposal" model={brick} />
+              {catalogLine ? <Text style={styles.stat}>{catalogLine}</Text> : null}
+            </>
+          ) : null}
+
+          <Text style={styles.coachLabel}>NAME &amp; CATEGORY</Text>
+          <TextInput
+            accessibilityLabel="Library entry name"
+            onChangeText={setName}
+            placeholder="e.g. Golden Retriever"
+            placeholderTextColor={inkAlpha(0.45)}
+            style={styles.coachInput}
+            value={name}
+          />
+          <View style={styles.coachRowWrap}>
+            {STUDIO_CATEGORIES.map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                key={option}
+                onPress={() => setCategory(option)}
+                style={({ pressed }) => [styles.coachChip, category === option && styles.studioChipActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.coachChipText, category === option && styles.studioChipTextActive]}>
+                  {option.toUpperCase()}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {state !== 'published' ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={!name.trim() || state === 'publishing'}
+              onPress={publish}
+              style={({ pressed }) => [styles.coachSubmit, (!name.trim() || state === 'publishing') && styles.coachDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.coachSubmitText}>
+                {state === 'publishing' ? 'PUBLISHING…' : 'PUBLISH TO LIBRARY'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
+
+      {state === 'published' ? (
+        <View style={styles.appliedNote}>
+          <Text style={styles.appliedText}>
+            → Published. It's live in the Object Library on this device (menu → OBJECT LIBRARY).
+            To ship it to every buyer, add this entry to LIBRARY_SEED in src/data/carLibrary.ts:
+          </Text>
+          <Text selectable style={styles.studioJson}>{seedJson}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 /**
  * Coach: structured feedback that adjusts real pipeline parameters
@@ -894,6 +1121,23 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 12,
     letterSpacing: 0.4,
+  },
+  studioGrow: {
+    flexGrow: 1,
+  },
+  studioChipActive: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  studioChipTextActive: {
+    color: colors.saffron,
+  },
+  studioJson: {
+    color: saffronAlpha(0.85),
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: spacing.sm,
   },
   appliedNote: {
     backgroundColor: inkAlpha(0.08),
