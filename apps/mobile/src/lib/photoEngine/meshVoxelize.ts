@@ -11,6 +11,8 @@ export type VoxelizeProgressFn = (fraction: number) => void;
 export interface MeshVoxelizeOptions {
   colorStyle?: MeshBrickColorStyle;
   studSpans?: Partial<Record<MeshProfile, number>>;
+  /** Web engine: `nearest` (closest surface) or `skin` (first surface seen from outside). */
+  colourSampling?: 'nearest' | 'skin';
 }
 
 export async function voxelizeGlb(

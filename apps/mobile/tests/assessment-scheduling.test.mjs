@@ -34,7 +34,11 @@ test('web assessment uses Metro worker URL form and the exact shared release gat
   assert.match(orchestrator, /pendingAssessmentCache/);
   assert.match(orchestrator, /ASSESSMENT_WORKER_TIMEOUT_MS = 30_000/);
   assert.match(orchestrator, /stopAssessmentWorker\('Exact catalog validation took too long/);
-  assert.match(orchestrator, /assessInWorker\(model, accent\) \?\? assessAfterPaint/);
+  // Worker first for a smooth UI thread; ANY worker failure (stale chunk 404
+  // after a deploy, blocked workers, a crash) falls back to the identical
+  // in-thread release gate instead of failing the buyer's build.
+  assert.match(orchestrator, /const viaWorker = assessInWorker\(model, accent\);/);
+  assert.match(orchestrator, /viaWorker \? viaWorker\.catch\(\(\) => assessAfterPaint\(model, accent\)\) : assessAfterPaint\(model, accent\)/);
   assert.match(worker, /computeBuildAssessment\(model, accent\)/);
   assert.match(core, /assessSide\(brickify\(model, accent\)\)/);
   assert.match(core, /assessSide\(brickify\(model, accent, \{ hollow: true \}\)\)/);

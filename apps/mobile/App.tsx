@@ -506,6 +506,63 @@ function PixBrikApp() {
     if (buildProduct === 'sculpture') setPhotoBuild(recolored);
   };
 
+  // Dev A/B hook (web): convert any GLB with engine-option overrides and POST
+  // turntable frames to a local receiver (:8095) so conversion-quality
+  // experiments are JUDGED VISUALLY. Never called by app code.
+  useEffect(() => {
+    (globalThis as unknown as { __convert?: unknown }).__convert = async (
+      url: string,
+      label: string,
+      profile: 'efficient' | 'balanced' | 'detailed' = 'balanced',
+      options: Record<string, unknown> = {},
+      receiver = 'http://localhost:8095',
+    ) => {
+      const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
+      const { renderBrickTurntable } = await import('./src/lib/brickTurntable');
+      const t0 = Date.now();
+      const model = await voxelizeGlbUrlOne(url, profile, undefined, options);
+      const seconds = Math.round((Date.now() - t0) / 1000);
+      const colours = new Set(model.cells.map((cell) => cell.colorHex ?? '')).size;
+      const frames = renderBrickTurntable(model, '#FF3D17');
+      for (const [index, png] of frames.entries()) {
+        await fetch(receiver, {
+          body: JSON.stringify({ name: `${label}-${profile}-v${index}`, png }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+      }
+      return { cells: model.cells.length, colours, seconds };
+    };
+  }, []);
+
+  // Dev A/B inspection hook: dump per-part bounds of a GLB so subject-vs-base
+  // heuristics can be designed against real masters.
+  useEffect(() => {
+    (globalThis as unknown as { __inspect?: unknown }).__inspect = async (url: string) => {
+      const THREE = await import('three');
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      const response = await fetch(url);
+      const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '');
+      gltf.scene.updateWorldMatrix(true, true);
+      const parts: Array<Record<string, unknown>> = [];
+      const box = new THREE.Box3();
+      gltf.scene.traverse((node) => {
+        const mesh = node as import('three').Mesh;
+        if (!mesh.isMesh) return;
+        box.setFromObject(mesh);
+        const size = box.getSize(new THREE.Vector3());
+        parts.push({
+          name: mesh.name || '(unnamed)',
+          triangles: (mesh.geometry.getIndex()?.count ?? mesh.geometry.getAttribute('position').count) / 3,
+          size: [size.x, size.y, size.z].map((v) => Number(v.toFixed(2))),
+          minY: Number(box.min.y.toFixed(2)),
+          maxY: Number(box.max.y.toFixed(2)),
+        });
+      });
+      return parts;
+    };
+  }, []);
+
   // Dev verification hook (web): compose a bouquet and dump compact cells so
   // layout changes can be LOOKED AT via offline projections before shipping
   // (docs/brick-engine-brief.md ground rules). Never called by app code.

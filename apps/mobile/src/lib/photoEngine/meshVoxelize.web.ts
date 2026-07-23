@@ -41,6 +41,14 @@ export interface MeshVoxelizeOptions {
   colorStyle?: MeshBrickColorStyle;
   /** Optional subject-specific stud spans; human likenesses need a denser grid. */
   studSpans?: Partial<Record<MeshProfile, number>>;
+  /**
+   * `skin` (default) raycasts from outside toward each exposed voxel face and
+   * keeps the first surface hit: exactly what a viewer sees, robust to the
+   * flipped normals common in AI meshes. `nearest` samples the closest
+   * surface — which can be a HIDDEN interior wall (a car's seats through the
+   * glass, a pot's inside) — and remains only as an A/B reference.
+   */
+  colourSampling?: 'nearest' | 'skin';
 }
 
 interface PreparedMaterial {
@@ -367,17 +375,76 @@ function subjectScore(candidate: SubjectPart): number {
  * Small overlapping/nearby meshes are deliberately retained for eyes, hair,
  * wheels, jewellery and other multipart details.
  */
-function sanitizeSubjectParts<T extends SubjectPart>(candidates: T[]): T[] {
+const PEDESTAL_FOOTPRINT_RATIO = 1.5;
+
+function partFootprint(part: SubjectPart): number {
+  return Math.max(1e-9, (part.bounds.max.x - part.bounds.min.x) * (part.bounds.max.z - part.bounds.min.z));
+}
+
+/**
+ * A pedestal is what the subject STANDS ON: a wider part whose top the
+ * detailed part rests against, with the subject's footprint inside its own.
+ * Product masters ship on cloths, trays and display bases constantly — left
+ * in, the base owns the stud budget (the toy car spent two thirds of its
+ * bricks on a black fabric mound) and often outranks the subject on raw size.
+ */
+function findPedestals<T extends SubjectPart>(candidates: T[]): Set<T> {
+  const pedestals = new Set<T>();
+  let sceneMinY = Infinity;
+  let sceneMaxY = -Infinity;
+  for (const candidate of candidates) {
+    sceneMinY = Math.min(sceneMinY, candidate.bounds.min.y);
+    sceneMaxY = Math.max(sceneMaxY, candidate.bounds.max.y);
+  }
+  const epsilon = Math.max(1e-9, (sceneMaxY - sceneMinY) * 0.06);
+  for (const ground of candidates) {
+    for (const subject of candidates) {
+      if (subject === ground) continue;
+      const rests = Math.abs(subject.bounds.min.y - ground.bounds.max.y) <= epsilon;
+      const contained = subject.bounds.min.x >= ground.bounds.min.x - epsilon
+        && subject.bounds.max.x <= ground.bounds.max.x + epsilon
+        && subject.bounds.min.z >= ground.bounds.min.z - epsilon
+        && subject.bounds.max.z <= ground.bounds.max.z + epsilon;
+      if (
+        rests
+        && contained
+        && partFootprint(ground) >= partFootprint(subject) * PEDESTAL_FOOTPRINT_RATIO
+        && subject.triangleCount >= ground.triangleCount * 0.8
+      ) {
+        pedestals.add(ground);
+        break;
+      }
+    }
+  }
+  return pedestals;
+}
+
+function sanitizeSubjectParts<T extends SubjectPart>(candidates: T[], stripGround = true): T[] {
   if (candidates.length <= 1) return candidates;
-  const volumetric = candidates.filter((candidate) => !candidate.isBroadPlane);
-  if (!volumetric.length) return candidates;
+  const pedestals = stripGround ? findPedestals(candidates) : new Set<T>();
+  const standing = candidates.filter((candidate) => !pedestals.has(candidate));
+  const pool = standing.length ? standing : candidates;
+  const volumetric = pool.filter((candidate) => !candidate.isBroadPlane);
+  if (!volumetric.length) return pool;
   const primary = volumetric.reduce((best, candidate) => (
     subjectScore(candidate) > subjectScore(best) ? candidate : best
   ));
-  const withoutPlanes = candidates.filter((candidate) => (
+  // Second net for grounds nothing rests on exactly: bottom-anchored low
+  // parts whose footprint dwarfs the chosen subject.
+  const primaryHeight = Math.max(1e-9, primary.bounds.max.y - primary.bounds.min.y);
+  const grounds = stripGround
+    ? new Set(pool.filter((candidate) => (
+      candidate !== primary
+      && partFootprint(candidate) >= partFootprint(primary) * 2
+      && candidate.bounds.min.y <= primary.bounds.min.y + primaryHeight * 0.15
+      && candidate.bounds.max.y <= primary.bounds.min.y + primaryHeight * 0.5
+    )))
+    : new Set<T>();
+  const withoutPlanes = pool.filter((candidate) => (
     candidate === primary
-    || !candidate.isBroadPlane
-    || candidate.diagonal < primary.diagonal * OVERSIZED_PLANE_SCALE
+    || (!grounds.has(candidate)
+    && (!candidate.isBroadPlane
+    || candidate.diagonal < primary.diagonal * OVERSIZED_PLANE_SCALE))
   ));
 
   const core = withoutPlanes.filter((candidate) => (
@@ -464,23 +531,27 @@ function materialForFace(prep: PreparedMesh, faceIndex: number): PreparedMateria
  */
 function surfaceColor(prep: PreparedMesh, point: THREE.Vector3): string {
   const hit = prep.bvh.closestPointToPoint(point, tempTarget);
+  return colorAtFacePoint(prep, (hit as { faceIndex?: number } | null)?.faceIndex ?? 0, hit ? tempTarget.point : null);
+}
+
+/** Barycentric surface colour of one triangle at an exact surface point. */
+function colorAtFacePoint(prep: PreparedMesh, faceIndex: number, surfacePoint: THREE.Vector3 | null): string {
   const geometry = prep.mesh.geometry;
-  const faceIndex = (hit as { faceIndex?: number } | null)?.faceIndex ?? 0;
   const material = materialForFace(prep, faceIndex);
   const index = geometry.getIndex();
   const a = index ? index.getX(faceIndex * 3) : faceIndex * 3;
   const b = index ? index.getX(faceIndex * 3 + 1) : faceIndex * 3 + 1;
   const c = index ? index.getX(faceIndex * 3 + 2) : faceIndex * 3 + 2;
 
-  // Barycentric weights of the closest point inside its triangle; centroid
+  // Barycentric weights of the surface point inside its triangle; centroid
   // weights as the degenerate-triangle fallback.
   let wa = 1 / 3, wb = 1 / 3, wc = 1 / 3;
-  if (hit) {
+  if (surfacePoint) {
     const position = geometry.getAttribute('position');
     triA.fromBufferAttribute(position, a);
     triB.fromBufferAttribute(position, b);
     triC.fromBufferAttribute(position, c);
-    const bary = THREE.Triangle.getBarycoord(tempTarget.point, triA, triB, triC, baryCoord);
+    const bary = THREE.Triangle.getBarycoord(surfacePoint, triA, triB, triC, baryCoord);
     if (bary) {
       // Inset slightly toward the triangle interior: closest points land
       // EXACTLY on edges constantly, and on UV-seam edges the interpolated
@@ -597,6 +668,15 @@ function shellColor(
     const prep = prepared.length === 1 ? prepared[0]! : nearestPrep(prepared, samplePoint);
     hexes.push(surfaceColor(prep, samplePoint));
   }
+  return pickMedoid(hexes);
+}
+
+const NEIGHBOURS: ReadonlyArray<readonly [number, number, number]> = [
+  [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+];
+
+/** Redmean-medoid of a sample set: a colour that genuinely exists in it. */
+function pickMedoid(hexes: string[]): string {
   const rgbs = hexes.map(hexToRgb);
   let bestIndex = 0;
   let bestSum = Infinity;
@@ -614,9 +694,55 @@ function shellColor(
   return hexes[bestIndex]!;
 }
 
-const NEIGHBOURS: ReadonlyArray<readonly [number, number, number]> = [
-  [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+const skinRaycaster = new THREE.Raycaster();
+const skinOrigin = new THREE.Vector3();
+const skinDir = new THREE.Vector3();
+/** In-face jitter (fractions of a voxel) applied perpendicular to each ray. */
+const SKIN_JITTER: ReadonlyArray<readonly [number, number]> = [
+  [0, 0], [0.3, 0.2], [-0.25, -0.3], [0.2, -0.25],
 ];
+
+/**
+ * Visible-skin colour: for every EXPOSED face of the voxel, cast jittered
+ * rays from well outside toward the voxel centre and sample the FIRST surface
+ * each ray meets — by construction the skin a viewer (and builder) sees.
+ * Nearest-surface sampling instead bleeds hidden interiors onto the shell:
+ * a car's dark cabin recoloured its window pillars, a pot's inside its rim.
+ */
+function skinColor(
+  prepared: PreparedMesh[],
+  meshByObject: Map<THREE.Object3D, PreparedMesh>,
+  centre: THREE.Vector3,
+  voxel: number,
+  voxelHeight: number,
+  exposedDirs: ReadonlyArray<readonly [number, number, number]>,
+): string | null {
+  const hexes: string[] = [];
+  const meshes = prepared.map((prep) => prep.mesh);
+  for (const [dx, dy, dz] of exposedDirs) {
+    // Perpendicular jitter axes for this direction.
+    const px = dy !== 0 || dz !== 0 ? 1 : 0;
+    const pz = dx !== 0 || dy !== 0 ? 1 : 0;
+    for (const [j1, j2] of SKIN_JITTER) {
+      skinOrigin.set(
+        centre.x + dx * voxel * 3 + px * j1 * voxel,
+        centre.y + dy * voxelHeight * 3 + (px && pz ? 0 : j2 * voxelHeight),
+        centre.z + dz * voxel * 3 + pz * (px ? j2 : j1) * voxel,
+      );
+      skinDir.set(centre.x - skinOrigin.x, centre.y - skinOrigin.y, centre.z - skinOrigin.z).normalize();
+      skinRaycaster.set(skinOrigin, skinDir);
+      skinRaycaster.near = 0;
+      skinRaycaster.far = voxel * 7;
+      const hits = skinRaycaster.intersectObjects(meshes, false);
+      const hit = hits[0];
+      if (!hit || hit.faceIndex === undefined || hit.faceIndex === null) continue;
+      const prep = meshByObject.get(hit.object);
+      if (!prep) continue;
+      hexes.push(colorAtFacePoint(prep, hit.faceIndex, hit.point));
+    }
+  }
+  return hexes.length ? pickMedoid(hexes) : null;
+}
 
 type Rgb = [number, number, number];
 
@@ -785,6 +911,11 @@ async function voxelizeMeshes(
   const cells: VoxelCell[] = [];
   const surfaceCells: VoxelCell[] = [];
   const interiorCells: VoxelCell[] = [];
+  const useSkin = options.colourSampling !== 'nearest';
+  const meshByObject = new Map<THREE.Object3D, PreparedMesh>(prepared.map((prep) => [prep.mesh, prep]));
+  const exposedDirs: Array<readonly [number, number, number]> = [];
+  const isOutside = (ix: number, iy: number, iz: number) =>
+    ix < 0 || iy < 0 || iz < 0 || ix >= nx || iy >= ny || iz >= nz || grid[at(ix, iy, iz)] === OUTSIDE;
   for (let ix = 0; ix < nx; ix++) {
     for (let iy = 0; iy < ny; iy++) {
       for (let iz = 0; iz < nz; iz++) {
@@ -795,8 +926,18 @@ async function voxelizeMeshes(
           gridMin.y + (iy + 0.5) * voxelHeight,
           gridMin.z + (iz + 0.5) * voxel,
         );
+        let shellHex: string | null = null;
+        if (state === SHELL && useSkin) {
+          exposedDirs.length = 0;
+          for (const dir of NEIGHBOURS) {
+            if (isOutside(ix + dir[0], iy + dir[1], iz + dir[2])) exposedDirs.push(dir);
+          }
+          if (exposedDirs.length) {
+            shellHex = skinColor(prepared, meshByObject, centre, voxel, voxelHeight, exposedDirs);
+          }
+        }
         const cell: VoxelCell = {
-          colorHex: state === SHELL ? shellColor(prepared, centre, voxel, voxelHeight) : '#A0A19F',
+          colorHex: state === SHELL ? shellHex ?? shellColor(prepared, centre, voxel, voxelHeight) : '#A0A19F',
           cx: (ix - nx / 2 + 0.5) * worldSize,
           cy: (iy + 0.5) * worldLayerHeight,
           cz: (iz - nz / 2 + 0.5) * worldSize,
