@@ -531,7 +531,22 @@ function PixBrikApp() {
           method: 'POST',
         });
       }
-      return { cells: model.cells.length, colours, seconds };
+      const { assessBuildAsync } = await import('./src/lib/kitAssessment');
+      const assessment = await assessBuildAsync(model, '#FF3D17');
+      const { brickify } = await import('./src/lib/brickify');
+      const { createAssemblyPlan } = await import('./src/lib/instructions/assemblyPlan');
+      const offenders = createAssemblyPlan(brickify(model, '#FF3D17'))
+        .steps.filter((step) => step.support.status === 'unsupported')
+        .map((step) => step.placement)
+        .slice(0, 12);
+      return {
+        cells: model.cells.length,
+        colours,
+        seconds,
+        full: { buildable: assessment.full.buildable, issue: assessment.full.assemblyIssue },
+        hollow: { buildable: assessment.hollow.buildable, issue: assessment.hollow.assemblyIssue },
+        offenders,
+      };
     };
   }, []);
 

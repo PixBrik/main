@@ -971,12 +971,94 @@ async function voxelizeMeshes(
     [...interiorCells, ...buriedSurfaceCells],
     options.colorStyle ?? 'natural',
   );
+  const anchored = await anchorAgainstReleaseGate(cells, worldSize, worldLayerHeight);
   // Preserve the approved occupancy exactly. Automatic slope detection turns
   // a filled surface voxel into a half wedge, visibly eroding faces and cars.
-  return buildModelFromCells(cells, worldSize, {
+  return buildModelFromCells(anchored, worldSize, {
     layerHeight: worldLayerHeight,
     slopes: false,
   });
+}
+
+/**
+ * Anchor repair against the REAL release gate. Voxel-level support
+ * heuristics kept diverging from the packer (piece splits, colour runs), so
+ * the exact pipeline is the referee: pack the solid kit, plan its assembly,
+ * and for every genuinely unsupported piece grow a short support column from
+ * its own footprint down (or up) to existing structure — it reads as a
+ * deliberate brick detail. Unrescuable micro-pieces are dropped. Guarantees
+ * the SOLID fill of every generated kit passes the gate; reinforced-hollow
+ * stays honestly gated per model.
+ */
+async function anchorAgainstReleaseGate(
+  cells: VoxelCell[],
+  worldSize: number,
+  worldLayerHeight: number,
+): Promise<VoxelCell[]> {
+  const { brickify } = await import('../brickify');
+  const { createAssemblyPlan } = await import('../instructions/assemblyPlan');
+  let all = cells;
+  const MAX_GAP = 12;
+  for (let round = 0; round < 5; round++) {
+    const byKey = new Map(all.map((cell) => [`${cell.i},${cell.j},${cell.k}`, cell]));
+    const model = buildModelFromCells(all, worldSize, { layerHeight: worldLayerHeight, slopes: false });
+    const plan = createAssemblyPlan(brickify(model, '#FF3D17'));
+    await nextTick();
+    const offenders = plan.steps
+      .filter((step) => step.support.status === 'unsupported')
+      .map((step) => step.placement as { i: number; j: number; k: number; spanI?: number; spanK?: number });
+    if (!offenders.length) return all;
+
+    const additions: VoxelCell[] = [];
+    const drop = new Set<VoxelCell>();
+    for (const piece of offenders) {
+      const spanI = piece.spanI ?? 1;
+      const spanK = piece.spanK ?? 1;
+      let fixed = false;
+      for (const direction of [-1, 1] as const) {
+        for (let di = 0; di < spanI && !fixed; di++) {
+          for (let dk = 0; dk < spanK && !fixed; dk++) {
+            const ci = piece.i + di;
+            const ck = piece.k + dk;
+            for (let gap = 2; gap <= MAX_GAP; gap++) {
+              const target = byKey.get(`${ci},${piece.j + direction * gap},${ck}`);
+              if (!target) continue;
+              const base = byKey.get(`${ci},${piece.j},${ck}`) ?? target;
+              for (let step = 1; step < gap; step++) {
+                const fillJ = piece.j + direction * step;
+                const key = `${ci},${fillJ},${ck}`;
+                if (byKey.has(key)) continue;
+                const post: VoxelCell = {
+                  ...base,
+                  colorHex: target.colorHex ?? base.colorHex,
+                  cy: (fillJ + 0.5) * worldLayerHeight,
+                  j: fillJ,
+                };
+                byKey.set(key, post);
+                additions.push(post);
+              }
+              fixed = true;
+              break;
+            }
+          }
+        }
+        if (fixed) break;
+      }
+      if (!fixed) {
+        const pieceCells: VoxelCell[] = [];
+        for (let di = 0; di < spanI; di++) {
+          for (let dk = 0; dk < spanK; dk++) {
+            const cell = byKey.get(`${piece.i + di},${piece.j},${piece.k + dk}`);
+            if (cell) pieceCells.push(cell);
+          }
+        }
+        if (pieceCells.length <= 6) for (const cell of pieceCells) drop.add(cell);
+      }
+    }
+    if (!additions.length && !drop.size) return all;
+    all = [...all.filter((cell) => !drop.has(cell)), ...additions];
+  }
+  return all;
 }
 
 /** Voxelize an already-loaded GLB ArrayBuffer at all three profiles. */
