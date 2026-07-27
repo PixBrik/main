@@ -518,18 +518,44 @@ function PixBrikApp() {
       receiver = 'http://localhost:8095',
     ) => {
       const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
-      const { renderBrickTurntable } = await import('./src/lib/brickTurntable');
+      const { renderBrickTurntable3D } = await import('./src/lib/brickRender3D');
       const t0 = Date.now();
       const model = await voxelizeGlbUrlOne(url, profile, undefined, options);
       const seconds = Math.round((Date.now() - t0) / 1000);
       const colours = new Set(model.cells.map((cell) => cell.colorHex ?? '')).size;
-      const frames = renderBrickTurntable(model, '#FF3D17');
+      const frames = renderBrickTurntable3D(model);
       for (const [index, png] of frames.entries()) {
         await fetch(receiver, {
           body: JSON.stringify({ name: `${label}-${profile}-v${index}`, png }),
           headers: { 'Content-Type': 'application/json' },
           method: 'POST',
         });
+      }
+      // Product render from the REAL kit: actual catalogue parts, actual
+      // colours, exactly what ships in the box.
+      try {
+        const { renderLDrawTurntable } = await import('./src/lib/brickRenderLDraw');
+        const { brickify: pack } = await import('./src/lib/brickify');
+        const catalogue = (await import('./src/data/brickCatalog.json')).default as {
+          colors: Array<{ id: number; rgb: string }>;
+        };
+        const colorHexById: Record<string, string> = {};
+        for (const colour of catalogue.colors) colorHexById[String(colour.id)] = colour.rgb;
+        const bom = pack(model, '#FF3D17');
+        const product = await renderLDrawTurntable(bom.placements as never, {
+          colorHexById,
+          elevation: (options as { elevation?: number }).elevation ?? Math.PI / 11,
+          ldrawBase: 'http://localhost:8095/ldraw',
+        });
+        for (const [index, png] of product.entries()) {
+          await fetch(receiver, {
+            body: JSON.stringify({ name: `${label}-${profile}-LD${index}`, png }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+          });
+        }
+      } catch (error) {
+        console.error('[ldraw render]', error);
       }
       const { assessBuildAsync } = await import('./src/lib/kitAssessment');
       const assessment = await assessBuildAsync(model, '#FF3D17');
@@ -553,6 +579,106 @@ function PixBrikApp() {
   // Dev A/B inspection hook: dump per-part bounds of a GLB so subject-vs-base
   // heuristics can be designed against real masters.
   useEffect(() => {
+    /**
+     * Dev A/B: one subject, rendered the OLD flat way and the NEW product
+     * way at a chosen stud resolution, posted to the local receiver.
+     */
+    (globalThis as unknown as { __compare?: unknown }).__compare = async (
+      url: string,
+      label: string,
+      studSpan = 32,
+      extra: {
+        colorStyle?: 'natural' | 'bw';
+        frames?: number;
+        monochrome?: string;
+        skipOld?: boolean;
+        yaw?: number;
+      } = {},
+      receiver = 'http://localhost:8095',
+    ) => {
+      const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
+      const { renderBrickTurntable } = await import('./src/lib/brickTurntable');
+      const { renderLDrawTurntable } = await import('./src/lib/brickRenderLDraw');
+      const { brickify: pack } = await import('./src/lib/brickify');
+      const catalogue = (await import('./src/data/brickCatalog.json')).default as {
+        colors: Array<{ id: number; rgb: string }>;
+      };
+      const colorHexById: Record<string, string> = {};
+      for (const colour of catalogue.colors) colorHexById[String(colour.id)] = colour.rgb;
+
+      const t0 = Date.now();
+      const model = await voxelizeGlbUrlOne(url, 'balanced', undefined, {
+        ...(extra.colorStyle ? { colorStyle: extra.colorStyle } : {}),
+        studSpans: { balanced: studSpan },
+      });
+      const voxelSeconds = Math.round((Date.now() - t0) / 1000);
+      const bom = pack(model, '#FF3D17');
+
+      const post = async (name: string, png: string) => {
+        await fetch(receiver, {
+          body: JSON.stringify({ name, png }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+      };
+      // OLD: flat SVG-style projection, one frame.
+      if (!extra.skipOld) {
+        for (const [index, png] of renderBrickTurntable(model, '#FF3D17', 1).entries()) {
+          await post(`cmp2-${label}-${studSpan}-OLD${index}`, png);
+        }
+      }
+      // NEW: real catalogue parts under studio light.
+      const product = await renderLDrawTurntable(bom.placements as never, {
+        colorHexById,
+        frames: extra.frames ?? 2,
+        ldrawBase: 'http://localhost:8095/ldraw',
+        ...(extra.monochrome ? { monochrome: extra.monochrome } : {}),
+        ...(extra.yaw !== undefined ? { yaw: extra.yaw } : {}),
+      });
+      for (const [index, png] of product.entries()) {
+        await post(`cmp2-${label}-${studSpan}-NEW${index}`, png);
+      }
+      return {
+        cells: model.cells.length,
+        colours: new Set(model.cells.map((c) => c.colorHex ?? '')).size,
+        pieces: bom.totalParts,
+        priceEur: bom.totalEur,
+        studSpan,
+        voxelSeconds,
+      };
+    };
+
+    // Dev probe: compare the voxel model's grid with the packed BOM so the
+    // product renderer's coordinate assumptions can be checked against data.
+    (globalThis as unknown as { __bomProbe?: unknown }).__bomProbe = async (
+      url: string,
+      profile: 'efficient' | 'balanced' | 'detailed' = 'balanced',
+    ) => {
+      const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
+      const { brickify: pack } = await import('./src/lib/brickify');
+      const model = await voxelizeGlbUrlOne(url, profile);
+      const bom = pack(model, '#FF3D17');
+      const range = (values: number[]) => [Math.min(...values), Math.max(...values)];
+      const placements = bom.placements as unknown as Array<Record<string, number>>;
+      const cellsCovered = placements.reduce(
+        (sum, p) => sum + (p.spanI ?? 1) * (p.spanK ?? 1),
+        0,
+      );
+      return {
+        cellCount: model.cells.length,
+        cellI: range(model.cells.map((c) => c.i)),
+        cellJ: range(model.cells.map((c) => c.j)),
+        cellK: range(model.cells.map((c) => c.k)),
+        cellsCovered,
+        placementCount: placements.length,
+        placementI: range(placements.map((p) => p.i!)),
+        placementJ: range(placements.map((p) => p.j!)),
+        placementK: range(placements.map((p) => p.k!)),
+        parts: [...new Set(placements.map((p) => String(p.part)))],
+        sample: placements.slice(0, 4),
+      };
+    };
+
     (globalThis as unknown as { __inspect?: unknown }).__inspect = async (url: string) => {
       const THREE = await import('three');
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');

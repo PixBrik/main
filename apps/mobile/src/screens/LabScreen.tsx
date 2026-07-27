@@ -537,9 +537,23 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
       setPreviewDataUrl(null);
     }
     try {
-      // The shop shows these instead of re-voxelizing on every visit.
-      const { renderBrickTurntable } = await import('../lib/brickTurntable');
-      setBrickPreviews(renderBrickTurntable(model, colors.alarm));
+      // The shop shows these instead of re-voxelizing on every visit. They
+      // render the REAL kit — the packed catalogue pieces, drawn from each
+      // part's own LDraw geometry under studio light — so a buyer sees the
+      // product rather than a diagram of it.
+      const { renderLDrawTurntable } = await import('../lib/brickRenderLDraw');
+      const { brickify } = await import('../lib/brickify');
+      const catalogue = (await import('../data/brickCatalog.json')).default as {
+        colors: Array<{ id: number; rgb: string }>;
+      };
+      const colorHexById: Record<string, string> = {};
+      for (const colour of catalogue.colors) colorHexById[String(colour.id)] = colour.rgb;
+      const bom = brickify(model, colors.alarm);
+      const product = await renderLDrawTurntable(bom.placements as never, {
+        colorHexById,
+        ldrawBase: '/ldraw',
+      });
+      setBrickPreviews(product);
     } catch {
       setBrickPreviews([]);
     }
