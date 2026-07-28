@@ -67,7 +67,9 @@ function nearColour(a: VoxelCell, b: VoxelCell) {
   const dr = Number.parseInt(hexA.slice(1, 3), 16) - Number.parseInt(hexB.slice(1, 3), 16);
   const dg = Number.parseInt(hexA.slice(3, 5), 16) - Number.parseInt(hexB.slice(3, 5), 16);
   const db = Number.parseInt(hexA.slice(5, 7), 16) - Number.parseInt(hexB.slice(5, 7), 16);
-  return dr * dr + dg * dg + db * db <= 90 * 90;
+  // Tolerant enough that adjacent shading bands of one material still form a
+  // slope run — a stepped edge is worse than a slope in a near-match colour.
+  return dr * dr + dg * dg + db * db <= 140 * 140;
 }
 
 /**

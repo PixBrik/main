@@ -590,6 +590,7 @@ function PixBrikApp() {
       extra: {
         colorStyle?: 'natural' | 'bw' | 'portrait';
         frames?: number;
+        hollow?: boolean;
         monochrome?: string;
         skipOld?: boolean;
         sourceShots?: number;
@@ -613,7 +614,7 @@ function PixBrikApp() {
         studSpans: { balanced: studSpan },
       });
       const voxelSeconds = Math.round((Date.now() - t0) / 1000);
-      const bom = pack(model, '#FF3D17');
+      const bom = pack(model, '#FF3D17', extra.hollow ? { hollow: true } : {});
 
       const post = async (name: string, png: string) => {
         await fetch(receiver, {
@@ -742,12 +743,57 @@ function PixBrikApp() {
       return { bytes: bytes.length, triangles };
     };
 
+    /** Dev conversion: assign clean flat materials to named meshes and re-export. */
+    (globalThis as unknown as { __paintGlb?: unknown }).__paintGlb = async (
+      url: string,
+      name: string,
+      rules: Array<[string, string]>,
+      fallbackHex = '#606568',
+      receiver = 'http://localhost:8095',
+    ) => {
+      const three = await import('three');
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      const { DRACOLoader } = await import('three/examples/jsm/loaders/DRACOLoader.js');
+      const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
+      const loader = new GLTFLoader();
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('/draco/');
+      loader.setDRACOLoader(draco);
+      const gltf = await loader.loadAsync(url);
+      const names: string[] = [];
+      gltf.scene.traverse((node) => {
+        const mesh = node as import('three').Mesh;
+        if (!mesh.isMesh) return;
+        names.push(node.name);
+        const rule = rules.find(([pattern]) => new RegExp(pattern, 'i').test(node.name));
+        mesh.material = new three.MeshStandardMaterial({
+          color: rule ? rule[1] : fallbackHex,
+          metalness: 0,
+          roughness: 0.55,
+        });
+      });
+      const buffer: ArrayBuffer = await new Promise((resolve, reject) => {
+        new GLTFExporter().parse(gltf.scene, (result) => resolve(result as ArrayBuffer), (error) => reject(error), { binary: true });
+      });
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      }
+      await fetch(receiver, {
+        body: JSON.stringify({ glb: btoa(binary), name }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      return { bytes: bytes.length, names: names.slice(0, 40) };
+    };
+
     /** Dev capture: a dense turntable of the finished kit for spin viewers. */
     (globalThis as unknown as { __spin?: unknown }).__spin = async (
       url: string,
       label: string,
       studSpan = 40,
-      extra: { colorStyle?: 'natural' | 'bw' | 'portrait'; frames?: number } = {},
+      extra: { colorStyle?: 'natural' | 'bw' | 'portrait'; frames?: number; hollow?: boolean } = {},
       receiver = 'http://localhost:8095',
     ) => {
       const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
@@ -762,7 +808,7 @@ function PixBrikApp() {
         ...(extra.colorStyle ? { colorStyle: extra.colorStyle } : {}),
         studSpans: { balanced: studSpan },
       });
-      const bom = pack(model, '#FF3D17');
+      const bom = pack(model, '#FF3D17', extra.hollow ? { hollow: true } : {});
       const frames = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
         colorHexById,

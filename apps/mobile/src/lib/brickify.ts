@@ -1402,7 +1402,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     // along the ridge axis wants the same facing: connected step EDGES read
     // as clean curved lines, while lone surface bumps capped individually
     // would stipple an organic body into chainmail.
-    const cheeseCandidates = new Map<string, { facing: number; placement: BrickPlacement }>();
+    const cheeseCandidates = new Map<string, { facing: number; lone?: boolean; placement: BrickPlacement }>();
 
     for (const placement of placements) {
       const { i, j, k } = placement;
@@ -1454,7 +1454,20 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
               match = face;
             }
           }
-          if (match !== null) cheeseCandidates.set(`${i}|${j}|${k}`, { facing: match, placement });
+          if (match !== null) {
+            // A step edge whose surface CONTINUES behind it is genuine
+            // bodywork (bonnet tread, brow line) and deserves its cap even
+            // without a ridge mate; only free-floating bumps must wait for
+            // one, or organic noise stipples.
+            const d = FACE_DIRECTIONS[match]!;
+            const behindFilled = occupied(i - d.x, j, k - d.z);
+            const behindOpen = !occupied(i - d.x, j + 1, k - d.z);
+            cheeseCandidates.set(`${i}|${j}|${k}`, {
+              facing: match,
+              lone: behindFilled && behindOpen,
+              placement,
+            });
+          }
         }
         continue;
       }
@@ -1525,7 +1538,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         ? [`${i}|${j}|${k - 1}`, `${i}|${j}|${k + 1}`]
         : [`${i - 1}|${j}|${k}`, `${i + 1}|${j}|${k}`];
       const hasMate = ridge.some((mateKey) => cheeseCandidates.get(mateKey)?.facing === candidate.facing);
-      if (hasMate) swap(candidate.placement, sculptByPart.get('54200'), candidate.facing);
+      if (hasMate || candidate.lone) swap(candidate.placement, sculptByPart.get('54200'), candidate.facing);
     }
   }
 
