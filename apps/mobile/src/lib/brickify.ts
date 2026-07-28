@@ -1480,9 +1480,9 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
       // 2×2 caps: an isolated tower top becomes a dome; a shoulder that steps
       // down on exactly one side becomes the wide curved crown.
-      if (placement.part === '3003' && placement.shape === 'brick' && placement.spanI === 2 && placement.spanK === 2) {
+      if (placement.part === '3003' && placement.shape === 'brick' && placement.spanI === 2 && placement.spanK === 2
+        && ![[i, k], [i + 1, k], [i, k + 1], [i + 1, k + 1]].some(([ci, ck]) => occupied(ci!, j + 1, ck!))) {
         const top = [[i, k], [i + 1, k], [i, k + 1], [i + 1, k + 1]] as const;
-        if (top.some(([ci, ck]) => occupied(ci, j + 1, ck))) continue;
         const ringEmpty = horizontal.every((face) => {
           const d = FACE_DIRECTIONS[face]!;
           return top.every(([ci, ck]) => {
@@ -1516,7 +1516,9 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       }
 
       // 1×2 bricks whose front stud floats over air while the back stands on
-      // the layer below are overhang steps — the inverted 45° part.
+      // the layer below are overhang steps. The curved inverted part (24201)
+      // is preferred — organic undersides (bellies, jaws, wheel-arch lips)
+      // read rounded — with the hard 45° (3665) as the colour fallback.
       if (placement.part === '3004' && placement.shape === 'brick' && j > 0) {
         const along = placement.spanI === 2 ? [3, 4] as const : [1, 2] as const;
         let match: number | null = null;
@@ -1534,7 +1536,39 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             match = face;
           }
         }
-        if (match !== null) swap(placement, sculptByPart.get('3665'), match);
+        if (match !== null) {
+          const curved = sculptByPart.get('24201');
+          if (curved?.elements[String(placement.colorId)]) swap(placement, curved, match);
+          else swap(placement, sculptByPart.get('3665'), match);
+        }
+        continue;
+      }
+
+      // 2×2 bricks overhanging on exactly one full edge get the wide
+      // inverted parts — curved (32803) first, hard 45° (3660) as fallback.
+      if (placement.part === '3003' && placement.shape === 'brick' && placement.spanI === 2 && placement.spanK === 2 && j > 0) {
+        const top = [[i, k], [i + 1, k], [i, k + 1], [i + 1, k + 1]] as const;
+        let match: number | null = null;
+        for (const face of [1, 2, 3, 4] as const) {
+          const d = FACE_DIRECTIONS[face]!;
+          const front = top.filter(([ci, ck]) =>
+            (d.x > 0 && ci === i + 1) || (d.x < 0 && ci === i)
+            || (d.z > 0 && ck === k + 1) || (d.z < 0 && ck === k));
+          const back = top.filter(([ci, ck]) => !front.some(([fi, fk]) => fi === ci && fk === ck));
+          const overhangs = front.every(([ci, ck]) => !occupied(ci, j - 1, ck))
+            && back.every(([ci, ck]) => occupied(ci, j - 1, ck));
+          if (!overhangs) continue;
+          if (match !== null) {
+            match = null;
+            break;
+          }
+          match = face;
+        }
+        if (match !== null) {
+          const curved = sculptByPart.get('32803');
+          if (curved?.elements[String(placement.colorId)]) swap(placement, curved, match);
+          else swap(placement, sculptByPart.get('3660'), match);
+        }
       }
     }
 

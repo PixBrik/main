@@ -8,7 +8,7 @@
  */
 
 import type { PhotoModels } from './voxelizePhoto';
-import { colorDistance, quantizeToCatalog } from './voxelizePhoto';
+import { colorDistance, getPalette, quantizeToCatalog } from './voxelizePhoto';
 import type { VoxelCell, VoxelModel } from '../voxelFox';
 
 /**
@@ -415,38 +415,93 @@ export function colorizeMeshCells(
     if (isHairCentroid(centroid)) return HAIR_RAMP;
     return null;
   };
-  const rampLumas = new Map<string[], number[]>();
-  const rampLuma = (ramp: string[]): number[] => {
-    let lumas = rampLumas.get(ramp);
-    if (!lumas) {
-      lumas = ramp.map((hex) => luma(hexToRgb(hex)));
-      rampLumas.set(ramp, lumas);
+  // Family mapping is NORMALISED: each family's observed luma range (5th to
+  // 95th percentile) stretches across its full ramp. Absolute mapping let a
+  // brightly lit source pile every cell into the two lightest steps — washed
+  // skin, blotchy fur. Normalised, shadows genuinely reach the dark steps and
+  // highlights the light ones, which is what gives a face sculpted depth.
+  const familyLumas = new Map<string[], number[]>();
+  for (let index = 0; index < surfaceCells.length; index++) {
+    const ramp = rampFor(centroids[smoothed[index]!]!);
+    if (!ramp) continue;
+    let list = familyLumas.get(ramp);
+    if (!list) {
+      list = [];
+      familyLumas.set(ramp, list);
     }
-    return lumas;
-  };
+    list.push(luma(raw[index]!));
+  }
+  const familyRange = new Map<string[], { low: number; high: number }>();
+  for (const [ramp, values] of familyLumas) {
+    values.sort((a, b) => a - b);
+    familyRange.set(ramp, {
+      high: values[Math.ceil((values.length - 1) * 0.95)]!,
+      low: values[Math.floor((values.length - 1) * 0.05)]!,
+    });
+  }
+  // Non-family clusters dither too when the palette is genuinely ambiguous:
+  // fur, paint and fabric all live BETWEEN two catalogue colours, and a
+  // parity mix reads as the in-between shade the way a hard pick cannot.
+  const palette = getPalette();
+  const clusterPair = centroids.map((centroid, cluster) => {
+    const primary = hexToRgb(catalogHex[cluster]!);
+    let second: Rgb | null = null;
+    let secondDistance = Infinity;
+    let primaryDistance = Infinity;
+    for (const entry of palette) {
+      const target: Rgb = [entry.rgb[0]!, entry.rgb[1]!, entry.rgb[2]!];
+      const dr = centroid[0] - target[0];
+      const dg = centroid[1] - target[1];
+      const db = centroid[2] - target[2];
+      const distance = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+      const isPrimary = Math.abs(target[0] - primary[0]) + Math.abs(target[1] - primary[1]) + Math.abs(target[2] - primary[2]) < 3;
+      if (isPrimary) {
+        primaryDistance = distance;
+        continue;
+      }
+      if (distance < secondDistance) {
+        second = target;
+        secondDistance = distance;
+      }
+    }
+    if (!second || secondDistance > primaryDistance * 2.0) return null;
+    return {
+      aHex: catalogHex[cluster]!,
+      aLuma: luma(primary),
+      bHex: `#${second.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`,
+      bLuma: luma(second),
+    };
+  });
+
   for (let index = 0; index < surfaceCells.length; index++) {
     const cell = surfaceCells[index]!;
     const cluster = smoothed[index]!;
     const ramp = rampFor(centroids[cluster]!);
-    if (!ramp) {
+    const own = luma(raw[index]!);
+    const parity = (cell.i + cell.j + cell.k) % 2 === 0;
+    if (ramp) {
+      const range = familyRange.get(ramp)!;
+      const span = Math.max(1, range.high - range.low);
+      const t = Math.max(0, Math.min(1, (range.high - own) / span));
+      const position = t * (ramp.length - 1);
+      const upper = Math.floor(position);
+      const lower = Math.min(upper + 1, ramp.length - 1);
+      const fraction = position - upper;
+      cell.colorHex = fraction > 0.35 && fraction < 0.65
+        ? ramp[parity ? upper : lower]!
+        : ramp[fraction <= 0.5 ? upper : lower]!;
+      continue;
+    }
+    const pair = portrait ? clusterPair[cluster] : null;
+    if (!pair || pair.aLuma === pair.bLuma) {
       cell.colorHex = catalogHex[cluster]!;
       continue;
     }
-    const lumas = rampLuma(ramp);
-    const own = luma(raw[index]!);
-    // Ramps are ordered light to dark; find the bracketing pair.
-    let upper = 0;
-    while (upper < lumas.length - 1 && own < lumas[upper + 1]!) upper++;
-    const lower = Math.min(upper + 1, lumas.length - 1);
-    if (upper === lower) {
-      cell.colorHex = ramp[upper]!;
-      continue;
-    }
-    const span = lumas[upper]! - lumas[lower]!;
-    const t = span > 0 ? (lumas[upper]! - own) / span : 0;
+    const light = pair.aLuma > pair.bLuma ? pair : { aHex: pair.bHex, aLuma: pair.bLuma, bHex: pair.aHex, bLuma: pair.aLuma };
+    const t = Math.max(0, Math.min(1, (light.aLuma - own) / (light.aLuma - light.bLuma)));
     cell.colorHex = t > 0.35 && t < 0.65
-      ? ramp[(cell.i + cell.j + cell.k) % 2 === 0 ? upper : lower]!
-      : ramp[t <= 0.5 ? upper : lower]!;
+      ? (parity ? light.aHex : light.bHex)
+      : t <= 0.5 ? light.aHex : light.bHex;
   }
 
   // Interior bricks cannot be seen in the approved preview.  Give them the

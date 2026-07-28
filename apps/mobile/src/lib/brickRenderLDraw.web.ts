@@ -141,6 +141,7 @@ function slopeRotation(facing: number | undefined): number {
  * faces the opposite way.
  */
 const NATIVE_YAW_OFFSET: Record<string, number> = {
+  '3660': Math.PI,
   '3665': Math.PI,
 };
 

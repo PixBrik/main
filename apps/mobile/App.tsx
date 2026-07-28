@@ -788,6 +788,67 @@ function PixBrikApp() {
       return { bytes: bytes.length, names: names.slice(0, 40) };
     };
 
+    /** Dev capture: a dense turntable of the SOURCE mesh for spin viewers. */
+    (globalThis as unknown as { __spinSrc?: unknown }).__spinSrc = async (
+      url: string,
+      label: string,
+      frames = 24,
+      receiver = 'http://localhost:8095',
+    ) => {
+      const three = await import('three');
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      const { DRACOLoader } = await import('three/examples/jsm/loaders/DRACOLoader.js');
+      const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js');
+      const loader = new GLTFLoader();
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('/draco/');
+      loader.setDRACOLoader(draco);
+      const gltf = await loader.loadAsync(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = 560;
+      canvas.height = 420;
+      const renderer = new three.WebGLRenderer({ antialias: true, canvas, preserveDrawingBuffer: true });
+      try {
+        renderer.setSize(560, 420, false);
+        renderer.toneMapping = three.ACESFilmicToneMapping;
+        renderer.outputColorSpace = three.SRGBColorSpace;
+        const scene = new three.Scene();
+        scene.background = new three.Color('#17130A');
+        const pmrem = new three.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        const key = new three.DirectionalLight('#fff6e8', 1.6);
+        key.position.set(3, 4, 3);
+        scene.add(key);
+        const turntable = new three.Group();
+        turntable.add(gltf.scene);
+        scene.add(turntable);
+        const bounds = new three.Box3().setFromObject(gltf.scene);
+        const size = bounds.getSize(new three.Vector3());
+        const centre = bounds.getCenter(new three.Vector3());
+        gltf.scene.position.sub(centre);
+        const sphere = 0.5 * Math.hypot(size.x, size.y, size.z);
+        const camera = new three.PerspectiveCamera(30, 560 / 420, sphere / 100, sphere * 40);
+        const fov = (camera.fov * Math.PI) / 180;
+        const distance = (sphere / Math.sin(fov / 2)) * 1.05;
+        for (let frame = 0; frame < frames; frame++) {
+          turntable.rotation.y = (frame * Math.PI * 2) / frames;
+          camera.position.set(distance * 0.32, distance * 0.35, distance);
+          camera.lookAt(0, 0, 0);
+          renderer.render(scene, camera);
+          await fetch(receiver, {
+            body: JSON.stringify({ name: `spinsrc-${label}-${String(frame).padStart(2, '0')}`, png: canvas.toDataURL('image/png') }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+          });
+        }
+        pmrem.dispose();
+        return frames;
+      } finally {
+        renderer.dispose();
+        renderer.forceContextLoss();
+      }
+    };
+
     /** Dev capture: a dense turntable of the finished kit for spin viewers. */
     (globalThis as unknown as { __spin?: unknown }).__spin = async (
       url: string,

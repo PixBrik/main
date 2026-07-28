@@ -89,7 +89,7 @@ let palette: PaletteEntry[] | null = null;
  * Scarcity no longer excludes colours from matching — it only raises the
  * estimated price of the parts that use them.
  */
-function getPalette(): PaletteEntry[] {
+export function getPalette(): PaletteEntry[] {
   if (palette) {
     return palette;
   }
