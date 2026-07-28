@@ -742,6 +742,45 @@ function PixBrikApp() {
       return { bytes: bytes.length, triangles };
     };
 
+    /** Dev capture: a dense turntable of the finished kit for spin viewers. */
+    (globalThis as unknown as { __spin?: unknown }).__spin = async (
+      url: string,
+      label: string,
+      studSpan = 40,
+      extra: { colorStyle?: 'natural' | 'bw' | 'portrait'; frames?: number } = {},
+      receiver = 'http://localhost:8095',
+    ) => {
+      const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
+      const { renderLDrawTurntable } = await import('./src/lib/brickRenderLDraw');
+      const { brickify: pack } = await import('./src/lib/brickify');
+      const catalogue = (await import('./src/data/brickCatalog.json')).default as {
+        colors: Array<{ id: number; rgb: string }>;
+      };
+      const colorHexById: Record<string, string> = {};
+      for (const colour of catalogue.colors) colorHexById[String(colour.id)] = colour.rgb;
+      const model = await voxelizeGlbUrlOne(url, 'balanced', undefined, {
+        ...(extra.colorStyle ? { colorStyle: extra.colorStyle } : {}),
+        studSpans: { balanced: studSpan },
+      });
+      const bom = pack(model, '#FF3D17');
+      const frames = await renderLDrawTurntable(bom.placements as never, {
+        ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
+        colorHexById,
+        frames: extra.frames ?? 24,
+        height: 420,
+        ldrawBase: 'http://localhost:8095/ldraw',
+        width: 560,
+      });
+      for (const [index, png] of frames.entries()) {
+        await fetch(receiver, {
+          body: JSON.stringify({ name: `spin-${label}-${String(index).padStart(2, '0')}`, png }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+      }
+      return frames.length;
+    };
+
     /** Dev conversion: bake a separate diffuse map into a bare-geometry GLB. */
     (globalThis as unknown as { __textureGlb?: unknown }).__textureGlb = async (
       glbUrl: string,

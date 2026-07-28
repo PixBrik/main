@@ -235,6 +235,7 @@ export function colorizeMeshCells(
   }
 
   const raw = surfaceCells.map((cell) => hexToRgb(cell.colorHex ?? '#A0A19F'));
+  let portraitLocked: Uint8Array | null = null;
 
   // Portrait style opens with a spatial blur of the raw samples. Scan
   // textures carry baked-in shading at brick-level frequency; the neighbour
@@ -245,6 +246,7 @@ export function colorizeMeshCells(
   if (style === 'portrait') {
     const byCoordRaw = new Map(surfaceCells.map((cell, index) => [coord(cell), index]));
     const blurred: Rgb[] = raw.map(() => [0, 0, 0]);
+    const locked = new Uint8Array(surfaceCells.length);
     for (let index = 0; index < surfaceCells.length; index++) {
       const cell = surfaceCells[index]!;
       let r = 0;
@@ -266,13 +268,27 @@ export function colorizeMeshCells(
         }
       }
       blurred[index] = weight > 0 ? [r / weight, g / weight, b / weight] : raw[index]!;
+      // Detail lock: a face is not just skin — brows, eyes and lips are
+      // SMALL regions that differ sharply from their surroundings, exactly
+      // what an anti-speckle blur would erase. Cells whose own colour stands
+      // far from the local mean keep their original sample and are exempt
+      // from vote flips, so features survive while shading still smooths.
+      const own = raw[index]!;
+      const mean = blurred[index]!;
+      const dr = own[0] - mean[0];
+      const dg = own[1] - mean[1];
+      const db = own[2] - mean[2];
+      if (2 * dr * dr + 4 * dg * dg + 3 * db * db > 5200) locked[index] = 1;
     }
-    for (let index = 0; index < raw.length; index++) raw[index] = blurred[index]!;
+    for (let index = 0; index < raw.length; index++) {
+      if (!locked[index]) raw[index] = blurred[index]!;
+    }
     for (let index = 0; index < surfaceCells.length; index++) {
       const [r, g, b] = raw[index]!;
       surfaceCells[index]!.colorHex =
         `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
     }
+    portraitLocked = locked;
   }
 
   const centroids = naturalCentroids(surfaceCells);
@@ -296,6 +312,7 @@ export function colorizeMeshCells(
     const previous = smoothed;
     smoothed = new Int32Array(previous);
     for (let index = 0; index < surfaceCells.length; index++) {
+      if (portraitLocked?.[index]) continue;
       const cell = surfaceCells[index]!;
       const votes = new Map<number, number>();
       for (const [di, dj, dk] of NEIGHBOURS) {
