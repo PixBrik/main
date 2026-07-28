@@ -588,10 +588,11 @@ function PixBrikApp() {
       label: string,
       studSpan = 32,
       extra: {
-        colorStyle?: 'natural' | 'bw';
+        colorStyle?: 'natural' | 'bw' | 'portrait';
         frames?: number;
         monochrome?: string;
         skipOld?: boolean;
+        sourceShots?: number;
         yaw?: number;
       } = {},
       receiver = 'http://localhost:8095',
@@ -621,6 +622,18 @@ function PixBrikApp() {
           method: 'POST',
         });
       };
+      // SOURCE: the approved 3D mesh itself, for like-for-like comparison.
+      if (extra.sourceShots) {
+        try {
+          const { snapshotGlb } = await import('./src/lib/photoEngine/meshSnapshot');
+          const shots = await snapshotGlb(url);
+          for (const [index, png] of shots.slice(0, extra.sourceShots).entries()) {
+            await post(`cmp2-${label}-${studSpan}-SRC${index}`, png);
+          }
+        } catch (error) {
+          console.error('[source snapshot]', error);
+        }
+      }
       // OLD: flat SVG-style projection, one frame.
       if (!extra.skipOld) {
         for (const [index, png] of renderBrickTurntable(model, '#FF3D17', 1).entries()) {
@@ -646,6 +659,132 @@ function PixBrikApp() {
         studSpan,
         voxelSeconds,
       };
+    };
+
+    /**
+     * Dev conversion: fetch an OBJ, wrap it as a GLB and post it to the
+     * receiver so realistic scan subjects (museum OBJ scans) can flow through
+     * the standard GLB pipeline. Decimation keeps huge scans manageable.
+     */
+    (globalThis as unknown as { __objToGlb?: unknown }).__objToGlb = async (
+      url: string,
+      name: string,
+      receiver = 'http://localhost:8095',
+    ) => {
+      const three = await import('three');
+      const { OBJLoader } = await import('three/examples/jsm/loaders/OBJLoader.js');
+      const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
+      const text = await (await fetch(url)).text();
+      const group = new OBJLoader().parse(text);
+      let triangles = 0;
+      // Museum scans arrive at millions of triangles; the voxelizer only
+      // needs surface shape at stud resolution. Vertex clustering on a fixed
+      // grid decimates in linear time: snap every vertex to its cell centre
+      // and drop the triangles that collapse.
+      const GRID = 420;
+      group.traverse((node) => {
+        const mesh = node as import('three').Mesh;
+        if (!mesh.isMesh) return;
+        const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+        const positions = source.getAttribute('position');
+        if (!positions) return;
+        source.computeBoundingBox();
+        const box = source.boundingBox!;
+        const size = new three.Vector3();
+        box.getSize(size);
+        const step = Math.max(size.x, size.y, size.z) / GRID;
+        const snap = (value: number, minimum: number) =>
+          minimum + (Math.floor((value - minimum) / step) + 0.5) * step;
+        const kept: number[] = [];
+        for (let tri = 0; tri < positions.count; tri += 3) {
+          const corners: Array<[number, number, number]> = [];
+          for (let vertex = 0; vertex < 3; vertex++) {
+            corners.push([
+              snap(positions.getX(tri + vertex), box.min.x),
+              snap(positions.getY(tri + vertex), box.min.y),
+              snap(positions.getZ(tri + vertex), box.min.z),
+            ]);
+          }
+          const collapsed = corners.some((a, index) => {
+            const b = corners[(index + 1) % 3]!;
+            return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+          });
+          if (collapsed) continue;
+          for (const corner of corners) kept.push(...corner);
+        }
+        const decimated = new three.BufferGeometry();
+        decimated.setAttribute('position', new three.BufferAttribute(new Float32Array(kept), 3));
+        decimated.computeVertexNormals();
+        mesh.geometry = decimated;
+        triangles += kept.length / 9;
+        mesh.material = new three.MeshStandardMaterial({ color: '#B99B7A', metalness: 0, roughness: 0.7 });
+      });
+      const buffer: ArrayBuffer = await new Promise((resolve, reject) => {
+        new GLTFExporter().parse(
+          group,
+          (result) => resolve(result as ArrayBuffer),
+          (error) => reject(error),
+          { binary: true },
+        );
+      });
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+      }
+      await fetch(receiver, {
+        body: JSON.stringify({ glb: btoa(binary), name }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      return { bytes: bytes.length, triangles };
+    };
+
+    /** Dev calibration: render one of each sculpt part, all facing 1 (+k). */
+    (globalThis as unknown as { __partGallery?: unknown }).__partGallery = async (
+      receiver = 'http://localhost:8095',
+    ) => {
+      const { renderLDrawTurntable } = await import('./src/lib/brickRenderLDraw');
+      const specs: Array<{ part: string; shape: string; spanI: number; spanK: number; facing?: number }> = [
+        { facing: 1, part: '3040', shape: 'slope', spanI: 1, spanK: 2 },
+        { facing: 1, part: '37352', shape: 'slopeCurved', spanI: 1, spanK: 2 },
+        { facing: 1, part: '54200', shape: 'slopeCurved', spanI: 1, spanK: 1 },
+        { facing: 1, part: '15068', shape: 'slopeCurved', spanI: 2, spanK: 2 },
+        { facing: 1, part: '3665', shape: 'slopeInverted', spanI: 1, spanK: 2 },
+        { part: '3062', shape: 'round', spanI: 1, spanK: 1 },
+        { part: '4589', shape: 'round', spanI: 1, spanK: 1 },
+        { part: '30367', shape: 'round', spanI: 2, spanK: 2 },
+      ];
+      const colours = ['#C91A09', '#0055BF', '#F2CD37', '#257A3E', '#FF8C00', '#9BA19D', '#81007B', '#05131D'];
+      const placements = specs.map((spec, index) => ({
+        colorId: index,
+        facing: spec.facing,
+        i: index * 4,
+        j: 0,
+        k: 0,
+        part: spec.part,
+        shape: spec.shape,
+        spanI: spec.spanI,
+        spanK: spec.spanK,
+      }));
+      const colorHexById: Record<string, string> = {};
+      for (const [index, hex] of colours.entries()) colorHexById[String(index)] = hex;
+      const frames = await renderLDrawTurntable(placements as never, {
+        colorHexById,
+        elevation: Math.PI / 7,
+        frames: 4,
+        ldrawBase: 'http://localhost:8095/ldraw',
+        yaw: 0,
+      });
+      for (const [index, png] of frames.entries()) {
+        await fetch(receiver, {
+          body: JSON.stringify({ name: `gallery-${index}`, png }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+      }
+      return frames.length;
     };
 
     // Dev probe: compare the voxel model's grid with the packed BOM so the

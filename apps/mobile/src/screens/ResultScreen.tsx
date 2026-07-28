@@ -49,7 +49,7 @@ interface ResultScreenProps {
   /** Exact provider mesh retained after approval so buyers can compare it with the brick build. */
   approved3DMeshUrl?: string | null;
   approved3DStills?: string[] | null;
-  sculpturePalette?: 'natural' | 'bw';
+  sculpturePalette?: 'natural' | 'bw' | 'portrait';
   onSelectSculpturePalette?: (palette: 'natural' | 'bw') => void;
   onRetake3D?: () => void;
   true3DRetakesRemaining?: number;

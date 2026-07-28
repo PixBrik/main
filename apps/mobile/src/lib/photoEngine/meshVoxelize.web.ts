@@ -972,11 +972,12 @@ async function voxelizeMeshes(
     options.colorStyle ?? 'natural',
   );
   const anchored = await anchorAgainstReleaseGate(cells, worldSize, worldLayerHeight);
-  // Preserve the approved occupancy exactly. Automatic slope detection turns
-  // a filled surface voxel into a half wedge, visibly eroding faces and cars.
+  // Slope detection turns single-step staircases into real 45° wedge parts.
+  // It was disabled while previews drew flat cubes (a wedge read as erosion),
+  // but with parts rendered from their true LDraw geometry the wedges are
+  // exactly what makes curved bodywork and shoulders stop stair-stepping.
   return buildModelFromCells(anchored, worldSize, {
     layerHeight: worldLayerHeight,
-    slopes: false,
   });
 }
 

@@ -11,8 +11,13 @@ import type { PhotoModels } from './voxelizePhoto';
 import { colorDistance, quantizeToCatalog } from './voxelizePhoto';
 import type { VoxelCell, VoxelModel } from '../voxelFox';
 
-/** Buyer-facing colour choices for generated 3D brick sculptures. */
-export type MeshBrickColorStyle = 'natural' | 'bw';
+/**
+ * Buyer-facing colour choices for generated 3D brick sculptures. `portrait`
+ * keeps natural colour but smooths far more aggressively: photogrammetry
+ * scans bake lighting into their textures, and without it that shading
+ * quantises into single-brick speckle across a face.
+ */
+export type MeshBrickColorStyle = 'natural' | 'bw' | 'portrait';
 
 /** Five opaque colours that are present in the current parts catalogue. */
 export const MESH_BW_RAMP = ['#000000', '#646767', '#A0A19F', '#D9D9D6', '#FFFFFF'] as const;
@@ -230,37 +235,88 @@ export function colorizeMeshCells(
   }
 
   const raw = surfaceCells.map((cell) => hexToRgb(cell.colorHex ?? '#A0A19F'));
+
+  // Portrait style opens with a spatial blur of the raw samples. Scan
+  // textures carry baked-in shading at brick-level frequency; the neighbour
+  // vote below can only heal single-cell outliers, while this heals the
+  // region-scale mottling that otherwise quantises into camouflage patches.
+  // Radius 2 keeps genuine features (eyes, brows, lips) — they are broader
+  // and darker than the noise.
+  if (style === 'portrait') {
+    const byCoordRaw = new Map(surfaceCells.map((cell, index) => [coord(cell), index]));
+    const blurred: Rgb[] = raw.map(() => [0, 0, 0]);
+    for (let index = 0; index < surfaceCells.length; index++) {
+      const cell = surfaceCells[index]!;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let weight = 0;
+      for (let di = -2; di <= 2; di++) {
+        for (let dj = -2; dj <= 2; dj++) {
+          for (let dk = -2; dk <= 2; dk++) {
+            const neighbour = byCoordRaw.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+            if (neighbour === undefined) continue;
+            const w = 1 / (1 + Math.abs(di) + Math.abs(dj) + Math.abs(dk));
+            const colour = raw[neighbour]!;
+            r += colour[0] * w;
+            g += colour[1] * w;
+            b += colour[2] * w;
+            weight += w;
+          }
+        }
+      }
+      blurred[index] = weight > 0 ? [r / weight, g / weight, b / weight] : raw[index]!;
+    }
+    for (let index = 0; index < raw.length; index++) raw[index] = blurred[index]!;
+    for (let index = 0; index < surfaceCells.length; index++) {
+      const [r, g, b] = raw[index]!;
+      surfaceCells[index]!.colorHex =
+        `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+    }
+  }
+
   const centroids = naturalCentroids(surfaceCells);
   const assignments = new Int32Array(surfaceCells.length);
   for (let index = 0; index < surfaceCells.length; index++) {
     assignments[index] = nearestColorIndex(raw[index]!, centroids);
   }
 
-  // Remove low-contrast hue speckles with a strict surface-neighbour vote.
-  // High-contrast details (eyes, brows, logos) remain untouched.
+  // Remove low-contrast hue speckles with a surface-neighbour vote. Natural
+  // style is strict, so high-contrast details (eyes, brows, logos) remain
+  // untouched. Portrait style votes harder and iterates: baked-in scan
+  // shading produces exactly the isolated one-brick outliers the strict pass
+  // is designed to spare, and a face reads as material patches, not speckle.
+  const portrait = style === 'portrait';
+  const minVotes = portrait ? 3 : 4;
+  const lumaGuard = portrait ? 70 : 30;
+  const votingRounds = portrait ? 3 : 1;
   const byCoord = new Map(surfaceCells.map((cell, index) => [coord(cell), index]));
-  const smoothed = new Int32Array(assignments);
-  for (let index = 0; index < surfaceCells.length; index++) {
-    const cell = surfaceCells[index]!;
-    const votes = new Map<number, number>();
-    for (const [di, dj, dk] of NEIGHBOURS) {
-      const neighbour = byCoord.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
-      if (neighbour === undefined) continue;
-      const cluster = assignments[neighbour]!;
-      votes.set(cluster, (votes.get(cluster) ?? 0) + 1);
-    }
-    let winner = assignments[index]!;
-    let winnerVotes = 0;
-    for (const [cluster, count] of votes) {
-      if (count > winnerVotes) {
-        winner = cluster;
-        winnerVotes = count;
+  let smoothed = new Int32Array(assignments);
+  for (let round = 0; round < votingRounds; round++) {
+    const previous = smoothed;
+    smoothed = new Int32Array(previous);
+    for (let index = 0; index < surfaceCells.length; index++) {
+      const cell = surfaceCells[index]!;
+      const votes = new Map<number, number>();
+      for (const [di, dj, dk] of NEIGHBOURS) {
+        const neighbour = byCoord.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (neighbour === undefined) continue;
+        const cluster = previous[neighbour]!;
+        votes.set(cluster, (votes.get(cluster) ?? 0) + 1);
       }
+      let winner = previous[index]!;
+      let winnerVotes = 0;
+      for (const [cluster, count] of votes) {
+        if (count > winnerVotes) {
+          winner = cluster;
+          winnerVotes = count;
+        }
+      }
+      if (winner === previous[index] || winnerVotes < minVotes) continue;
+      const ownLuma = luma(raw[index]!);
+      const winnerLuma = luma(centroids[winner]!);
+      if (Math.abs(ownLuma - winnerLuma) < lumaGuard) smoothed[index] = winner;
     }
-    if (winner === assignments[index] || winnerVotes < 4) continue;
-    const ownLuma = luma(raw[index]!);
-    const winnerLuma = luma(centroids[winner]!);
-    if (Math.abs(ownLuma - winnerLuma) < 30) smoothed[index] = winner;
   }
 
   const catalogHex = centroids.map((centroid) =>

@@ -48,10 +48,17 @@ export interface BrickPlacement {
   spanI: number;
   spanK: number;
   /** Catalog shape metadata used by the exact kit preview and instructions. */
-  shape: 'brick' | 'slope';
+  shape: 'brick' | 'slope' | 'slopeCurved' | 'slopeInverted' | 'round';
   /** Slope descent direction, indexed like FACE_DIRECTIONS. */
   facing?: number;
 }
+
+/** Shapes that carry a descent/overhang direction. */
+export const FACED_SHAPES: ReadonlySet<BrickPlacement['shape']> = new Set([
+  'slope',
+  'slopeCurved',
+  'slopeInverted',
+]);
 
 export interface BillOfMaterials {
   lines: BomLine[];
@@ -115,12 +122,28 @@ export interface CatalogPartFootprint {
   w: number;
 }
 
+interface CatalogSculptPart extends CatalogBrick {
+  kind: 'slopeCurved' | 'slopeInverted' | 'round';
+  heightBricks: number;
+}
+
+/**
+ * Curved, inverted and round parts used by the sculpt pass. All of them fit
+ * a single build layer, so every substitution preserves the placement-tiles-
+ * cells invariant the assembly plan and hollow audits rely on.
+ */
+const SCULPT_PARTS: CatalogSculptPart[] = (
+  (catalog as unknown as { sculpt?: CatalogSculptPart[] }).sculpt ?? []
+);
+
 /** Public, read-only geometry guard used by shared-guide validation. */
 export function catalogPartFootprint(part: string): CatalogPartFootprint | null {
   const brick = BRICKS.find((candidate) => candidate.part === part);
   if (brick) return { l: brick.l, shape: 'brick', w: brick.w };
   const slope = SLOPE_PARTS.find((candidate) => candidate.part === part);
-  return slope ? { l: slope.l, shape: 'slope', w: slope.w } : null;
+  if (slope) return { l: slope.l, shape: 'slope', w: slope.w };
+  const sculpt = SCULPT_PARTS.find((candidate) => candidate.part === part);
+  return sculpt ? { l: sculpt.l, shape: sculpt.kind, w: sculpt.w } : null;
 }
 
 export function isCatalogColorId(colorId: number): boolean {
@@ -196,6 +219,8 @@ export interface BrickifyOptions {
    * effectively all exterior, so hollow ≈ full for those models.
    */
   hollow?: boolean;
+  /** Skip the sculpt substitution pass (plain rectangular vocabulary only). */
+  noSculpt?: boolean;
 }
 
 /** Cells that form the visible shell — everything except fully-enclosed interiors. */
@@ -1079,8 +1104,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             ) continue;
             const connected = placements[connectedIndex]!;
             if (
-              connected.shape === 'slope' ||
-              detached.shape === 'slope'
+              connected.shape !== 'brick' ||
+              detached.shape !== 'brick'
             ) continue;
             const combinedCells = [...placementCells(detached), ...placementCells(connected)];
             const minI = Math.min(...combinedCells.map((cell) => cell.i));
@@ -1191,8 +1216,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
               structuralOneByTwo,
             );
             if (
-              connected.shape === 'slope' ||
-              detached.shape === 'slope' ||
+              connected.shape !== 'brick' ||
+              detached.shape !== 'brick' ||
               bridgeColorId === null
             ) continue;
             splitCandidates.push({
@@ -1324,9 +1349,168 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   }
 
+  // ---- sculpt pass: curved, round and inverted parts on organic edges ----
+  // Runs on the finished placement set, before BOM lines are derived from the
+  // tally, so quotes, orders, instructions and previews all agree. Every
+  // substitution keeps the placement's exact footprint and layer (the
+  // assembly plan and hollow audits treat a placement as its stud rectangle),
+  // and fires only when the exact part+colour SKU exists in the catalogue.
+  if (SCULPT_PARTS.length && !options.noSculpt) {
+    const sculptByPart = new Map(SCULPT_PARTS.map((part) => [part.part, part]));
+    const occupied = (i: number, j: number, k: number) => sourceCellByKey.has(`${i}|${j}|${k}`);
+    const horizontal = [1, 2, 3, 4] as const;
+    const swap = (placement: BrickPlacement, target: CatalogSculptPart | undefined, facing?: number): void => {
+      if (!target || !target.elements[String(placement.colorId)]) return;
+      const oldKey = `${placement.part}|${placement.colorId}`;
+      const oldCount = tally.get(oldKey) ?? 0;
+      if (oldCount <= 1) tally.delete(oldKey);
+      else tally.set(oldKey, oldCount - 1);
+      const oldStock = stockUsed.get(oldKey);
+      if (oldStock !== undefined) stockUsed.set(oldKey, Math.max(0, oldStock - 1));
+      const newKey = `${target.part}|${placement.colorId}`;
+      tally.set(newKey, (tally.get(newKey) ?? 0) + 1);
+      reserveStock(target.part, placement.colorId);
+      placement.part = target.part;
+      placement.shape = target.kind;
+      if (facing !== undefined) placement.facing = facing;
+      else delete placement.facing;
+    };
+
+    // 1×1 cheese caps are collected first and only applied where a neighbour
+    // along the ridge axis wants the same facing: connected step EDGES read
+    // as clean curved lines, while lone surface bumps capped individually
+    // would stipple an organic body into chainmail.
+    const cheeseCandidates = new Map<string, { facing: number; placement: BrickPlacement }>();
+
+    for (const placement of placements) {
+      const { i, j, k } = placement;
+
+      // 45° slope whose crest continues onto an open surface reads better as
+      // a curve; a knife-edge or walled crest keeps the hard chamfer. The
+      // curved part is studless, so the back cell must also be free above.
+      if (placement.part === '3040' && placement.shape === 'slope' && placement.facing) {
+        const dir = FACE_DIRECTIONS[placement.facing]!;
+        const frontI = dir.x > 0 ? i + placement.spanI - 1 : i;
+        const frontK = dir.z > 0 ? k + placement.spanK - 1 : k;
+        const backI = frontI - dir.x;
+        const backK = frontK - dir.z;
+        const crestI = backI - dir.x;
+        const crestK = backK - dir.z;
+        if (
+          occupied(crestI, j, crestK)
+          && !occupied(crestI, j + 1, crestK)
+          && !occupied(backI, j + 1, backK)
+        ) {
+          swap(placement, sculptByPart.get('37352'), placement.facing);
+        }
+        continue;
+      }
+
+      // Single studs: cones cap isolated pillars, round bricks form their
+      // shafts, cheese slopes soften one-stud step edges.
+      if (placement.part === '3005' && placement.shape === 'brick') {
+        const above = occupied(i, j + 1, k);
+        const isolatedAt = (layer: number) => horizontal.every((face) => {
+          const d = FACE_DIRECTIONS[face]!;
+          return !occupied(i + d.x, layer, k + d.z);
+        });
+        if (isolatedAt(j)) {
+          const belowIsolated = occupied(i, j - 1, k) && isolatedAt(j - 1);
+          if (!above && belowIsolated) swap(placement, sculptByPart.get('4589'));
+          else swap(placement, sculptByPart.get('3062'));
+        } else if (!above) {
+          let match: number | null = null;
+          for (const face of horizontal) {
+            const d = FACE_DIRECTIONS[face]!;
+            const ahead = occupied(i + d.x, j, k + d.z);
+            const aheadBelow = occupied(i + d.x, j - 1, k + d.z);
+            if (!ahead && aheadBelow) {
+              if (match !== null) {
+                match = null;
+                break;
+              }
+              match = face;
+            }
+          }
+          if (match !== null) cheeseCandidates.set(`${i}|${j}|${k}`, { facing: match, placement });
+        }
+        continue;
+      }
+
+      // 2×2 caps: an isolated tower top becomes a dome; a shoulder that steps
+      // down on exactly one side becomes the wide curved crown.
+      if (placement.part === '3003' && placement.shape === 'brick' && placement.spanI === 2 && placement.spanK === 2) {
+        const top = [[i, k], [i + 1, k], [i, k + 1], [i + 1, k + 1]] as const;
+        if (top.some(([ci, ck]) => occupied(ci, j + 1, ck))) continue;
+        const ringEmpty = horizontal.every((face) => {
+          const d = FACE_DIRECTIONS[face]!;
+          return top.every(([ci, ck]) => {
+            const ni = ci + d.x;
+            const nk = ck + d.z;
+            const inside = ni >= i && ni <= i + 1 && nk >= k && nk <= k + 1;
+            return inside || !occupied(ni, j, nk);
+          });
+        });
+        if (ringEmpty) {
+          swap(placement, sculptByPart.get('30367'));
+          continue;
+        }
+        let match: number | null = null;
+        for (const face of horizontal) {
+          const d = FACE_DIRECTIONS[face]!;
+          const edge = top.filter(([ci, ck]) =>
+            (d.x > 0 && ci === i + 1) || (d.x < 0 && ci === i)
+            || (d.z > 0 && ck === k + 1) || (d.z < 0 && ck === k));
+          const steps = edge.every(([ci, ck]) =>
+            !occupied(ci + d.x, j, ck + d.z) && occupied(ci + d.x, j - 1, ck + d.z));
+          if (!steps) continue;
+          if (match !== null) {
+            match = null;
+            break;
+          }
+          match = face;
+        }
+        if (match !== null) swap(placement, sculptByPart.get('15068'), match);
+        continue;
+      }
+
+      // 1×2 bricks whose front stud floats over air while the back stands on
+      // the layer below are overhang steps — the inverted 45° part.
+      if (placement.part === '3004' && placement.shape === 'brick' && j > 0) {
+        const along = placement.spanI === 2 ? [3, 4] as const : [1, 2] as const;
+        let match: number | null = null;
+        for (const face of along) {
+          const d = FACE_DIRECTIONS[face]!;
+          const frontI = d.x > 0 ? i + placement.spanI - 1 : i;
+          const frontK = d.z > 0 ? k + placement.spanK - 1 : k;
+          const backI = frontI - d.x;
+          const backK = frontK - d.z;
+          if (!occupied(frontI, j - 1, frontK) && occupied(backI, j - 1, backK)) {
+            if (match !== null) {
+              match = null;
+              break;
+            }
+            match = face;
+          }
+        }
+        if (match !== null) swap(placement, sculptByPart.get('3665'), match);
+      }
+    }
+
+    for (const [key, candidate] of cheeseCandidates) {
+      const [i, j, k] = key.split('|').map(Number) as [number, number, number];
+      const ridge = FACE_DIRECTIONS[candidate.facing]!.x !== 0
+        ? [`${i}|${j}|${k - 1}`, `${i}|${j}|${k + 1}`]
+        : [`${i - 1}|${j}|${k}`, `${i + 1}|${j}|${k}`];
+      const hasMate = ridge.some((mateKey) => cheeseCandidates.get(mateKey)?.facing === candidate.facing);
+      if (hasMate) swap(candidate.placement, sculptByPart.get('54200'), candidate.facing);
+    }
+  }
+
   const brickByPart = new Map<string, CatalogBrick>([
     ...BRICKS.map((brick) => [brick.part, brick] as const),
     ...SLOPE_PARTS.map((slope) => [slope.part, slope] as const),
+    ...SCULPT_PARTS.map((sculpt) => [sculpt.part, sculpt] as const),
   ]);
   const colorById = new Map(COLORS.map((color) => [color.id, color]));
   const merged = new Map<string, BomLine>();

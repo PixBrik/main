@@ -289,14 +289,20 @@ function parsePlacement(value: unknown, index: number): BrickPlacement {
   for (const required of ['colorId', 'i', 'j', 'k', 'part', 'shape', 'spanI', 'spanK']) {
     if (!(required in value)) throw new GuideShareError(`${label}.${required} is required.`);
   }
-  if (value.shape !== 'brick' && value.shape !== 'slope') {
+  // Wire-format rules are owned here, independent of engine internals: the
+  // shape whitelist and the facing-carrying subset must stay in lock-step
+  // with BrickPlacement['shape'] in brickify.ts.
+  const shapes: ReadonlyArray<BrickPlacement['shape']> = ['brick', 'slope', 'slopeCurved', 'slopeInverted', 'round'];
+  const facedShapes: ReadonlyArray<BrickPlacement['shape']> = ['slope', 'slopeCurved', 'slopeInverted'];
+  if (!shapes.includes(value.shape as BrickPlacement['shape'])) {
     throw new GuideShareError(`${label}.shape is invalid.`);
   }
+  const shape = value.shape as BrickPlacement['shape'];
   const facing =
     value.facing === undefined
       ? undefined
       : numberValue(value.facing, `${label}.facing`, 1, 4, true);
-  if ((value.shape === 'slope' && facing === undefined) || (value.shape === 'brick' && facing !== undefined)) {
+  if (facedShapes.includes(shape) !== (facing !== undefined)) {
     throw new GuideShareError(`${label} has invalid orientation metadata.`);
   }
   const part = text(value.part, `${label}.part`, 128)!;
@@ -319,7 +325,7 @@ function parsePlacement(value: unknown, index: number): BrickPlacement {
     j: numberValue(value.j, `${label}.j`, -4_096, 4_096, true),
     k: numberValue(value.k, `${label}.k`, -4_096, 4_096, true),
     part,
-    shape: value.shape,
+    shape,
     spanI,
     spanK,
   };

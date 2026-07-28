@@ -33,6 +33,8 @@ export interface BrickPlacementLike {
   spanK?: number;
   /** Descent direction for slopes — index into the engine's face directions. */
   facing?: number;
+  /** Catalogue shape ('brick' | 'slope' | …) — slopes orient by facing. */
+  shape?: string;
 }
 
 export interface LDrawRenderOptions {
@@ -105,16 +107,33 @@ async function loadPart(part: string, base: string): Promise<PreparedPart | null
   return prepared;
 }
 
-/** Quarter-turn about Y for slope facing; identity for plain bricks. */
-function facingRotation(facing: number | undefined): number {
+/**
+ * Yaw that points a slope's descent at FACE_DIRECTIONS[facing].
+ *
+ * Measured, not assumed: summing tilted-face normals over every slope MPD in
+ * the catalogue shows they all descend toward native −z. Rotating (0,0,−1) by
+ * yaw θ gives (−sin θ, 0, −cos θ), so facing 1 (+z) needs π, facing 2 (−z)
+ * needs 0, facing 3 (+x) needs −π/2 and facing 4 (−x) needs π/2.
+ */
+function slopeRotation(facing: number | undefined): number {
   switch (facing) {
-    case 1: return 0;
-    case 2: return Math.PI;
-    case 3: return Math.PI / 2;
-    case 4: return -Math.PI / 2;
+    case 1: return Math.PI;
+    case 2: return 0;
+    case 3: return -Math.PI / 2;
+    case 4: return Math.PI / 2;
     default: return 0;
   }
 }
+
+/**
+ * Parts whose native LDraw orientation differs from the 3040 family's
+ * descend-toward-−z convention. Calibrated visually against a facing-1 part
+ * gallery — an inverted slope's cut is an underside feature, and its mould
+ * faces the opposite way.
+ */
+const NATIVE_YAW_OFFSET: Record<string, number> = {
+  '3665': Math.PI,
+};
 
 /** Render turntable frames of a real brick build. Returns PNG data URLs. */
 export async function renderLDrawTurntable(
@@ -214,15 +233,19 @@ export async function renderLDrawTurntable(
         // orientation, so a piece whose footprint is transposed relative to
         // its geometry needs a quarter turn — without this, long bricks are
         // laid across the model and it renders as overlapping, gappy slabs.
+        // Slopes carry an explicit descent direction instead: their facing
+        // fully determines the yaw, including the 180° cases a footprint
+        // match cannot distinguish (a slope rendered backwards buries its
+        // wedge inside the model and presents a sheer wall outward).
         const needsQuarterTurn =
           prepared!.nativeSpanX !== spanI
           && prepared!.nativeSpanX === spanK
           && prepared!.nativeSpanZ === spanI;
-        // A square footprint is orientation-ambiguous, so slopes fall back to
-        // their explicit descent direction there.
-        const rotation = needsQuarterTurn
-          ? Math.PI / 2
-          : (spanI === spanK ? facingRotation(placement.facing) : 0);
+        const rotation = placement.shape === 'slope' || placement.facing !== undefined
+          ? slopeRotation(placement.facing) + (NATIVE_YAW_OFFSET[placement.part] ?? 0)
+          : needsQuarterTurn
+            ? Math.PI / 2
+            : 0;
         // Footprint centre of this placement, in LDU.
         const targetX = (placement.i + spanI / 2) * LDU_PER_STUD;
         const targetZ = (placement.k + spanK / 2) * LDU_PER_STUD;

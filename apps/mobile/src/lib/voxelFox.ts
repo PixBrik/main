@@ -52,6 +52,25 @@ function sameColour(a: VoxelCell, b: VoxelCell) {
 }
 
 /**
+ * Tolerant colour match for slope detection. Mesh-sampled surfaces rarely
+ * repeat a hex exactly between neighbours, and demanding equality suppressed
+ * slopes on precisely the organic subjects that need them most. Adjacent
+ * tones within one ramp step read as the same material; black-vs-white does
+ * not.
+ */
+function nearColour(a: VoxelCell, b: VoxelCell) {
+  if (a.zone !== b.zone) return false;
+  const hexA = a.colorHex ?? '';
+  const hexB = b.colorHex ?? '';
+  if (hexA === hexB) return true;
+  if (hexA.length !== 7 || hexB.length !== 7) return false;
+  const dr = Number.parseInt(hexA.slice(1, 3), 16) - Number.parseInt(hexB.slice(1, 3), 16);
+  const dg = Number.parseInt(hexA.slice(3, 5), 16) - Number.parseInt(hexB.slice(3, 5), 16);
+  const db = Number.parseInt(hexA.slice(5, 7), 16) - Number.parseInt(hexB.slice(5, 7), 16);
+  return dr * dr + dg * dg + db * db <= 90 * 90;
+}
+
+/**
  * Convert single-step staircases into 45° slopes. A cell slopes toward
  * direction d when nothing sits above it, the cell ahead is empty but the
  * cell ahead-below is filled (a step down), and the same-coloured cell
@@ -69,7 +88,7 @@ function detectSlopes(index: Map<string, VoxelCell>) {
       const ahead = index.get(`${cell.i + dir.x}|${cell.j}|${cell.k + dir.z}`);
       const aheadBelow = index.get(`${cell.i + dir.x}|${cell.j - 1}|${cell.k + dir.z}`);
       const behind = index.get(`${cell.i - dir.x}|${cell.j}|${cell.k - dir.z}`);
-      if (!ahead && aheadBelow && behind && sameColour(behind, cell)) {
+      if (!ahead && aheadBelow && behind && nearColour(behind, cell)) {
         if (match !== null) {
           match = null; // ambiguous corner — keep the cube
           break;

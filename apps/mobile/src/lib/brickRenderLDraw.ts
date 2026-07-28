@@ -12,6 +12,7 @@ export interface BrickPlacementLike {
   spanI?: number;
   spanK?: number;
   facing?: number;
+  shape?: string;
 }
 
 export interface LDrawRenderOptions {
