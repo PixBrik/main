@@ -642,6 +642,7 @@ function PixBrikApp() {
       }
       // NEW: real catalogue parts under studio light.
       const product = await renderLDrawTurntable(bom.placements as never, {
+        ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
         colorHexById,
         frames: extra.frames ?? 2,
         ldrawBase: 'http://localhost:8095/ldraw',
@@ -741,6 +742,79 @@ function PixBrikApp() {
       return { bytes: bytes.length, triangles };
     };
 
+    /** Dev conversion: bake a separate diffuse map into a bare-geometry GLB. */
+    (globalThis as unknown as { __textureGlb?: unknown }).__textureGlb = async (
+      glbUrl: string,
+      textureUrl: string,
+      name: string,
+      receiver = 'http://localhost:8095',
+    ) => {
+      const three = await import('three');
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
+      const gltf = await new GLTFLoader().loadAsync(glbUrl);
+      const texture = await new three.TextureLoader().loadAsync(textureUrl);
+      texture.flipY = false;
+      texture.colorSpace = three.SRGBColorSpace;
+      gltf.scene.traverse((node) => {
+        const mesh = node as import('three').Mesh;
+        if (mesh.isMesh) {
+          mesh.material = new three.MeshStandardMaterial({ map: texture, metalness: 0, roughness: 0.6 });
+        }
+      });
+      const buffer: ArrayBuffer = await new Promise((resolve, reject) => {
+        new GLTFExporter().parse(
+          gltf.scene,
+          (result) => resolve(result as ArrayBuffer),
+          (error) => reject(error),
+          { binary: true },
+        );
+      });
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+      }
+      await fetch(receiver, {
+        body: JSON.stringify({ glb: btoa(binary), name }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      return bytes.length;
+    };
+
+    /** Dev conversion: repackage a multi-file .gltf as a single .glb subject. */
+    (globalThis as unknown as { __gltfToGlb?: unknown }).__gltfToGlb = async (
+      url: string,
+      name: string,
+      receiver = 'http://localhost:8095',
+    ) => {
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
+      const gltf = await new GLTFLoader().loadAsync(url);
+      const buffer: ArrayBuffer = await new Promise((resolve, reject) => {
+        new GLTFExporter().parse(
+          gltf.scene,
+          (result) => resolve(result as ArrayBuffer),
+          (error) => reject(error),
+          { binary: true },
+        );
+      });
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+      }
+      await fetch(receiver, {
+        body: JSON.stringify({ glb: btoa(binary), name }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      return bytes.length;
+    };
+
     /** Dev calibration: render one of each sculpt part, all facing 1 (+k). */
     (globalThis as unknown as { __partGallery?: unknown }).__partGallery = async (
       receiver = 'http://localhost:8095',
@@ -771,6 +845,9 @@ function PixBrikApp() {
       const colorHexById: Record<string, string> = {};
       for (const [index, hex] of colours.entries()) colorHexById[String(index)] = hex;
       const frames = await renderLDrawTurntable(placements as never, {
+        accessories: [
+          { i: 30, j: 0, k: 0, side: 1, tirePart: '24341', wheelPart: '55982' },
+        ],
         colorHexById,
         elevation: Math.PI / 7,
         frames: 4,
@@ -804,6 +881,8 @@ function PixBrikApp() {
         0,
       );
       return {
+        accessories: bom.accessories ?? null,
+        anchors: (model as { wheelAnchors?: unknown }).wheelAnchors ?? null,
         cellCount: model.cells.length,
         cellI: range(model.cells.map((c) => c.i)),
         cellJ: range(model.cells.map((c) => c.j)),

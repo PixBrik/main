@@ -1,0 +1,2095 @@
+
+0 LDraw.org Configuration File
+0 Name: startText.ldr
+0 Author: LDraw.org
+0 !LDRAW_ORG Configuration UPDATE 2017-12-15
+
+0 // LDraw Solid Colours
+0                              // LEGOID  26 - Black
+0 !COLOUR Black                                                 CODE   0   VALUE #05131D   EDGE #595959
+0                              // LEGOID  23 - Bright Blue
+0 !COLOUR Blue                                                  CODE   1   VALUE #0055BF   EDGE #333333
+0                              // LEGOID  28 - Dark Green
+0 !COLOUR Green                                                 CODE   2   VALUE #257A3E   EDGE #333333
+0                              // LEGOID 107 - Bright Bluish Green
+0 !COLOUR Dark_Turquoise                                        CODE   3   VALUE #00838F   EDGE #333333
+0                              // LEGOID  21 - Bright Red
+0 !COLOUR Red                                                   CODE   4   VALUE #C91A09   EDGE #333333
+0                              // LEGOID 221 - Bright Purple
+0 !COLOUR Dark_Pink                                             CODE   5   VALUE #C870A0   EDGE #333333
+0                              // LEGOID 217 - Brown
+0 !COLOUR Brown                                                 CODE   6   VALUE #583927   EDGE #1E1E1E
+0                              // LEGOID   2 - Grey
+0 !COLOUR Light_Grey                                            CODE   7   VALUE #9BA19D   EDGE #333333
+0                              // LEGOID  27 - Dark Grey
+0 !COLOUR Dark_Grey                                             CODE   8   VALUE #6D6E5C   EDGE #333333
+0                              // LEGOID  45 - Light Blue
+0 !COLOUR Light_Blue                                            CODE   9   VALUE #B4D2E3   EDGE #333333
+0                              // LEGOID  37 - Bright Green
+0 !COLOUR Bright_Green                                          CODE  10   VALUE #4B9F4A   EDGE #333333
+0                              // LEGOID 116 - Medium Bluish Green
+0 !COLOUR Light_Turquoise                                       CODE  11   VALUE #55A5AF   EDGE #333333
+0                              // LEGOID   4 - Brick Red
+0 !COLOUR Salmon                                                CODE  12   VALUE #F2705E   EDGE #333333
+0                              // LEGOID   9 - Light Reddish Violet
+0 !COLOUR Pink                                                  CODE  13   VALUE #FC97AC   EDGE #333333
+0                              // LEGOID  24 - Bright Yellow
+0 !COLOUR Yellow                                                CODE  14   VALUE #F2CD37   EDGE #333333
+0                              // LEGOID   1 - White
+0 !COLOUR White                                                 CODE  15   VALUE #FFFFFF   EDGE #333333
+0                              // LEGOID   6 - Light Green
+0 !COLOUR Light_Green                                           CODE  17   VALUE #C2DAB8   EDGE #333333
+0                              // LEGOID   3 - Light Yellow
+0 !COLOUR Light_Yellow                                          CODE  18   VALUE #FBE696   EDGE #333333
+0                              // LEGOID   5 - Brick Yellow
+0 !COLOUR Tan                                                   CODE  19   VALUE #E4CD9E   EDGE #333333
+0                              // LEGOID  39 - Light Bluish Violet
+0 !COLOUR Light_Violet                                          CODE  20   VALUE #C9CAE2   EDGE #333333
+0                              // LEGOID 104 - Bright Violet
+0 !COLOUR Purple                                                CODE  22   VALUE #81007B   EDGE #333333
+0                              // LEGOID 196 - Dark Royal Blue
+0 !COLOUR Dark_Blue_Violet                                      CODE  23   VALUE #2032B0   EDGE #1E1E1E
+0                              // LEGOID 106 - Bright Orange
+0 !COLOUR Orange                                                CODE  25   VALUE #FE8A18   EDGE #333333
+0                              // LEGOID 124 - Bright Reddish Violet
+0 !COLOUR Magenta                                               CODE  26   VALUE #923978   EDGE #333333
+0                              // LEGOID 119 - Bright Yellowish Green
+0 !COLOUR Lime                                                  CODE  27   VALUE #BBE90B   EDGE #333333
+0                              // LEGOID 138 - Sand Yellow
+0 !COLOUR Dark_Tan                                              CODE  28   VALUE #958A73   EDGE #333333
+0                              // LEGOID 222 - Light Purple
+0 !COLOUR Bright_Pink                                           CODE  29   VALUE #E4ADC8   EDGE #333333
+0                              // LEGOID 324 - Medium Lavender
+0 !COLOUR Medium_Lavender                                       CODE  30   VALUE #AC78BA   EDGE #333333
+0                              // LEGOID 325 - Lavender
+0 !COLOUR Lavender                                              CODE  31   VALUE #E1D5ED   EDGE #333333
+0                              // LEGOID  36 - Light Yellowish Orange
+0 !COLOUR Very_Light_Orange                                     CODE  68   VALUE #F3CF9B   EDGE #333333
+0                              // LEGOID 198 - Bright Reddish Lilac
+0 !COLOUR Bright_Reddish_Lilac                                  CODE  69   VALUE #CD6298   EDGE #333333
+0                              // LEGOID 192 - Reddish Brown
+0 !COLOUR Reddish_Brown                                         CODE  70   VALUE #582A12   EDGE #595959
+0                              // LEGOID 194 - Medium Stone Grey
+0 !COLOUR Light_Bluish_Grey                                     CODE  71   VALUE #A0A5A9   EDGE #333333
+0                              // LEGOID 199 - Dark Stone Grey
+0 !COLOUR Dark_Bluish_Grey                                      CODE  72   VALUE #6C6E68   EDGE #333333
+0                              // LEGOID 102 - Medium Blue
+0 !COLOUR Medium_Blue                                           CODE  73   VALUE #5C9DD1   EDGE #333333
+0                              // LEGOID  29 - Medium Green
+0 !COLOUR Medium_Green                                          CODE  74   VALUE #73DCA1   EDGE #333333
+0                              // LEGOID 223 - Light Pink
+0 !COLOUR Light_Pink                                            CODE  77   VALUE #FECCCF   EDGE #333333
+0                              // LEGOID 283 - Light Nougat
+0 !COLOUR Light_Flesh                                           CODE  78   VALUE #F6D7B3   EDGE #333333
+0                              // LEGOID  38 - Dark Orange
+0 !COLOUR Medium_Dark_Flesh                                     CODE  84   VALUE #CC702A   EDGE #333333
+0                              // LEGOID 268 - Medium Lilac
+0 !COLOUR Medium_Lilac                                          CODE  85   VALUE #3F3691   EDGE #1E1E1E
+0                              // LEGOID 312 - Medium Nougat
+0 !COLOUR Dark_Flesh                                            CODE  86   VALUE #7C503A   EDGE #333333
+0                              // LEGOID 195 - Medium Royal Blue
+0 !COLOUR Blue_Violet                                           CODE  89   VALUE #4C61DB   EDGE #333333
+0                              // LEGOID  18 - Nougat
+0 !COLOUR Flesh                                                 CODE  92   VALUE #D09168   EDGE #333333
+0                              // LEGOID 100 - Light Red
+0 !COLOUR Light_Salmon                                          CODE 100   VALUE #FEBABD   EDGE #333333
+0                              // LEGOID 110 - Bright Bluish Violet
+0 !COLOUR Violet                                                CODE 110   VALUE #4354A3   EDGE #333333
+0                              // LEGOID 112 - Medium Bluish Violet
+0 !COLOUR Medium_Violet                                         CODE 112   VALUE #6874CA   EDGE #333333
+0                              // LEGOID 115 - Medium Yellowish Green
+0 !COLOUR Medium_Lime                                           CODE 115   VALUE #C7D23C   EDGE #333333
+0                              // LEGOID 118 - Light Bluish Green
+0 !COLOUR Aqua                                                  CODE 118   VALUE #B3D7D1   EDGE #333333
+0                              // LEGOID 120 - Light Yellowish Green
+0 !COLOUR Light_Lime                                            CODE 120   VALUE #D9E4A7   EDGE #333333
+0                              // LEGOID 125 - Light Orange
+0 !COLOUR Light_Orange                                          CODE 125   VALUE #F9BA61   EDGE #333333
+0                              // LEGOID 208 - Light Stone Grey
+0 !COLOUR Very_Light_Bluish_Grey                                CODE 151   VALUE #E6E3E0   EDGE #333333
+0                              // LEGOID 191 - Flame Yellowish Orange
+0 !COLOUR Bright_Light_Orange                                   CODE 191   VALUE #F8BB3D   EDGE #333333
+0                              // LEGOID 212 - Light Royal Blue
+0 !COLOUR Bright_Light_Blue                                     CODE 212   VALUE #86C1E1   EDGE #333333
+0                              // LEGOID 216 - Rust
+0 !COLOUR Rust                                                  CODE 216   VALUE #B31004   EDGE #333333
+0                              // LEGOID 226 - Cool Yellow
+0 !COLOUR Bright_Light_Yellow                                   CODE 226   VALUE #FFF03A   EDGE #333333
+0                              // LEGOID 232 - Dove Blue
+0 !COLOUR Sky_Blue                                              CODE 232   VALUE #56BED6   EDGE #333333
+0                              // LEGOID 140 - Earth Blue
+0 !COLOUR Dark_Blue                                             CODE 272   VALUE #0D325B   EDGE #1E1E1E
+0                              // LEGOID 141 - Earth Green
+0 !COLOUR Dark_Green                                            CODE 288   VALUE #184632   EDGE #595959
+0                              // LEGOID 308 - Dark Brown
+0 !COLOUR Dark_Brown                                            CODE 308   VALUE #352100   EDGE #595959
+0                              // LEGOID  11 - Pastel Blue
+0 !COLOUR Maersk_Blue                                           CODE 313   VALUE #54A9C8   EDGE #333333
+0                              // LEGOID 154 - New Dark Red
+0 !COLOUR Dark_Red                                              CODE 320   VALUE #720E0F   EDGE #333333
+0                              // LEGOID 321 - Dark Azur
+0 !COLOUR Dark_Azure                                            CODE 321   VALUE #1498D7   EDGE #333333
+0                              // LEGOID 322 - Medium Azur
+0 !COLOUR Medium_Azure                                          CODE 322   VALUE #3EC2DD   EDGE #333333
+0                              // LEGOID 323 - Aqua
+0 !COLOUR Light_Aqua                                            CODE 323   VALUE #BDDCD8   EDGE #333333
+0                              // LEGOID 326 - Spring Yellowish Green
+0 !COLOUR Yellowish_Green                                       CODE 326   VALUE #DFEEA5   EDGE #333333
+0                              // LEGOID 330 - Olive Green
+0 !COLOUR Olive_Green                                           CODE 330   VALUE #9B9A5A   EDGE #333333
+0                              // LEGOID 153 - Sand Red
+0 !COLOUR Sand_Red                                              CODE 335   VALUE #D67572   EDGE #333333
+0                              // LEGOID  22 - Medium Reddish Violet
+0 !COLOUR Medium_Dark_Pink                                      CODE 351   VALUE #F785B1   EDGE #333333
+0                              // LEGOID  25 - Earth Orange
+0 !COLOUR Earth_Orange                                          CODE 366   VALUE #FA9C1C   EDGE #333333
+0                              // LEGOID 136 - Sand Violet
+0 !COLOUR Sand_Purple                                           CODE 373   VALUE #845E84   EDGE #333333
+0                              // LEGOID 151 - Sand Green
+0 !COLOUR Sand_Green                                            CODE 378   VALUE #A0BCAC   EDGE #333333
+0                              // LEGOID 135 - Sand Blue
+0 !COLOUR Sand_Blue                                             CODE 379   VALUE #597184   EDGE #333333
+0                              // LEGOID  12 - Light Orange Brown
+0 !COLOUR Fabuland_Brown                                        CODE 450   VALUE #B67B50   EDGE #333333
+0                              // LEGOID 105 - Bright Yellowish Orange
+0 !COLOUR Medium_Orange                                         CODE 462   VALUE #FFA70B   EDGE #333333
+0                              // LEGOID  38 - Dark Orange
+0 !COLOUR Dark_Orange                                           CODE 484   VALUE #A95500   EDGE #333333
+0                              // LEGOID 103 - Light Grey
+0 !COLOUR Very_Light_Grey                                       CODE 503   VALUE #E6E3DA   EDGE #333333
+0                              // LEGOID 218 - Reddish Lilac
+0 !COLOUR Reddish_Lilac                                         CODE 218   VALUE #8E5597   EDGE #333333
+0                              // LEGOID 295 - Flamingo Pink
+0 !COLOUR Flamingo_Pink                                         CODE 295   VALUE #FF94C2   EDGE #333333
+0                              // LEGOID 219 - Lilac
+0 !COLOUR Lilac                                                 CODE 219   VALUE #564E9D   EDGE #333333
+0                              // LEGOID 128 - Dark Nougat
+0 !COLOUR Dark_Nougat                                           CODE 128   VALUE #AD6140   EDGE #333333
+
+
+0 // LDraw Transparent Colours
+0                              // LEGOID  40 - Transparent
+0 !COLOUR Trans_Clear                                           CODE  47   VALUE #FCFCFC   EDGE #C3C3C3   ALPHA 128
+0                              // LEGOID 111 - Transparent Brown
+0 !COLOUR Trans_Black                                           CODE  40   VALUE #635F52   EDGE #171316   ALPHA 128
+0                              // LEGOID  41 - Transparent Red
+0 !COLOUR Trans_Red                                             CODE  36   VALUE #C91A09   EDGE #880000   ALPHA 128
+0                              // LEGOID  47 - Transparent Fluorescent Reddish Orange
+0 !COLOUR Trans_Neon_Orange                                     CODE  38   VALUE #FF800D   EDGE #BD2400   ALPHA 128
+0                              // LEGOID 182 - Trans Bright Orange
+0 !COLOUR Trans_Orange                                          CODE  57   VALUE #F08F1C   EDGE #A45C28   ALPHA 128
+0                              // LEGOID 157 - Transparent Fluorescent Yellow
+0 !COLOUR Trans_Neon_Yellow                                     CODE  54   VALUE #DAB000   EDGE #C3BA3F   ALPHA 128
+0                              // LEGOID  44 - Transparent Yellow
+0 !COLOUR Trans_Yellow                                          CODE  46   VALUE #F5CD2F   EDGE #8E7400   ALPHA 128
+0                              // LEGOID  49 - Transparent Fluorescent Green
+0 !COLOUR Trans_Neon_Green                                      CODE  42   VALUE #C0FF00   EDGE #84C300   ALPHA 128
+0                              // LEGOID 311 / 227 - Transparent Bright Green / Transparent Bright Yellowish Green 
+0 !COLOUR Trans_Bright_Green                                    CODE  35   VALUE #56E646   EDGE #9DA86B   ALPHA 128
+0                              // LEGOID  48 - Transparent Green
+0 !COLOUR Trans_Green                                           CODE  34   VALUE #237841   EDGE #1E6239   ALPHA 128
+0                              // LEGOID  43 - Transparent Blue
+0 !COLOUR Trans_Dark_Blue                                       CODE  33   VALUE #0020A0   EDGE #000064   ALPHA 128
+0                              // LEGOID 143 - Transparent Fluorescent Blue
+0 !COLOUR Trans_Medium_Blue                                     CODE  41   VALUE #559AB7   EDGE #196973   ALPHA 128
+0                              // LEGOID  42 - Transparent Light Blue
+0 !COLOUR Trans_Light_Blue                                      CODE  43   VALUE #AEE9EF   EDGE #72B3B0   ALPHA 128
+0                              // LEGOID 229 - Transparent Light Bluish Green
+0 !COLOUR Trans_Very_Light_Blue                                 CODE  39   VALUE #C1DFF0   EDGE #85A3B4   ALPHA 128
+0                              // LEGOID 236 - Transparent Bright Reddish Lilac
+0 !COLOUR Trans_Bright_Reddish_Lilac                            CODE  44   VALUE #96709F   EDGE #5A3463   ALPHA 128
+0                              // LEGOID 126 - Transparent Bright Bluish Violet
+0 !COLOUR Trans_Purple                                          CODE  52   VALUE #A5A5CB   EDGE #280025   ALPHA 128
+0                              // LEGOID 113 - Transparent Medium Reddish Violet
+0 !COLOUR Trans_Dark_Pink                                       CODE  37   VALUE #DF6695   EDGE #A32A59   ALPHA 128
+0                              // LEGOID 230 - Transparent Bright Pink
+0 !COLOUR Trans_Pink                                            CODE  45   VALUE #FC97AC   EDGE #A8718C   ALPHA 128
+0                              // LEGOID 285 - Transparent Light Green 
+0 !COLOUR Trans_Light_Green                                     CODE  285  VALUE #7DC291   EDGE #52805F   ALPHA 128
+0                              // LEGOID 234 - Transparent Fire Yellow
+0 !COLOUR Trans_Fire_Yellow                                     CODE  234  VALUE #FBE890   EDGE #BAAB6A   ALPHA 128
+0                              // LEGOID 293 - Transparent Light Royal Blue
+0 !COLOUR Trans_Light_Blue_Violet                               CODE  293  VALUE #6BABE4   EDGE #4D7BA3   ALPHA 128
+0                              // LEGOID 231 - Transparent Flame Yellowish Orange
+0 !COLOUR Trans_Bright_Light_Orange                             CODE  231  VALUE #FCB76D   EDGE #BD8951   ALPHA 128
+0                              // LEGOID 284 - Transparent Reddish Lilac
+0 !COLOUR Trans_Reddish_Lilac                                   CODE  284  VALUE #C281A5   EDGE #82566E   ALPHA 128
+
+
+0 // LDraw Chrome Colours
+0                              // LEGOID 299 - Warm Gold Drum Lacq
+0 !COLOUR Chrome_Gold                                           CODE 334   VALUE #BBA53D   EDGE #BBB23D                               CHROME
+0                              // LEGOID 298 - Cool Silver Drum Lacq
+0 !COLOUR Chrome_Silver                                         CODE 383   VALUE #E0E0E0   EDGE #A4A4A4                               CHROME
+0                              // LEGOID 187 - Metallic Earth Orange
+0 !COLOUR Chrome_Antique_Brass                                  CODE  60   VALUE #645A4C   EDGE #281E10                               CHROME
+0 !COLOUR Chrome_Black                                          CODE  64   VALUE #1B2A34   EDGE #595959                               CHROME
+0                              // LEGOID 185 - Metallic Bright Blue
+0 !COLOUR Chrome_Blue                                           CODE  61   VALUE #6C96BF   EDGE #202A68                               CHROME
+0                              // LEGOID 147 - Metallic Dark Green
+0 !COLOUR Chrome_Green                                          CODE  62   VALUE #3CB371   EDGE #007735                               CHROME
+0 !COLOUR Chrome_Pink                                           CODE  63   VALUE #AA4D8E   EDGE #6E1152                               CHROME
+
+
+0 // LDraw Pearl Colours
+0                              // LEGOID 183 - Metallic White
+0 !COLOUR Pearl_White                                           CODE 183   VALUE #F2F3F2   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 150 - Metallic Light Grey
+0 !COLOUR Pearl_Very_Light_Grey                                 CODE 150   VALUE #BBBDBC   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 179 / 296 / 131 / 315 - Silver Flip-flop / Cool Silver / Silver / Silver Metallic
+0 !COLOUR Pearl_Light_Grey                                      CODE 135   VALUE #9CA3A8   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 131 - Silver
+0 !COLOUR Flat_Silver                                           CODE 179   VALUE #898788   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 148 - Metallic Dark Grey
+0 !COLOUR Pearl_Dark_Grey                                       CODE 148   VALUE #575857   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 145 - Sand Blue Metallic
+0 !COLOUR Metal_Blue                                            CODE 137   VALUE #5677BA   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 127 - Gold
+0 !COLOUR Pearl_Light_Gold                                      CODE 142   VALUE #DCBE61   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 297 - Warm Gold
+0 !COLOUR Pearl_Gold                                            CODE 297   VALUE #CC9C2B   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 147 - Metallic Sand Yellow
+0 !COLOUR Flat_Dark_Gold                                        CODE 178   VALUE #B4883E   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 139 - Copper
+0 !COLOUR Copper                                                CODE 134   VALUE #964A27   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 189 - Reddish Gold
+0 !COLOUR Reddish_Gold                                          CODE 189   VALUE #AC8247   EDGE #333333                               PEARLESCENT
+
+
+0 // LDraw Metallic Colours
+0                              // LEGOID 315 - Silver Metallic
+0 !COLOUR Metallic_Silver                                       CODE  80   VALUE #A5A9B4   EDGE #333333                               METAL
+0                              // LEGOID 200 - Lemon Metallic
+0 !COLOUR Metallic_Green                                        CODE  81   VALUE #899B5F   EDGE #333333                               METAL
+0                              // LEGOID 310 / 335  Metalized Gold / Gold Ink
+0 !COLOUR Metallic_Gold                                         CODE  82   VALUE #DBAC34   EDGE #333333                               METAL
+0                              // LEGOID 149 - Metallic Black
+0 !COLOUR Metallic_Black                                        CODE  83   VALUE #1A2831   EDGE #333333                               METAL
+0                              // LEGOID 309 / 336 - Metalized Silver / Silver Ink
+0 !COLOUR Metallic_Dark_Grey                                    CODE  87   VALUE #6D6E5C   EDGE #333333                               METAL
+0                              // LEGOID 300 / 334 - Copper Drum Lacq / Copper Ink
+0 !COLOUR Metallic_Copper                                       CODE 300   VALUE #C27F53   EDGE #333333                               METAL
+0                              // LEGOID 184 - Metallic Bright Red
+0 !COLOUR Metallic_Bright_Red                                   CODE 184   VALUE #D60026   EDGE #333333                               METAL
+0                              // LEGOID 186 - Metallic Dark Green
+0 !COLOUR Metallic_Dark_Green                                   CODE 186   VALUE #008E3C   EDGE #333333                               METAL
+
+
+0 // LDraw Milky Colours
+0                              // LEGOID  20 - Nature
+0 !COLOUR Milky_White                                           CODE  79   VALUE #FFFFFF   EDGE #C3C3C3   ALPHA 240
+0                              // LEGOID 294 - Phosphorescent Green
+0 !COLOUR Glow_In_Dark_Opaque                                   CODE  21   VALUE #E0FFB0   EDGE #A4C374   ALPHA 240   LUMINANCE 15
+0                              // LEGOID  50 - Phosphorescent White
+0 !COLOUR Glow_In_Dark_Trans                                    CODE 294   VALUE #BDC6AD   EDGE #818A71   ALPHA 240   LUMINANCE 15
+0                              // LEGOID 329 - White Glow
+0 !COLOUR Glow_In_Dark_White                                    CODE 329   VALUE #F5F3D7   EDGE #B5B49F   ALPHA 240   LUMINANCE 15
+
+
+0 // LDraw Glitter Colours
+0                              // LEGOID 114 - Tr. Medium Reddish-Violet w. Glitter 2%
+0 !COLOUR Glitter_Trans_Dark_Pink                               CODE 114   VALUE #DF6695   EDGE #9A2A66   ALPHA 128                   MATERIAL GLITTER VALUE #923978 FRACTION 0.17 VFRACTION 0.2 SIZE 1
+0                              // LEGOID 117 - Transparent Glitter
+0 !COLOUR Glitter_Trans_Clear                                   CODE 117   VALUE #FFFFFF   EDGE #C3C3C3   ALPHA 128                   MATERIAL GLITTER VALUE #FFFFFF FRACTION 0.08 VFRACTION 0.1 SIZE 1
+0                              // LEGOID 129 - Tr. Bright Bluish Violet w. Glitter 2%
+0 !COLOUR Glitter_Trans_Purple                                  CODE 129   VALUE #640061   EDGE #280025   ALPHA 128                   MATERIAL GLITTER VALUE #8C00FF FRACTION 0.3 VFRACTION 0.4 SIZE 1
+0                              // LEGOID 302  Tr. Light Blue with Glitter 2%
+0 !COLOUR Glitter_Trans_Light_Blue                              CODE 302   VALUE #AEE9EF   EDGE #72B3B0   ALPHA 128                   MATERIAL GLITTER VALUE #923978 FRACTION 0.17 VFRACTION 0.2 SIZE 1
+0                              // LEGOID 339  Tr Fluorescent Green with Glitter 2%
+0 !COLOUR Glitter_Trans_Neon_Green                              CODE 339   VALUE #C0FF00   EDGE #84C300   ALPHA 128                   MATERIAL GLITTER VALUE #923978 FRACTION 0.17 VFRACTION 0.2 SIZE 1 
+
+
+0 // LDraw Speckle Colours
+0 !COLOUR Speckle_Black_Silver                                  CODE 132   VALUE #000000   EDGE #898788                               MATERIAL SPECKLE VALUE #898788 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+0                              // LEGOID 132 - Black Glitter
+0 !COLOUR Speckle_Black_Gold                                    CODE 133   VALUE #000000   EDGE #DBAC34                               MATERIAL SPECKLE VALUE #DBAC34 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+0 !COLOUR Speckle_Black_Copper                                  CODE  75   VALUE #000000   EDGE #AB6038                               MATERIAL SPECKLE VALUE #AB6038 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+0 !COLOUR Speckle_Dark_Bluish_Grey_Silver                       CODE  76   VALUE #635F61   EDGE #898788                               MATERIAL SPECKLE VALUE #898788 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+
+
+0 // LDraw Rubber Colours
+0 !COLOUR Rubber_Yellow                                         CODE  65   VALUE #F5CD2F   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Trans_Yellow                                   CODE  66   VALUE #CAB000   EDGE #8E7400   ALPHA 128                   RUBBER
+0 !COLOUR Rubber_Trans_Clear                                    CODE  67   VALUE #FFFFFF   EDGE #C3C3C3   ALPHA 128                   RUBBER
+0 !COLOUR Rubber_Black                                          CODE 256   VALUE #212121   EDGE #595959                               RUBBER
+0 !COLOUR Rubber_Blue                                           CODE 273   VALUE #0033B2   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Red                                            CODE 324   VALUE #C40026   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Orange                                         CODE 350   VALUE #D06610   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Light_Grey                                     CODE 375   VALUE #C1C2C1   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Dark_Blue                                      CODE 406   VALUE #001D68   EDGE #595959                               RUBBER
+0 !COLOUR Rubber_Purple                                         CODE 449   VALUE #81007B   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Lime                                           CODE 490   VALUE #D7F000   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Light_Bluish_Grey                              CODE 496   VALUE #A3A2A4   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Flat_Silver                                    CODE 504   VALUE #898788   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_White                                          CODE 511   VALUE #FAFAFA   EDGE #333333                               RUBBER
+
+
+0 // LDraw Internal Common Material Colours
+0 !COLOUR Main_Colour                                           CODE  16   VALUE #FFFF80   EDGE #333333
+0 !COLOUR Edge_Colour                                           CODE  24   VALUE #7F7F7F   EDGE #333333
+0                              // LEGOID 109 - Black IR
+0 !COLOUR Trans_Black_IR_Lens                                   CODE  32   VALUE #000000   EDGE #333333   ALPHA 210
+0 !COLOUR Magnet                                                CODE 493   VALUE #656761   EDGE #595959                               METAL
+0 !COLOUR Electric_Contact_Alloy                                CODE 494   VALUE #D0D0D0   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 495   VALUE #AE7A59   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 2550255   VALUE #FF00FF   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 137037   VALUE #b88746   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 137091   VALUE #E5E2D9   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 137085   VALUE #333300   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 137041   VALUE #b88746   EDGE #333333                               METAL
+
+
+
+1 15 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 1.000000 56145.dat
+0 FILE 56145.dat
+0 Wheel Rim 20 x 30 with 6 Spokes and External Ribs
+0 Name: 56145.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Part UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !KEYWORDS rim, 43.2 x 22
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+0 // Nomenclature: width_(mm) x rim_diameter_(mm) [optional qualifier]
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 s/56145s01.dat
+1 16 0 0 0 0.965926 0.258819 0 -0.258819 0.965926 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.866025 0.5 0 -0.5 0.866025 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.707107 0.707107 0 -0.707107 0.707107 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.5 0.866025 0 -0.866025 0.5 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0 1 0 -1 0 0 0 0 1 s/56145s02.dat
+1 16 0 0 0 -0.707107 0.707107 0 -0.707107 -0.707107 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 -0.866025 0.5 0 -0.5 -0.866025 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 -1 0 0 0 -1 0 0 0 1 s/56145s01.dat
+1 16 0 0 0 -0.965926 -0.258819 0 0.258819 -0.965926 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 -0.866025 -0.5 0 0.5 -0.866025 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0 -1 0 1 0 0 0 0 1 s/56145s02.dat
+1 16 0 0 0 0.258819 -0.965926 0 0.965926 0.258819 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.5 -0.866025 0 0.866025 0.5 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.707107 -0.707107 0 0.707107 0.707107 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.866025 -0.5 0 0.5 0.866025 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 -0.5 0.866025 0 -0.866025 -0.5 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.5 0.866025 0 0.866025 -0.5 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 -0.5 -0.866025 0 0.866025 -0.5 0 0 0 1 s/54087s00.dat
+1 16 0 0 0 0.5 -0.866025 0 -0.866025 -0.5 0 0 0 1 s/54087s00.dat
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 -1 s/54087s03.dat
+1 16 0 0 0 -1 0 0 0 1 0 0 0 -1 s/54087s03.dat
+1 16 0 0 0 0.5 0.866025 0 0.866025 -0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 -0.5 -0.866025 0 0.866025 -0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 0.5 -0.866025 0 -0.866025 -0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 -0.5 0.866025 0 -0.866025 -0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 0.5 0.866025 0 -0.866025 0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 -0.5 0.866025 0 0.866025 0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 1 0 0 0 -1 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 0.5 -0.866025 0 0.866025 0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 -0.5 -0.866025 0 -0.866025 0.5 0 0 0 -1 s/54087s02.dat
+1 16 0 0 0 -1 0 0 0 -1 0 0 0 -1 s/54087s02.dat
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 s/54087s09.dat
+
+0 FILE s/56145s01.dat
+0 ~Wheel Rim 20 x 30 with 6 Spokes Ext. Ribs - 1/12 Rim Notch/Rib
+0 Name: s/56145s01.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Subpart UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 -1 30.8684 6 -1 30.8684 8 -1 33.8684 11 -1 37.4437 11
+2 24 -1 30.8684 8 -1 30.8684 6
+2 24 -1 33.8684 11 -1 30.8684 8
+2 24 -1 37.4437 11 -1 33.8684 11
+4 16 -1 29.9437 -6 -1 29.9437 6 -1 30.8684 6 -1 30.8684 -6
+2 24 -1 29.9437 6 -1 29.9437 -6
+2 24 -1 30.8684 6 -1 29.9437 6
+2 24 -1 29.9437 -6 -1 30.8684 -6
+4 16 -1 30.8684 6 -1 37.4437 11 -1 37.4437 -11 -1 30.8684 -6
+2 24 -1 37.4437 -11 -1 37.4437 11
+4 16 -1 30.8684 -6 -1 37.4437 -11 -1 33.8684 -11 -1 30.8684 -8
+2 24 -1 33.8684 -11 -1 37.4437 -11
+2 24 -1 30.8684 -8 -1 33.8684 -11
+2 24 -1 30.8684 -6 -1 30.8684 -8
+3 16 1 33.8684 11 1 30.8684 8 1 30.8684 6
+2 24 1 30.8684 8 1 33.8684 11
+2 24 1 30.8684 6 1 30.8684 8
+4 16 1 29.9437 6 1 29.9437 -6 1 30.8684 -6 1 30.8684 6
+2 24 1 29.9437 -6 1 29.9437 6
+2 24 1 30.8684 -6 1 29.9437 -6
+2 24 1 29.9437 6 1 30.8684 6
+3 16 1 30.8684 -8 1 33.8684 -11 1 30.8684 -6
+2 24 1 33.8684 -11 1 30.8684 -8
+2 24 1 30.8684 -8 1 30.8684 -6
+4 16 1 30.8684 -6 1 33.8684 -11 1 37.4437 -11 1 30.8684 6
+2 24 1 37.4437 -11 1 33.8684 -11
+4 16 1 30.8684 6 1 37.4437 -11 1 37.4437 11 1 33.8684 11
+2 24 1 37.4437 -11 1 37.4437 11
+2 24 1 33.8684 11 1 37.4437 11
+4 16 1 37.4437 -11 1 33.8684 -11 8.79985 32.8415 -11 9.83512 36.7052 -11
+2 24 1 33.8684 -11 8.79985 32.8415 -11
+5 24 8.79985 32.8415 -11 9.83512 36.7052 -11 1 37.4437 -11 17 29.4449 -11.7038
+4 16 -8.79985 32.8415 -11 -1 33.8684 -11 -1 37.4437 -11 -9.83512 36.7052 -11
+2 24 -8.79985 32.8415 -11 -1 33.8684 -11
+5 24 -9.83512 36.7052 -11 -8.79985 32.8415 -11 -1 33.8684 -11 -19 32.909 -11.5322
+3 16 -9.83512 36.7052 -11 -1 37.4437 -11 0 38 -11
+2 24 0 38 -11 -9.83512 36.7052 -11
+3 16 0 38 -11 -1 37.4437 -11 1 37.4437 -11
+2 24 -1 37.4437 -11 1 37.4437 -11
+3 16 0 38 -11 1 37.4437 -11 9.83512 36.7052 -11
+2 24 9.83512 36.7052 -11 0 38 -11
+4 16 8.79985 32.8415 -21 9.83512 36.7052 -21 0 38 -21 0 34 -21
+5 24 8.79985 32.8415 -21 9.83512 36.7052 -21 0 38 -21 17 29.4449 -21.7291
+2 24 9.83512 36.7052 -21 0 38 -21
+2 24 0 34 -21 8.79985 32.8415 -21
+4 16 0 34 -21 0 38 -21 -9.83512 36.7052 -21 -8.79985 32.8415 -21
+2 24 0 38 -21 -9.83512 36.7052 -21
+5 24 -9.83512 36.7052 -21 -8.79985 32.8415 -21 0 34 -21 -19 32.909 -21.6939
+2 24 -8.79985 32.8415 -21 0 34 -21
+4 16 -8.79985 32.8415 -15 -9.83512 36.7052 -15 0 38 -15 0 34 -15
+5 24 -8.79985 32.8415 -15 -9.83512 36.7052 -15 0 38 -15 -17 29.4449 -14.3996
+2 24 -9.83512 36.7052 -15 0 38 -15
+2 24 0 34 -15 -8.79985 32.8415 -15
+4 16 0 34 -15 0 38 -15 9.83512 36.7052 -15 8.79985 32.8415 -15
+2 24 0 38 -15 9.83512 36.7052 -15
+5 24 9.83512 36.7052 -15 8.79985 32.8415 -15 0 34 -15 19 32.909 -14.2937
+2 24 8.79985 32.8415 -15 0 34 -15
+4 16 -8.79985 32.8415 -25 -9.83512 36.7052 -25 0 38 -25 0 34 -25
+5 24 -8.79985 32.8415 -25 -9.83512 36.7052 -25 0 38 -25 -17 29.4449 -24.3775
+2 24 -9.83512 36.7052 -25 0 38 -25
+2 24 0 34 -25 -8.79985 32.8415 -25
+4 16 0 34 -25 0 38 -25 9.83512 36.7052 -25 8.79985 32.8415 -25
+2 24 0 38 -25 9.83512 36.7052 -25
+5 24 9.83512 36.7052 -25 8.79985 32.8415 -25 0 34 -25 19 32.909 -24.4148
+2 24 8.79985 32.8415 -25 0 34 -25
+4 16 -1 37.4437 11 -1 33.8684 11 -8.79985 32.8415 11 -9.83512 36.7052 11
+2 24 -1 33.8684 11 -8.79985 32.8415 11
+5 24 -8.79985 32.8415 11 -9.83512 36.7052 11 -1 37.4437 11 -17 29.4449 11.4761
+4 16 8.79985 32.8415 11 1 33.8684 11 1 37.4437 11 9.83512 36.7052 11
+2 24 8.79985 32.8415 11 1 33.8684 11
+5 24 9.83512 36.7052 11 8.79985 32.8415 11 1 33.8684 11 19 32.909 11.7866
+3 16 9.83512 36.7052 11 1 37.4437 11 0 38 11
+2 24 0 38 11 9.83512 36.7052 11
+3 16 0 38 11 1 37.4437 11 -1 37.4437 11
+2 24 1 37.4437 11 -1 37.4437 11
+3 16 0 38 11 -1 37.4437 11 -9.83512 36.7052 11
+2 24 -9.83512 36.7052 11 0 38 11
+4 16 8.79985 32.8415 15 9.83512 36.7052 15 0 38 15 0 34 15
+5 24 8.79985 32.8415 15 9.83512 36.7052 15 0 38 15 17 29.4449 14.368
+2 24 9.83512 36.7052 15 0 38 15
+2 24 0 34 15 8.79985 32.8415 15
+4 16 0 34 15 0 38 15 -9.83512 36.7052 15 -8.79985 32.8415 15
+2 24 0 38 15 -9.83512 36.7052 15
+5 24 -9.83512 36.7052 15 -8.79985 32.8415 15 0 34 15 -19 32.909 14.329
+2 24 -8.79985 32.8415 15 0 34 15
+4 16 -8.79985 32.8415 21 -9.83512 36.7052 21 0 38 21 0 34 21
+5 24 -8.79985 32.8415 21 -9.83512 36.7052 21 0 38 21 -17 29.4449 21.6209
+2 24 -9.83512 36.7052 21 0 38 21
+2 24 0 34 21 -8.79985 32.8415 21
+4 16 0 34 21 0 38 21 9.83512 36.7052 21 8.79985 32.8415 21
+2 24 0 38 21 9.83512 36.7052 21
+5 24 9.83512 36.7052 21 8.79985 32.8415 21 0 34 21 19 32.909 21.8149
+2 24 8.79985 32.8415 21 0 34 21
+4 16 8.79985 32.8415 25 9.83512 36.7052 25 0 38 25 0 34 25
+5 24 8.79985 32.8415 25 9.83512 36.7052 25 0 38 25 17 29.4449 24.4764
+2 24 9.83512 36.7052 25 0 38 25
+2 24 0 34 25 8.79985 32.8415 25
+4 16 0 34 25 0 38 25 -9.83512 36.7052 25 -8.79985 32.8415 25
+2 24 0 38 25 -9.83512 36.7052 25
+5 24 -9.83512 36.7052 25 -8.79985 32.8415 25 0 34 25 -19 32.909 24.3043
+2 24 -8.79985 32.8415 25 0 34 25
+5 24 8.02339 29.9437 -8 8.02339 29.9437 -6 15.5 26.8468 -6 1 30.8684 -8
+5 24 -8.02339 29.9437 -6 -8.02339 29.9437 -8 -15.5 26.8468 -8 -1 30.8684 -6
+5 24 9.83512 36.7052 21 9.83512 36.7052 25 19 32.909 24.4148 0 38 21
+5 24 9.83512 36.7052 11 9.83512 36.7052 15 19 32.909 14.2937 0 38 11
+5 24 -9.83512 36.7052 -21 -9.83512 36.7052 -25 -19 32.909 -24.3043 0 38 -21
+5 24 -9.83512 36.7052 -11 -9.83512 36.7052 -15 -19 32.909 -14.329 0 38 -11
+4 16 8.02339 29.9437 8 8.02339 29.9437 6 1 30.8684 6 1 30.8684 8
+5 24 8.02339 29.9437 8 8.02339 29.9437 6 1 30.8684 6 15.5 26.8468 8
+2 24 8.02339 29.9437 6 1 30.8684 6
+2 24 1 30.8684 8 8.02339 29.9437 8
+4 16 8.79985 32.8415 11 8.02339 29.9437 8 1 30.8684 8 1 33.8684 11
+5 24 8.79985 32.8415 11 8.02339 29.9437 8 1 30.8684 8 17 29.4449 11
+4 16 8.02339 29.9437 -6 8.02339 29.9437 -8 1 30.8684 -8 1 30.8684 -6
+2 24 8.02339 29.9437 -8 1 30.8684 -8
+2 24 1 30.8684 -6 8.02339 29.9437 -6
+4 16 8.02339 29.9437 -8 8.79985 32.8415 -11 1 33.8684 -11 1 30.8684 -8
+5 24 8.02339 29.9437 -8 8.79985 32.8415 -11 1 33.8684 -11 15.5 26.8468 -8
+4 16 8.02339 29.9437 6 8.02339 29.9437 -6 1 29.9437 -6 1 29.9437 6
+2 24 8.02339 29.9437 6 8.02339 29.9437 -6
+2 24 8.02339 29.9437 -6 1 29.9437 -6
+2 24 1 29.9437 6 8.02339 29.9437 6
+3 16 1 29.9437 -6 8.02339 29.9437 -6 1 30.8684 -6
+3 16 1 29.9437 6 1 30.8684 6 8.02339 29.9437 6
+4 16 -8.02339 29.9437 6 -8.02339 29.9437 8 -1 30.8684 8 -1 30.8684 6
+5 24 -8.02339 29.9437 6 -8.02339 29.9437 8 -1 30.8684 8 -15.5 26.8468 6
+2 24 -8.02339 29.9437 8 -1 30.8684 8
+2 24 -1 30.8684 6 -8.02339 29.9437 6
+4 16 -8.02339 29.9437 -8 -8.02339 29.9437 -6 -1 30.8684 -6 -1 30.8684 -8
+2 24 -8.02339 29.9437 -6 -1 30.8684 -6
+2 24 -1 30.8684 -8 -8.02339 29.9437 -8
+4 16 -8.79985 32.8415 -11 -8.02339 29.9437 -8 -1 30.8684 -8 -1 33.8684 -11
+5 24 -8.79985 32.8415 -11 -8.02339 29.9437 -8 -1 30.8684 -8 -17 29.4449 -11
+4 16 0 38 -15 -9.83512 36.7052 -15 -9.83512 36.7052 -11 0 38 -11
+5 24 0 38 -11 0 38 -15 -9.83512 36.7052 -15 9.83512 36.7052 -11
+4 16 0 34 -21 -8.79985 32.8415 -21 -8.79985 32.8415 -15 0 34 -15
+5 24 -8.79985 32.8415 -21 -8.79985 32.8415 -15 0 34 -15 -17 29.4449 -21.6209
+5 24 0 34 -15 0 34 -21 -8.79985 32.8415 -21 8.79985 32.8415 -15
+4 16 0 38 -25 -9.83512 36.7052 -25 -9.83512 36.7052 -21 0 38 -21
+5 24 0 38 -21 0 38 -25 -9.83512 36.7052 -25 9.83512 36.7052 -21
+4 16 0 31 -22 -8.02339 29.9437 -22 -8.79985 32.8415 -25 0 34 -25
+2 24 0 31 -22 -8.02339 29.9437 -22
+5 24 -8.02339 29.9437 -22 -8.79985 32.8415 -25 0 34 -25 -15.5 26.8468 -22
+5 24 0 34 -25 0 31 -22 -8.02339 29.9437 -22 8.79985 32.8415 -25
+4 16 0 31 -12 -8.02339 29.9437 -12 -8.02339 29.9437 -22 0 31 -22
+2 24 0 31 -12 -8.02339 29.9437 -12
+5 24 -8.02339 29.9437 -12 -8.02339 29.9437 -22 0 31 -22 -15.5 26.8468 -12
+5 24 0 31 -22 0 31 -12 -8.02339 29.9437 -12 8.02339 29.9437 -22
+4 16 0 28 -9 -7.24693 27.0459 -9 -8.02339 29.9437 -12 0 31 -12
+2 24 0 28 -9 -7.24693 27.0459 -9
+5 24 -7.24693 27.0459 -9 -8.02339 29.9437 -12 0 31 -12 -14 24.2487 -9
+5 24 0 31 -12 0 28 -9 -7.24693 27.0459 -9 8.02339 29.9437 -12
+4 16 0 28 9 -7.24693 27.0459 9 -7.24693 27.0459 -9 0 28 -9
+2 24 0 28 9 -7.24693 27.0459 9
+5 24 -7.24693 27.0459 9 -7.24693 27.0459 -9 0 28 -9 -14 24.2487 9
+5 24 0 28 -9 0 28 9 -7.24693 27.0459 9 7.24693 27.0459 -9
+4 16 0 31 12 -8.02339 29.9437 12 -7.24693 27.0459 9 0 28 9
+2 24 0 31 12 -8.02339 29.9437 12
+5 24 -8.02339 29.9437 12 -7.24693 27.0459 9 0 28 9 -15.5 26.8468 12
+5 24 0 28 9 0 31 12 -8.02339 29.9437 12 7.24693 27.0459 9
+4 16 0 31 22 -8.02339 29.9437 22 -8.02339 29.9437 12 0 31 12
+2 24 0 31 22 -8.02339 29.9437 22
+5 24 -8.02339 29.9437 22 -8.02339 29.9437 12 0 31 12 -15.5 26.8468 22
+5 24 0 31 12 0 31 22 -8.02339 29.9437 22 8.02339 29.9437 12
+4 16 0 34 25 -8.79985 32.8415 25 -8.02339 29.9437 22 0 31 22
+5 24 -8.79985 32.8415 25 -8.02339 29.9437 22 0 31 22 -17 29.4449 25
+5 24 0 31 22 0 34 25 -8.79985 32.8415 25 8.02339 29.9437 22
+4 16 0 38 21 -9.83512 36.7052 21 -9.83512 36.7052 25 0 38 25
+5 24 -9.83512 36.7052 21 -9.83512 36.7052 25 0 38 25 -19 32.909 21.6939
+5 24 0 38 25 0 38 21 -9.83512 36.7052 21 9.83512 36.7052 25
+4 16 0 34 15 -8.79985 32.8415 15 -8.79985 32.8415 21 0 34 21
+5 24 -8.79985 32.8415 15 -8.79985 32.8415 21 0 34 21 -17 29.4449 14.3996
+5 24 0 34 21 0 34 15 -8.79985 32.8415 15 8.79985 32.8415 21
+4 16 0 38 11 -9.83512 36.7052 11 -9.83512 36.7052 15 0 38 15
+5 24 -9.83512 36.7052 11 -9.83512 36.7052 15 0 38 15 -19 32.909 11.5322
+5 24 0 38 15 0 38 11 -9.83512 36.7052 11 9.83512 36.7052 15
+4 16 -8.02339 29.9437 8 -8.79985 32.8415 11 -1 33.8684 11 -1 30.8684 8
+5 24 -8.02339 29.9437 8 -8.79985 32.8415 11 -1 33.8684 11 -15.5 26.8468 8
+5 24 7.24693 27.0459 -9 8.02339 29.9437 -12 15.5 26.8468 -12 0 28 -9
+5 24 7.24693 27.0459 9 7.24693 27.0459 -9 14 24.2487 -9 0 28 9
+5 24 8.02339 29.9437 12 7.24693 27.0459 9 14 24.2487 9 0 31 12
+5 24 8.02339 29.9437 22 8.02339 29.9437 12 15.5 26.8468 12 0 31 22
+5 24 8.79985 32.8415 25 8.02339 29.9437 22 15.5 26.8468 22 0 34 25
+5 24 8.79985 32.8415 15 8.79985 32.8415 21 17 29.4449 21.7291 0 34 15
+5 24 9.83512 36.7052 -15 9.83512 36.7052 -11 19 32.909 -11.7866 0 38 -15
+5 24 8.79985 32.8415 -21 8.79985 32.8415 -15 17 29.4449 -14.368 0 34 -21
+5 24 9.83512 36.7052 -25 9.83512 36.7052 -21 19 32.909 -21.8149 0 38 -25
+5 24 8.02339 29.9437 -22 8.79985 32.8415 -25 17 29.4449 -25 0 31 -22
+5 24 8.02339 29.9437 -12 8.02339 29.9437 -22 15.5 26.8468 -22 0 31 -12
+4 16 0 28 -9 0 31 -12 8.02339 29.9437 -12 7.24693 27.0459 -9
+2 24 0 31 -12 8.02339 29.9437 -12
+2 24 7.24693 27.0459 -9 0 28 -9
+4 16 0 28 9 0 28 -9 7.24693 27.0459 -9 7.24693 27.0459 9
+2 24 7.24693 27.0459 9 0 28 9
+4 16 0 31 12 0 28 9 7.24693 27.0459 9 8.02339 29.9437 12
+2 24 8.02339 29.9437 12 0 31 12
+4 16 0 31 22 0 31 12 8.02339 29.9437 12 8.02339 29.9437 22
+2 24 8.02339 29.9437 22 0 31 22
+4 16 0 34 25 0 31 22 8.02339 29.9437 22 8.79985 32.8415 25
+4 16 0 38 21 0 38 25 9.83512 36.7052 25 9.83512 36.7052 21
+4 16 0 34 15 0 34 21 8.79985 32.8415 21 8.79985 32.8415 15
+4 16 0 38 11 0 38 15 9.83512 36.7052 15 9.83512 36.7052 11
+4 16 0 38 -15 0 38 -11 9.83512 36.7052 -11 9.83512 36.7052 -15
+4 16 0 34 -21 0 34 -15 8.79985 32.8415 -15 8.79985 32.8415 -21
+4 16 0 38 -25 0 38 -21 9.83512 36.7052 -21 9.83512 36.7052 -25
+4 16 0 31 -22 0 34 -25 8.79985 32.8415 -25 8.02339 29.9437 -22
+2 24 8.02339 29.9437 -22 0 31 -22
+4 16 0 31 -12 0 31 -22 8.02339 29.9437 -22 8.02339 29.9437 -12
+4 16 -1 29.9437 -6 -8.02339 29.9437 -6 -8.02339 29.9437 6 -1 29.9437 6
+2 24 -1 29.9437 -6 -8.02339 29.9437 -6
+2 24 -8.02339 29.9437 -6 -8.02339 29.9437 6
+2 24 -8.02339 29.9437 6 -1 29.9437 6
+3 16 -1 29.9437 -6 -1 30.8684 -6 -8.02339 29.9437 -6
+3 16 -1 29.9437 6 -8.02339 29.9437 6 -1 30.8684 6
+4 16 1 37.4437 11 1 37.4437 -11 -1 37.4437 -11 -1 37.4437 11
+0
+
+0 FILE s/54087s00.dat
+0 ~Wheel Rim 20 x 30 - 1/24 Outer Surface
+0 Name: s/54087s00.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Subpart UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+5 24 9.83512 36.7052 21 9.83512 36.7052 25 19 32.909 24.4148 0 38 21
+4 16 0 38 25 0 34 25 8.79985 32.8415 25 9.83512 36.7052 25
+5 24 0 38 25 0 34 25 8.79985 32.8415 25 -9.83512 36.7052 24.5004
+2 24 0 34 25 8.79985 32.8415 25
+5 24 8.79985 32.8415 25 9.83512 36.7052 25 0 38 25 17 29.4449 24.4764
+2 24 9.83512 36.7052 25 0 38 25
+5 24 9.83512 36.7052 11 9.83512 36.7052 15 19 32.909 14.2937 0 38 11
+4 16 0 34 21 0 38 21 9.83512 36.7052 21 8.79985 32.8415 21
+5 24 0 34 21 0 38 21 9.83512 36.7052 21 -8.79985 32.8415 21.5326
+2 24 0 38 21 9.83512 36.7052 21
+5 24 9.83512 36.7052 21 8.79985 32.8415 21 0 34 21 19 32.909 21.8149
+2 24 8.79985 32.8415 21 0 34 21
+4 16 0 38 15 0 34 15 8.79985 32.8415 15 9.83512 36.7052 15
+5 24 0 38 15 0 34 15 8.79985 32.8415 15 -9.83512 36.7052 14.5169
+2 24 0 34 15 8.79985 32.8415 15
+5 24 8.79985 32.8415 15 9.83512 36.7052 15 0 38 15 17 29.4449 14.368
+2 24 9.83512 36.7052 15 0 38 15
+4 16 0 34 11 0 38 11 9.83512 36.7052 11 8.79985 32.8415 11
+5 24 0 34 11 0 38 11 9.83512 36.7052 11 -8.79985 32.8415 11.5815
+2 24 0 38 11 9.83512 36.7052 11
+5 24 9.83512 36.7052 11 8.79985 32.8415 11 0 34 11 19 32.909 11.7866
+2 24 8.79985 32.8415 11 0 34 11
+5 24 0 38 15 0 38 11 -9.83512 36.7052 11.6499 9.83512 36.7052 15
+5 24 0 38 25 0 38 21 -9.83512 36.7052 21.5953 9.83512 36.7052 25
+5 24 0 31 8 0 31 -8 -8.02339 29.9437 -8 8.02339 29.9437 8
+5 24 0 31 -8 0 34 -11 -8.79985 32.8415 -11 8.02339 29.9437 -8
+5 24 0 38 -11 0 38 -15 -9.83512 36.7052 -14.5169 9.83512 36.7052 -11
+5 24 0 34 -15 0 34 -21 -8.79985 32.8415 -21.5326 8.79985 32.8415 -15
+5 24 0 38 -21 0 38 -25 -9.83512 36.7052 -24.5004 9.83512 36.7052 -21
+5 24 0 34 -25 0 31 -22 -8.02339 29.9437 -22 8.79985 32.8415 -25
+5 24 0 31 -22 0 31 -12 -8.02339 29.9437 -12 8.02339 29.9437 -22
+5 24 0 31 -12 0 28 -9 -7.24693 27.0459 -9 8.02339 29.9437 -12
+5 24 0 28 -9 0 28 9 -7.24693 27.0459 9 7.24693 27.0459 -9
+5 24 0 28 9 0 31 12 -8.02339 29.9437 12 7.24693 27.0459 9
+5 24 0 31 12 0 31 22 -8.02339 29.9437 22 8.02339 29.9437 12
+5 24 0 31 22 0 34 25 -8.79985 32.8415 25 8.02339 29.9437 22
+5 24 0 34 21 0 34 15 -8.79985 32.8415 14.5678 8.79985 32.8415 21
+5 24 0 34 11 0 31 8 -8.02339 29.9437 8 8.79985 32.8415 11
+5 24 7.24693 27.0459 -9 8.02339 29.9437 -12 15.5 26.8468 -12 0 28 -9
+5 24 7.24693 27.0459 9 7.24693 27.0459 -9 14 24.2487 -9 0 28 9
+5 24 8.02339 29.9437 12 7.24693 27.0459 9 14 24.2487 9 0 31 12
+5 24 8.02339 29.9437 22 8.02339 29.9437 12 15.5 26.8468 12 0 31 22
+5 24 8.79985 32.8415 25 8.02339 29.9437 22 15.5 26.8468 22 0 34 25
+5 24 8.79985 32.8415 15 8.79985 32.8415 21 17 29.4449 21.7291 0 34 15
+5 24 8.02339 29.9437 8 8.79985 32.8415 11 17 29.4449 11 0 31 8
+5 24 8.02339 29.9437 -8 8.02339 29.9437 8 15.5 26.8468 8 0 31 -8
+5 24 8.79985 32.8415 -11 8.02339 29.9437 -8 15.5 26.8468 -8 0 34 -11
+5 24 9.83512 36.7052 -15 9.83512 36.7052 -11 19 32.909 -11.7866 0 38 -15
+5 24 8.79985 32.8415 -21 8.79985 32.8415 -15 17 29.4449 -14.368 0 34 -21
+5 24 9.83512 36.7052 -25 9.83512 36.7052 -21 19 32.909 -21.8149 0 38 -25
+5 24 8.02339 29.9437 -22 8.79985 32.8415 -25 17 29.4449 -25 0 31 -22
+5 24 8.02339 29.9437 -12 8.02339 29.9437 -22 15.5 26.8468 -22 0 31 -12
+4 16 0 28 -9 0 31 -12 8.02339 29.9437 -12 7.24693 27.0459 -9
+2 24 0 31 -12 8.02339 29.9437 -12
+2 24 7.24693 27.0459 -9 0 28 -9
+4 16 0 28 9 0 28 -9 7.24693 27.0459 -9 7.24693 27.0459 9
+2 24 7.24693 27.0459 9 0 28 9
+4 16 0 31 12 0 28 9 7.24693 27.0459 9 8.02339 29.9437 12
+2 24 8.02339 29.9437 12 0 31 12
+4 16 0 31 22 0 31 12 8.02339 29.9437 12 8.02339 29.9437 22
+2 24 8.02339 29.9437 22 0 31 22
+4 16 0 34 25 0 31 22 8.02339 29.9437 22 8.79985 32.8415 25
+4 16 0 38 21 0 38 25 9.83512 36.7052 25 9.83512 36.7052 21
+4 16 0 34 15 0 34 21 8.79985 32.8415 21 8.79985 32.8415 15
+4 16 0 38 11 0 38 15 9.83512 36.7052 15 9.83512 36.7052 11
+4 16 0 31 8 0 34 11 8.79985 32.8415 11 8.02339 29.9437 8
+2 24 8.02339 29.9437 8 0 31 8
+4 16 0 31 -8 0 31 8 8.02339 29.9437 8 8.02339 29.9437 -8
+2 24 8.02339 29.9437 -8 0 31 -8
+4 16 0 34 -11 0 31 -8 8.02339 29.9437 -8 8.79985 32.8415 -11
+2 24 8.79985 32.8415 -11 0 34 -11
+4 16 9.83512 36.7052 -11 0 38 -11 0 34 -11 8.79985 32.8415 -11
+2 24 9.83512 36.7052 -11 0 38 -11
+5 24 0 38 -11 0 34 -11 8.79985 32.8415 -11 -9.83512 36.7052 -11.6499
+5 24 8.79985 32.8415 -11 9.83512 36.7052 -11 0 38 -11 17 29.4449 -11.7038
+4 16 0 38 -15 0 38 -11 9.83512 36.7052 -11 9.83512 36.7052 -15
+2 24 9.83512 36.7052 -15 0 38 -15
+4 16 8.79985 32.8415 -15 0 34 -15 0 38 -15 9.83512 36.7052 -15
+2 24 8.79985 32.8415 -15 0 34 -15
+5 24 0 34 -15 0 38 -15 9.83512 36.7052 -15 -8.79985 32.8415 -14.5678
+5 24 9.83512 36.7052 -15 8.79985 32.8415 -15 0 34 -15 19 32.909 -14.2937
+4 16 0 34 -21 0 34 -15 8.79985 32.8415 -15 8.79985 32.8415 -21
+2 24 8.79985 32.8415 -21 0 34 -21
+4 16 9.83512 36.7052 -21 0 38 -21 0 34 -21 8.79985 32.8415 -21
+2 24 9.83512 36.7052 -21 0 38 -21
+5 24 0 38 -21 0 34 -21 8.79985 32.8415 -21 -9.83512 36.7052 -21.5953
+5 24 8.79985 32.8415 -21 9.83512 36.7052 -21 0 38 -21 17 29.4449 -21.7291
+4 16 0 38 -25 0 38 -21 9.83512 36.7052 -21 9.83512 36.7052 -25
+2 24 9.83512 36.7052 -25 0 38 -25
+4 16 8.79985 32.8415 -25 0 34 -25 0 38 -25 9.83512 36.7052 -25
+2 24 8.79985 32.8415 -25 0 34 -25
+5 24 0 34 -25 0 38 -25 9.83512 36.7052 -25 -8.79985 32.8415 -24.5529
+5 24 9.83512 36.7052 -25 8.79985 32.8415 -25 0 34 -25 19 32.909 -24.4148
+4 16 0 31 -22 0 34 -25 8.79985 32.8415 -25 8.02339 29.9437 -22
+2 24 8.02339 29.9437 -22 0 31 -22
+4 16 0 31 -12 0 31 -22 8.02339 29.9437 -22 8.02339 29.9437 -12
+0
+
+0 FILE s/56145s02.dat
+0 ~Wheel Rim 20 x 30 with 6 Spokes Ext. Ribs - 1/12 Rim with Rib
+0 Name: s/56145s02.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Subpart UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 -1 37.4437 11 -1 37.4437 -11 -1 33.8684 -11 -1 33.8684 11
+2 24 -1 37.4437 -11 -1 37.4437 11
+2 24 -1 33.8684 -11 -1 37.4437 -11
+2 24 -1 37.4437 11 -1 33.8684 11
+4 16 -1 33.8684 11 -1 33.8684 -11 -1 30.8684 -8 -1 30.8684 8
+2 24 -1 30.8684 -8 -1 33.8684 -11
+2 24 -1 30.8684 8 -1 30.8684 -8
+2 24 -1 33.8684 11 -1 30.8684 8
+4 16 1 37.4437 -11 1 37.4437 11 1 33.8684 11 1 33.8684 -11
+2 24 1 37.4437 -11 1 37.4437 11
+2 24 1 33.8684 11 1 37.4437 11
+2 24 1 37.4437 -11 1 33.8684 -11
+4 16 1 33.8684 -11 1 33.8684 11 1 30.8684 8 1 30.8684 -8
+2 24 1 30.8684 8 1 33.8684 11
+2 24 1 30.8684 -8 1 30.8684 8
+2 24 1 33.8684 -11 1 30.8684 -8
+4 16 1 37.4437 -11 1 33.8684 -11 8.79985 32.8415 -11 9.83512 36.7052 -11
+2 24 1 33.8684 -11 8.79985 32.8415 -11
+5 24 8.79985 32.8415 -11 9.83512 36.7052 -11 1 37.4437 -11 17 29.4449 -11.7038
+4 16 -8.79985 32.8415 -11 -1 33.8684 -11 -1 37.4437 -11 -9.83512 36.7052 -11
+2 24 -8.79985 32.8415 -11 -1 33.8684 -11
+5 24 -9.83512 36.7052 -11 -8.79985 32.8415 -11 -1 33.8684 -11 -19 32.909 -11.5322
+3 16 -9.83512 36.7052 -11 -1 37.4437 -11 0 38 -11
+2 24 0 38 -11 -9.83512 36.7052 -11
+3 16 0 38 -11 -1 37.4437 -11 1 37.4437 -11
+2 24 -1 37.4437 -11 1 37.4437 -11
+3 16 0 38 -11 1 37.4437 -11 9.83512 36.7052 -11
+2 24 9.83512 36.7052 -11 0 38 -11
+4 16 8.79985 32.8415 -21 9.83512 36.7052 -21 0 38 -21 0 34 -21
+5 24 8.79985 32.8415 -21 9.83512 36.7052 -21 0 38 -21 17 29.4449 -21.7291
+2 24 9.83512 36.7052 -21 0 38 -21
+2 24 0 34 -21 8.79985 32.8415 -21
+4 16 0 34 -21 0 38 -21 -9.83512 36.7052 -21 -8.79985 32.8415 -21
+2 24 0 38 -21 -9.83512 36.7052 -21
+5 24 -9.83512 36.7052 -21 -8.79985 32.8415 -21 0 34 -21 -19 32.909 -21.6939
+2 24 -8.79985 32.8415 -21 0 34 -21
+4 16 -8.79985 32.8415 -15 -9.83512 36.7052 -15 0 38 -15 0 34 -15
+5 24 -8.79985 32.8415 -15 -9.83512 36.7052 -15 0 38 -15 -17 29.4449 -14.3996
+2 24 -9.83512 36.7052 -15 0 38 -15
+2 24 0 34 -15 -8.79985 32.8415 -15
+4 16 0 34 -15 0 38 -15 9.83512 36.7052 -15 8.79985 32.8415 -15
+2 24 0 38 -15 9.83512 36.7052 -15
+5 24 9.83512 36.7052 -15 8.79985 32.8415 -15 0 34 -15 19 32.909 -14.2937
+2 24 8.79985 32.8415 -15 0 34 -15
+4 16 -8.79985 32.8415 -25 -9.83512 36.7052 -25 0 38 -25 0 34 -25
+5 24 -8.79985 32.8415 -25 -9.83512 36.7052 -25 0 38 -25 -17 29.4449 -24.3775
+2 24 -9.83512 36.7052 -25 0 38 -25
+2 24 0 34 -25 -8.79985 32.8415 -25
+4 16 0 34 -25 0 38 -25 9.83512 36.7052 -25 8.79985 32.8415 -25
+2 24 0 38 -25 9.83512 36.7052 -25
+5 24 9.83512 36.7052 -25 8.79985 32.8415 -25 0 34 -25 19 32.909 -24.4148
+2 24 8.79985 32.8415 -25 0 34 -25
+4 16 -1 37.4437 11 -1 33.8684 11 -8.79985 32.8415 11 -9.83512 36.7052 11
+2 24 -1 33.8684 11 -8.79985 32.8415 11
+5 24 -8.79985 32.8415 11 -9.83512 36.7052 11 -1 37.4437 11 -17 29.4449 11.4761
+4 16 8.79985 32.8415 11 1 33.8684 11 1 37.4437 11 9.83512 36.7052 11
+2 24 8.79985 32.8415 11 1 33.8684 11
+5 24 9.83512 36.7052 11 8.79985 32.8415 11 1 33.8684 11 19 32.909 11.7866
+3 16 9.83512 36.7052 11 1 37.4437 11 0 38 11
+2 24 0 38 11 9.83512 36.7052 11
+3 16 0 38 11 1 37.4437 11 -1 37.4437 11
+2 24 1 37.4437 11 -1 37.4437 11
+3 16 0 38 11 -1 37.4437 11 -9.83512 36.7052 11
+2 24 -9.83512 36.7052 11 0 38 11
+4 16 8.79985 32.8415 15 9.83512 36.7052 15 0 38 15 0 34 15
+5 24 8.79985 32.8415 15 9.83512 36.7052 15 0 38 15 17 29.4449 14.368
+2 24 9.83512 36.7052 15 0 38 15
+2 24 0 34 15 8.79985 32.8415 15
+4 16 0 34 15 0 38 15 -9.83512 36.7052 15 -8.79985 32.8415 15
+2 24 0 38 15 -9.83512 36.7052 15
+5 24 -9.83512 36.7052 15 -8.79985 32.8415 15 0 34 15 -19 32.909 14.329
+2 24 -8.79985 32.8415 15 0 34 15
+4 16 -8.79985 32.8415 21 -9.83512 36.7052 21 0 38 21 0 34 21
+5 24 -8.79985 32.8415 21 -9.83512 36.7052 21 0 38 21 -17 29.4449 21.6209
+2 24 -9.83512 36.7052 21 0 38 21
+2 24 0 34 21 -8.79985 32.8415 21
+4 16 0 34 21 0 38 21 9.83512 36.7052 21 8.79985 32.8415 21
+2 24 0 38 21 9.83512 36.7052 21
+5 24 9.83512 36.7052 21 8.79985 32.8415 21 0 34 21 19 32.909 21.8149
+2 24 8.79985 32.8415 21 0 34 21
+4 16 8.79985 32.8415 25 9.83512 36.7052 25 0 38 25 0 34 25
+5 24 8.79985 32.8415 25 9.83512 36.7052 25 0 38 25 17 29.4449 24.4764
+2 24 9.83512 36.7052 25 0 38 25
+2 24 0 34 25 8.79985 32.8415 25
+4 16 0 34 25 0 38 25 -9.83512 36.7052 25 -8.79985 32.8415 25
+2 24 0 38 25 -9.83512 36.7052 25
+5 24 -9.83512 36.7052 25 -8.79985 32.8415 25 0 34 25 -19 32.909 24.3043
+2 24 -8.79985 32.8415 25 0 34 25
+5 24 9.83512 36.7052 21 9.83512 36.7052 25 19 32.909 24.4148 0 38 21
+5 24 9.83512 36.7052 11 9.83512 36.7052 15 19 32.909 14.2937 0 38 11
+5 24 -9.83512 36.7052 -21 -9.83512 36.7052 -25 -19 32.909 -24.3043 0 38 -21
+5 24 -9.83512 36.7052 -11 -9.83512 36.7052 -15 -19 32.909 -14.329 0 38 -11
+4 16 8.79985 32.8415 11 8.02339 29.9437 8 1 30.8684 8 1 33.8684 11
+5 24 8.79985 32.8415 11 8.02339 29.9437 8 1 30.8684 8 17 29.4449 11
+2 24 8.02339 29.9437 8 1 30.8684 8
+4 16 8.02339 29.9437 8 8.02339 29.9437 -8 1 30.8684 -8 1 30.8684 8
+5 24 8.02339 29.9437 8 8.02339 29.9437 -8 1 30.8684 -8 15.5 26.8468 8
+2 24 8.02339 29.9437 -8 1 30.8684 -8
+4 16 8.02339 29.9437 -8 8.79985 32.8415 -11 1 33.8684 -11 1 30.8684 -8
+5 24 8.02339 29.9437 -8 8.79985 32.8415 -11 1 33.8684 -11 15.5 26.8468 -8
+4 16 -8.02339 29.9437 -8 -8.02339 29.9437 8 -1 30.8684 8 -1 30.8684 -8
+5 24 -8.02339 29.9437 -8 -8.02339 29.9437 8 -1 30.8684 8 -15.5 26.8468 -8
+2 24 -8.02339 29.9437 8 -1 30.8684 8
+2 24 -1 30.8684 -8 -8.02339 29.9437 -8
+4 16 -8.79985 32.8415 -11 -8.02339 29.9437 -8 -1 30.8684 -8 -1 33.8684 -11
+5 24 -8.79985 32.8415 -11 -8.02339 29.9437 -8 -1 30.8684 -8 -17 29.4449 -11
+4 16 0 38 -15 -9.83512 36.7052 -15 -9.83512 36.7052 -11 0 38 -11
+5 24 0 38 -11 0 38 -15 -9.83512 36.7052 -15 9.83512 36.7052 -11
+4 16 0 34 -21 -8.79985 32.8415 -21 -8.79985 32.8415 -15 0 34 -15
+5 24 -8.79985 32.8415 -21 -8.79985 32.8415 -15 0 34 -15 -17 29.4449 -21.6209
+5 24 0 34 -15 0 34 -21 -8.79985 32.8415 -21 8.79985 32.8415 -15
+4 16 0 38 -25 -9.83512 36.7052 -25 -9.83512 36.7052 -21 0 38 -21
+5 24 0 38 -21 0 38 -25 -9.83512 36.7052 -25 9.83512 36.7052 -21
+4 16 0 31 -22 -8.02339 29.9437 -22 -8.79985 32.8415 -25 0 34 -25
+2 24 0 31 -22 -8.02339 29.9437 -22
+5 24 -8.02339 29.9437 -22 -8.79985 32.8415 -25 0 34 -25 -15.5 26.8468 -22
+5 24 0 34 -25 0 31 -22 -8.02339 29.9437 -22 8.79985 32.8415 -25
+4 16 0 31 -12 -8.02339 29.9437 -12 -8.02339 29.9437 -22 0 31 -22
+2 24 0 31 -12 -8.02339 29.9437 -12
+5 24 -8.02339 29.9437 -12 -8.02339 29.9437 -22 0 31 -22 -15.5 26.8468 -12
+5 24 0 31 -22 0 31 -12 -8.02339 29.9437 -12 8.02339 29.9437 -22
+4 16 0 28 -9 -7.24693 27.0459 -9 -8.02339 29.9437 -12 0 31 -12
+2 24 0 28 -9 -7.24693 27.0459 -9
+5 24 -7.24693 27.0459 -9 -8.02339 29.9437 -12 0 31 -12 -14 24.2487 -9
+5 24 0 31 -12 0 28 -9 -7.24693 27.0459 -9 8.02339 29.9437 -12
+4 16 0 28 9 -7.24693 27.0459 9 -7.24693 27.0459 -9 0 28 -9
+2 24 0 28 9 -7.24693 27.0459 9
+5 24 -7.24693 27.0459 9 -7.24693 27.0459 -9 0 28 -9 -14 24.2487 9
+5 24 0 28 -9 0 28 9 -7.24693 27.0459 9 7.24693 27.0459 -9
+4 16 0 31 12 -8.02339 29.9437 12 -7.24693 27.0459 9 0 28 9
+2 24 0 31 12 -8.02339 29.9437 12
+5 24 -8.02339 29.9437 12 -7.24693 27.0459 9 0 28 9 -15.5 26.8468 12
+5 24 0 28 9 0 31 12 -8.02339 29.9437 12 7.24693 27.0459 9
+4 16 0 31 22 -8.02339 29.9437 22 -8.02339 29.9437 12 0 31 12
+2 24 0 31 22 -8.02339 29.9437 22
+5 24 -8.02339 29.9437 22 -8.02339 29.9437 12 0 31 12 -15.5 26.8468 22
+5 24 0 31 12 0 31 22 -8.02339 29.9437 22 8.02339 29.9437 12
+4 16 0 34 25 -8.79985 32.8415 25 -8.02339 29.9437 22 0 31 22
+5 24 -8.79985 32.8415 25 -8.02339 29.9437 22 0 31 22 -17 29.4449 25
+5 24 0 31 22 0 34 25 -8.79985 32.8415 25 8.02339 29.9437 22
+4 16 0 38 21 -9.83512 36.7052 21 -9.83512 36.7052 25 0 38 25
+5 24 -9.83512 36.7052 21 -9.83512 36.7052 25 0 38 25 -19 32.909 21.6939
+5 24 0 38 25 0 38 21 -9.83512 36.7052 21 9.83512 36.7052 25
+4 16 0 34 15 -8.79985 32.8415 15 -8.79985 32.8415 21 0 34 21
+5 24 -8.79985 32.8415 15 -8.79985 32.8415 21 0 34 21 -17 29.4449 14.3996
+5 24 0 34 21 0 34 15 -8.79985 32.8415 15 8.79985 32.8415 21
+4 16 0 38 11 -9.83512 36.7052 11 -9.83512 36.7052 15 0 38 15
+5 24 -9.83512 36.7052 11 -9.83512 36.7052 15 0 38 15 -19 32.909 11.5322
+5 24 0 38 15 0 38 11 -9.83512 36.7052 11 9.83512 36.7052 15
+4 16 -8.02339 29.9437 8 -8.79985 32.8415 11 -1 33.8684 11 -1 30.8684 8
+5 24 -8.02339 29.9437 8 -8.79985 32.8415 11 -1 33.8684 11 -15.5 26.8468 8
+5 24 7.24693 27.0459 -9 8.02339 29.9437 -12 15.5 26.8468 -12 0 28 -9
+5 24 7.24693 27.0459 9 7.24693 27.0459 -9 14 24.2487 -9 0 28 9
+5 24 8.02339 29.9437 12 7.24693 27.0459 9 14 24.2487 9 0 31 12
+5 24 8.02339 29.9437 22 8.02339 29.9437 12 15.5 26.8468 12 0 31 22
+5 24 8.79985 32.8415 25 8.02339 29.9437 22 15.5 26.8468 22 0 34 25
+5 24 8.79985 32.8415 15 8.79985 32.8415 21 17 29.4449 21.7291 0 34 15
+5 24 9.83512 36.7052 -15 9.83512 36.7052 -11 19 32.909 -11.7866 0 38 -15
+5 24 8.79985 32.8415 -21 8.79985 32.8415 -15 17 29.4449 -14.368 0 34 -21
+5 24 9.83512 36.7052 -25 9.83512 36.7052 -21 19 32.909 -21.8149 0 38 -25
+5 24 8.02339 29.9437 -22 8.79985 32.8415 -25 17 29.4449 -25 0 31 -22
+5 24 8.02339 29.9437 -12 8.02339 29.9437 -22 15.5 26.8468 -22 0 31 -12
+4 16 0 28 -9 0 31 -12 8.02339 29.9437 -12 7.24693 27.0459 -9
+2 24 0 31 -12 8.02339 29.9437 -12
+2 24 7.24693 27.0459 -9 0 28 -9
+4 16 0 28 9 0 28 -9 7.24693 27.0459 -9 7.24693 27.0459 9
+2 24 7.24693 27.0459 9 0 28 9
+4 16 0 31 12 0 28 9 7.24693 27.0459 9 8.02339 29.9437 12
+2 24 8.02339 29.9437 12 0 31 12
+4 16 0 31 22 0 31 12 8.02339 29.9437 12 8.02339 29.9437 22
+2 24 8.02339 29.9437 22 0 31 22
+4 16 0 34 25 0 31 22 8.02339 29.9437 22 8.79985 32.8415 25
+4 16 0 38 21 0 38 25 9.83512 36.7052 25 9.83512 36.7052 21
+4 16 0 34 15 0 34 21 8.79985 32.8415 21 8.79985 32.8415 15
+4 16 0 38 11 0 38 15 9.83512 36.7052 15 9.83512 36.7052 11
+4 16 0 38 -15 0 38 -11 9.83512 36.7052 -11 9.83512 36.7052 -15
+4 16 0 34 -21 0 34 -15 8.79985 32.8415 -15 8.79985 32.8415 -21
+4 16 0 38 -25 0 38 -21 9.83512 36.7052 -21 9.83512 36.7052 -25
+4 16 0 31 -22 0 34 -25 8.79985 32.8415 -25 8.02339 29.9437 -22
+2 24 8.02339 29.9437 -22 0 31 -22
+4 16 0 31 -12 0 31 -22 8.02339 29.9437 -22 8.02339 29.9437 -12
+4 16 1 37.4437 11 1 37.4437 -11 -1 37.4437 -11 -1 37.4437 11
+0
+
+0 FILE s/54087s03.dat
+0 ~Wheel Rim 20 x 30 - 1/12 Spoke with Notch
+0 Name: s/54087s03.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Subpart UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 7.565 20.4939 0.7546 7.565 20.4939 3.8965 7.0636 19.9222 3.4891 7.3764 20.2789 0.6014
+5 24 7.565 20.4939 0.7546 7.565 20.4939 3.8965 7.0636 19.9222 3.4891 8.9647 21.1842 1.4185
+2 24 7.0636 19.9222 3.4891 7.565 20.4939 3.8965
+2 24 7.565 20.4939 0.7546 7.3764 20.2789 0.6014
+4 16 7.3764 20.2789 0.6014 7.0636 19.9222 3.4891 6.5359 19.3205 3.3016 6.5359 19.3205 0.3027
+2 24 6.5359 19.3205 3.3016 7.0636 19.9222 3.4891
+5 24 6.5359 19.3205 0.3027 6.5359 19.3205 3.3016 6.0342 17.8426 2.9163 7.3764 20.2789 0.6014
+2 24 7.3764 20.2789 0.6014 6.5359 19.3205 0.3027
+3 16 0 19 -0.0717 0 21.7442 0.6014 1.1481 18.7716 -0.0907
+5 24 0 21.7442 0.6014 0 19 -0.0717 -0.8728 18.8264 -0.0861 1.1481 18.7716 -0.0907
+2 24 1.1481 18.7716 -0.0907 0 19 -0.0717
+4 16 1.1481 18.7716 -0.0907 0 21.7442 0.6014 5.6278 21.0032 0.6014 2.1213 18.1213 -0.2188
+5 24 5.6278 21.0032 0.6014 0 21.7442 0.6014 0 28 4.1105 2.1213 18.1213 -0.2188
+2 24 2.1213 18.1213 -0.2188 1.1481 18.7716 -0.0907
+3 16 2.1213 18.1213 -0.2188 5.6278 21.0032 0.6014 2.7716 17.1481 -0.4365
+2 24 2.7716 17.1481 -0.4365 2.1213 18.1213 -0.2188
+4 16 3.8823 14.4889 -1.053 3 14.605 -1.053 3 16 -0.7108 5.6278 21.0032 0.6014
+2 24 3.8823 14.4889 -1.053 3 14.605 -1.053
+2 24 3 14.605 -1.053 3 16 -0.7108
+5 24 3.8823 14.4889 -1.053 5.6278 21.0032 0.6014 6.5359 19.3205 0.3027 3 14.605 -1.053
+3 16 5.6278 21.0032 0.6014 3 16 -0.7108 2.7716 17.1481 -0.4365
+2 24 3 16 -0.7108 2.7716 17.1481 -0.4365
+3 16 3.6347 27.5215 7.2524 7.2469 27.0459 7.2524 7.2469 27.0459 4.1105
+2 24 7.2469 27.0459 7.2524 3.6347 27.5215 7.2524
+5 24 7.2469 27.0459 4.1105 7.2469 27.0459 7.2524 14 24.2487 7.2524 3.6347 27.5215 7.2524
+3 16 0 28 4.1105 0 28 7.2524 1.6145 27.7874 7.2524
+5 24 0 28 7.2524 0 28 4.1105 -1.2902 27.8301 4.1105 1.6145 27.7874 7.2524
+2 24 1.6145 27.7874 7.2524 0 28 7.2524
+4 16 1.6145 27.7874 9 3.6347 27.5215 9 3.6347 27.5215 7.2524 1.6145 27.7874 7.2524
+2 24 1.6145 27.7874 9 3.6347 27.5215 9
+2 24 3.6347 27.5215 7.2524 3.6347 27.5215 9
+2 24 1.6145 27.7874 9 1.6145 27.7874 7.2524
+4 16 1.6145 27.7874 7.2524 3.6347 27.5215 7.2524 7.2469 27.0459 4.1105 0 28 4.1105
+2 24 7.2469 27.0459 4.1105 0 28 4.1105
+4 16 8 13.8564 -0.8077 7.5 12.9904 -1.053 3.8823 14.4889 -1.053 6.8266 14.8855 -0.6835
+5 24 7.5 12.9904 -1.053 8 13.8564 -0.8077 9.0109 13.5132 -0.7228 3.8823 14.4889 -1.053
+2 24 7.5 12.9904 -1.053 3.8823 14.4889 -1.053
+2 24 6.8266 14.8855 -0.6835 8 13.8564 -0.8077
+3 16 6.8266 14.8855 -0.6835 3.8823 14.4889 -1.053 6.1363 16.2852 -0.4289
+2 24 6.1363 16.2852 -0.4289 6.8266 14.8855 -0.6835
+3 16 6.1363 16.2852 -0.4289 3.8823 14.4889 -1.053 6.0342 17.8426 -0.0826
+2 24 6.0342 17.8426 -0.0826 6.1363 16.2852 -0.4289
+4 16 6.0342 17.8426 -0.0826 3.8823 14.4889 -1.053 5.6278 21.0032 0.6014 6.5359 19.3205 0.3027
+2 24 6.5359 19.3205 0.3027 6.0342 17.8426 -0.0826
+3 16 6.5359 19.3205 0.3027 5.6278 21.0032 0.6014 7.3764 20.2789 0.6014
+5 24 7.3764 20.2789 0.6014 5.6278 21.0032 0.6014 7.565 20.4939 0.7546 6.5359 19.3205 0.3027
+4 16 7.2469 27.0459 4.1105 14 24.2487 4.1105 12 20.7846 1.8668 10.5221 21.2863 1.809
+2 24 14 24.2487 4.1105 7.2469 27.0459 4.1105
+5 24 12 20.7846 1.8668 14 24.2487 4.1105 15.4352 23.1474 4.1105 10.5221 21.2863 1.809
+2 24 12 20.7846 1.8668 10.5221 21.2863 1.809
+3 16 7.2469 27.0459 4.1105 10.5221 21.2863 1.809 8.9647 21.1842 1.4185
+2 24 10.5221 21.2863 1.809 8.9647 21.1842 1.4185
+4 16 7.2469 27.0459 4.1105 8.9647 21.1842 1.4185 7.565 20.4939 0.7546 5.6278 21.0032 0.6014
+2 24 8.9647 21.1842 1.4185 7.565 20.4939 0.7546
+5 24 5.6278 21.0032 0.6014 7.2469 27.0459 4.1105 8.9647 21.1842 1.4185 0 21.7442 0.6014
+3 16 5.6278 21.0032 0.6014 7.565 20.4939 0.7546 7.3764 20.2789 0.6014
+3 16 12 20.7846 5.0087 14 24.2487 7.2524 10.5221 21.2863 4.9509
+5 24 14 24.2487 7.2524 12 20.7846 5.0087 13.1734 19.7556 4.9509 10.5221 21.2863 4.9509
+2 24 10.5221 21.2863 4.9509 12 20.7846 5.0087
+4 16 10.5221 21.2863 4.9509 14 24.2487 7.2524 7.2469 27.0459 7.2524 8.9647 21.1842 4.5604
+2 24 14 24.2487 7.2524 7.2469 27.0459 7.2524
+2 24 8.9647 21.1842 4.5604 10.5221 21.2863 4.9509
+4 16 5.5105 20.5655 3.4891 7.0636 19.9222 3.4891 7.565 20.4939 3.8965 7.2469 27.0459 7.2524
+5 24 7.0636 19.9222 3.4891 5.5105 20.5655 3.4891 6.5359 19.3205 3.3016 7.565 20.4939 3.8965
+5 24 7.2469 27.0459 7.2524 5.5105 20.5655 3.4891 7.0636 19.9222 3.4891 3.6347 27.5215 7.2524
+3 16 7.2469 27.0459 7.2524 7.565 20.4939 3.8965 8.9647 21.1842 4.5604
+2 24 7.565 20.4939 3.8965 8.9647 21.1842 4.5604
+4 16 6 10.3923 1.21 8 13.8564 2.1912 6.8266 14.8855 2.3153 4.6546 10.9496 1.21
+5 24 8 13.8564 2.1912 6 10.3923 1.21 6.6151 9.9203 1.21 6.8266 14.8855 2.3153
+2 24 8 13.8564 2.1912 6.8266 14.8855 2.3153
+2 24 6 10.3923 1.21 4.6546 10.9496 1.21
+4 16 4.6546 10.9496 1.21 6.8266 14.8855 2.3153 6.1363 16.2852 2.57 4.3332 16.1717 2.3733
+2 24 6.8266 14.8855 2.3153 6.1363 16.2852 2.57
+2 24 4.6546 10.9496 1.21 4.3332 16.1717 2.3733
+3 16 4.3332 16.1717 2.3733 6.1363 16.2852 2.57 6.0342 17.8426 2.9163
+2 24 6.1363 16.2852 2.57 6.0342 17.8426 2.9163
+4 16 4.3332 16.1717 2.3733 6.0342 17.8426 2.9163 6.5359 19.3205 3.3016 5.5105 20.5655 3.4891
+2 24 6.0342 17.8426 2.9163 6.5359 19.3205 3.3016
+5 24 5.5105 20.5655 3.4891 4.3332 16.1717 2.3733 6.0342 17.8426 2.9163 4.051 20.7576 3.4891
+3 16 5.5105 20.5655 3.4891 6.5359 19.3205 3.3016 7.0636 19.9222 3.4891
+3 16 4.051 20.7576 3.4891 3.6347 27.5215 7.2524 3.6347 27.5215 9
+2 24 4.051 20.7576 3.4891 3.6347 27.5215 7.2524
+3 16 4.6546 10.9496 1.21 4.3332 16.1717 2.3733 4.6546 10.9496 3.4983
+2 24 4.6546 10.9496 3.4983 4.6546 10.9496 1.21
+3 16 4.6546 10.9496 3.4983 4.3332 16.1717 2.3733 4.051 20.7576 3.4891
+2 24 4.3332 16.1717 2.3733 4.051 20.7576 3.4891
+4 16 4.6546 10.9496 3.4983 4.051 20.7576 3.4891 3.6347 27.5215 9 4.6546 10.9496 19
+2 24 4.6546 10.9496 19 4.6546 10.9496 3.4983
+4 16 4.6546 10.9496 19 3.6347 27.5215 9 3.4485 30.546 12 3.4485 30.546 20
+2 24 3.6347 27.5215 9 3.4485 30.546 12
+2 24 3.4485 30.546 20 3.4485 30.546 12
+2 24 3.4485 30.546 20 4.6546 10.9496 19
+3 16 2.6073 11.6567 19.0225 2.0308 21.0236 3.4891 2.6073 11.6567 3.4983
+2 24 2.6073 11.6567 3.4983 2.6073 11.6567 19.0225
+3 16 2.6073 11.6567 3.4983 2.0308 21.0236 3.4891 2.6073 11.6567 1.21
+2 24 2.0308 21.0236 3.4891 2.6073 11.6567 1.21
+2 24 2.6073 11.6567 1.21 2.6073 11.6567 3.4983
+4 16 1.6145 27.7874 7.2524 2.0308 21.0236 3.4891 2.6073 11.6567 19.0225 1.6145 27.7874 9
+2 24 1.6145 27.7874 7.2524 2.0308 21.0236 3.4891
+4 16 1.6145 27.7874 9 2.6073 11.6567 19.0225 1.4284 30.8119 20 1.4284 30.8119 12
+2 24 2.6073 11.6567 19.0225 1.4284 30.8119 20
+2 24 1.4284 30.8119 20 1.4284 30.8119 12
+2 24 1.4284 30.8119 12 1.6145 27.7874 9
+2 24 0 10 0 2.5882 9.6593 0
+2 24 2.5882 9.6593 0 5 8.6603 0
+3 16 0 12 3.4983 0 9 3.4983 2.6073 11.6567 3.4983
+2 24 2.6073 11.6567 3.4983 0 12 3.4983
+4 16 2.6073 11.6567 3.4983 0 9 3.4983 2.3294 8.6933 3.4983 4.6546 10.9496 3.4983
+2 24 0 9 3.4983 2.3294 8.6933 3.4983
+2 24 4.6546 10.9496 3.4983 2.6073 11.6567 3.4983
+4 16 4.6546 10.9496 3.4983 2.3294 8.6933 3.4983 4.5 7.7942 3.4983 6 10.3923 3.4983
+2 24 2.3294 8.6933 3.4983 4.5 7.7942 3.4983
+2 24 6 10.3923 3.4983 4.6546 10.9496 3.4983
+5 24 0 12 3.4983 0 12 1.21 -0.5529 11.9272 1.21 2.6073 11.6567 3.4983
+5 24 0 12 1.21 0 21.291 3.4891 -0.981 21.1618 3.4891 2.6073 11.6567 1.21
+5 24 0 21.291 3.4891 -0.981 21.1618 3.4891 -0.5529 11.9272 1.21 0 28 7.2524
+5 24 0 21.291 3.4891 0 28 7.2524 -1.2902 27.8301 7.2524 2.0308 21.0236 3.4891
+5 24 0 28 4.1105 0 21.7442 0.6014 -1.0019 21.6122 0.6014 7.2469 27.0459 4.1105
+5 24 0 21.7442 0.6014 -1.0019 21.6122 0.6014 -1.2902 27.8301 4.1105 0 19 -0.0717
+5 24 0 10 -10 0 10 0 -0.4608 9.9393 0 2.5882 9.6593 -10
+5 24 5 8.6603 0 5 8.6603 -10 5.5126 8.2669 -10 2.5882 9.6593 0
+5 24 6 10.3923 1.21 6 10.3923 3.4983 6.6151 9.9203 2.872 4.6546 10.9496 1.21
+5 24 14 24.2487 4.1105 14 24.2487 7.2524 15.4352 23.1474 7.2524 7.2469 27.0459 4.1105
+5 24 7.5 12.9904 -10 7.5 12.9904 -1.053 8.2689 12.4004 -1.053 3.8823 14.4889 -10
+5 24 8 13.8564 -0.8077 8 13.8564 2.1912 9.0109 13.5132 2.2761 6.8266 14.8855 -0.6835
+5 24 0 19 -0.0717 0 19 -10 -0.8728 18.8264 -10 1.1481 18.7716 -0.0907
+4 16 1.4284 30.8119 12 1.4284 30.8119 20 3.4485 30.546 20 3.4485 30.546 12
+2 24 1.4284 30.8119 20 3.4485 30.546 20
+2 24 3.4485 30.546 12 1.4284 30.8119 12
+4 16 2.0308 21.0236 3.4891 0 21.291 3.4891 0 12 1.21 2.6073 11.6567 1.21
+5 24 2.0308 21.0236 3.4891 0 21.291 3.4891 0 12 1.21 1.6145 27.7874 7.2524
+2 24 0 12 1.21 2.6073 11.6567 1.21
+4 16 1.6145 27.7874 7.2524 0 28 7.2524 0 21.291 3.4891 2.0308 21.0236 3.4891
+4 16 6 10.3923 3.4983 6 10.3923 1.21 4.6546 10.9496 1.21 4.6546 10.9496 3.4983
+4 16 14 24.2487 4.1105 7.2469 27.0459 4.1105 7.2469 27.0459 7.2524 14 24.2487 7.2524
+4 16 7.5 12.9904 -10 3.8823 14.4889 -10 3.8823 14.4889 -1.053 7.5 12.9904 -1.053
+5 24 3.8823 14.4889 -10 3.8823 14.4889 -1.053 7.5 12.9904 -1.053 3 14.605 -10
+4 16 5 8.6603 0 2.5882 9.6593 0 2.5882 9.6593 -10 5 8.6603 -10
+5 24 2.5882 9.6593 0 2.5882 9.6593 -10 5 8.6603 -10 0 10 0
+4 16 2.6073 11.6567 1.21 0 12 1.21 0 12 3.4983 2.6073 11.6567 3.4983
+3 16 4.051 20.7576 3.4891 4.3332 16.1717 2.3733 5.5105 20.5655 3.4891
+5 24 5.5105 20.5655 3.4891 4.051 20.7576 3.4891 4.3332 16.1717 2.3733 7.2469 27.0459 7.2524
+4 16 4.051 20.7576 3.4891 5.5105 20.5655 3.4891 7.2469 27.0459 7.2524 3.6347 27.5215 7.2524
+4 16 0 28 4.1105 7.2469 27.0459 4.1105 5.6278 21.0032 0.6014 0 21.7442 0.6014
+4 16 3 14.605 -1.053 3.8823 14.4889 -1.053 3.8823 14.4889 -10 3 14.605 -10
+2 24 3 14.605 -10 3 14.605 -1.053
+4 16 0 10 0 0 10 -10 2.5882 9.6593 -10 2.5882 9.6593 0
+5 24 12 20.7846 5.0087 12 20.7846 1.8668 13.1734 19.7556 1.809 10.5221 21.2863 4.9509
+4 16 8 13.8564 -0.8077 6.8266 14.8855 -0.6835 6.8266 14.8855 2.3153 8 13.8564 2.1912
+5 24 6.8266 14.8855 -0.6835 6.8266 14.8855 2.3153 8 13.8564 2.1912 6.1363 16.2852 -0.4289
+4 16 6.8266 14.8855 -0.6835 6.1363 16.2852 -0.4289 6.1363 16.2852 2.57 6.8266 14.8855 2.3153
+5 24 6.1363 16.2852 -0.4289 6.1363 16.2852 2.57 6.8266 14.8855 2.3153 6.0342 17.8426 -0.0826
+4 16 6.1363 16.2852 -0.4289 6.0342 17.8426 -0.0826 6.0342 17.8426 2.9163 6.1363 16.2852 2.57
+5 24 6.0342 17.8426 -0.0826 6.0342 17.8426 2.9163 6.1363 16.2852 2.57 6.5359 19.3205 0.3027
+4 16 6.0342 17.8426 -0.0826 6.5359 19.3205 0.3027 6.5359 19.3205 3.3016 6.0342 17.8426 2.9163
+4 16 7.565 20.4939 0.7546 8.9647 21.1842 1.4185 8.9647 21.1842 4.5604 7.565 20.4939 3.8965
+5 24 8.9647 21.1842 1.4185 8.9647 21.1842 4.5604 7.565 20.4939 3.8965 10.5221 21.2863 1.809
+4 16 8.9647 21.1842 1.4185 10.5221 21.2863 1.809 10.5221 21.2863 4.9509 8.9647 21.1842 4.5604
+5 24 10.5221 21.2863 1.809 10.5221 21.2863 4.9509 8.9647 21.1842 4.5604 12 20.7846 1.8668
+4 16 10.5221 21.2863 1.809 12 20.7846 1.8668 12 20.7846 5.0087 10.5221 21.2863 4.9509
+4 16 2.6073 11.6567 3.4983 4.6546 10.9496 3.4983 4.6546 10.9496 19 2.6073 11.6567 19.0225
+2 24 4.6546 10.9496 19 2.6073 11.6567 19.0225
+4 16 3.6347 27.5215 9 1.6145 27.7874 9 1.4284 30.8119 12 3.4485 30.546 12
+4 16 3 16 -10 2.7716 17.1481 -10 2.7716 17.1481 -0.4365 3 16 -0.7108
+5 24 2.7716 17.1481 -10 2.7716 17.1481 -0.4365 3 16 -0.7108 2.1213 18.1213 -10
+5 24 3 16 -0.7108 3 16 -10 2.7716 17.1481 -10 3 14.605 -1.053
+4 16 2.7716 17.1481 -10 2.1213 18.1213 -10 2.1213 18.1213 -0.2188 2.7716 17.1481 -0.4365
+5 24 2.1213 18.1213 -10 2.1213 18.1213 -0.2188 2.7716 17.1481 -0.4365 1.1481 18.7716 -10
+4 16 2.1213 18.1213 -10 1.1481 18.7716 -10 1.1481 18.7716 -0.0907 2.1213 18.1213 -0.2188
+5 24 1.1481 18.7716 -10 1.1481 18.7716 -0.0907 2.1213 18.1213 -0.2188 0 19 -10
+4 16 1.1481 18.7716 -10 0 19 -10 0 19 -0.0717 1.1481 18.7716 -0.0907
+4 16 3 14.605 -10 3 16 -10 3 16 -0.7108 3 14.605 -1.053
+4 16 4.6546 10.9496 19 3.4485 30.546 20 1.4284 30.8119 20 2.6073 11.6567 19.0225
+
+0 FILE s/54087s02.dat
+0 ~Wheel Rim 20 x 30 - 1/12 Spoke
+0 Name: s/54087s02.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Subpart UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 7.565 20.4939 0.7546 7.565 20.4939 3.8965 7.0636 19.9222 3.4891 7.3764 20.2789 0.6014
+5 24 7.565 20.4939 0.7546 7.565 20.4939 3.8965 7.0636 19.9222 3.4891 8.9647 21.1842 1.4185
+2 24 7.0636 19.9222 3.4891 7.565 20.4939 3.8965
+2 24 7.565 20.4939 0.7546 7.3764 20.2789 0.6014
+4 16 7.3764 20.2789 0.6014 7.0636 19.9222 3.4891 6.5359 19.3205 3.3016 6.5359 19.3205 0.3027
+2 24 6.5359 19.3205 3.3016 7.0636 19.9222 3.4891
+5 24 6.5359 19.3205 0.3027 6.5359 19.3205 3.3016 6.0342 17.8426 2.9163 7.3764 20.2789 0.6014
+2 24 7.3764 20.2789 0.6014 6.5359 19.3205 0.3027
+3 16 3.6347 27.5215 7.2524 7.2469 27.0459 7.2524 7.2469 27.0459 4.1105
+2 24 7.2469 27.0459 7.2524 3.6347 27.5215 7.2524
+5 24 7.2469 27.0459 4.1105 7.2469 27.0459 7.2524 14 24.2487 7.2524 3.6347 27.5215 7.2524
+3 16 0 28 4.1105 0 28 7.2524 1.6145 27.7874 7.2524
+5 24 0 28 7.2524 0 28 4.1105 -1.2902 27.8301 4.1105 1.6145 27.7874 7.2524
+2 24 1.6145 27.7874 7.2524 0 28 7.2524
+4 16 1.6145 27.7874 9 3.6347 27.5215 9 3.6347 27.5215 7.2524 1.6145 27.7874 7.2524
+2 24 1.6145 27.7874 9 3.6347 27.5215 9
+2 24 3.6347 27.5215 7.2524 3.6347 27.5215 9
+2 24 1.6145 27.7874 9 1.6145 27.7874 7.2524
+4 16 1.6145 27.7874 7.2524 3.6347 27.5215 7.2524 7.2469 27.0459 4.1105 0 28 4.1105
+2 24 7.2469 27.0459 4.1105 0 28 4.1105
+4 16 8 13.8564 -0.8077 7.5 12.9904 -1.053 3.8823 14.4889 -1.053 6.8266 14.8855 -0.6835
+5 24 7.5 12.9904 -1.053 8 13.8564 -0.8077 9.0109 13.5132 -0.7228 3.8823 14.4889 -1.053
+2 24 7.5 12.9904 -1.053 3.8823 14.4889 -1.053
+2 24 6.8266 14.8855 -0.6835 8 13.8564 -0.8077
+3 16 6.8266 14.8855 -0.6835 3.8823 14.4889 -1.053 6.1363 16.2852 -0.4289
+2 24 6.1363 16.2852 -0.4289 6.8266 14.8855 -0.6835
+3 16 6.1363 16.2852 -0.4289 3.8823 14.4889 -1.053 6.0342 17.8426 -0.0826
+2 24 6.0342 17.8426 -0.0826 6.1363 16.2852 -0.4289
+4 16 6.0342 17.8426 -0.0826 3.8823 14.4889 -1.053 5.6278 21.0032 0.6014 6.5359 19.3205 0.3027
+5 24 3.8823 14.4889 -1.053 5.6278 21.0032 0.6014 6.5359 19.3205 0.3027 0 15 -1.053
+2 24 6.5359 19.3205 0.3027 6.0342 17.8426 -0.0826
+3 16 6.5359 19.3205 0.3027 5.6278 21.0032 0.6014 7.3764 20.2789 0.6014
+5 24 7.3764 20.2789 0.6014 5.6278 21.0032 0.6014 7.565 20.4939 0.7546 6.5359 19.3205 0.3027
+4 16 7.2469 27.0459 4.1105 14 24.2487 4.1105 12 20.7846 1.8668 10.5221 21.2863 1.809
+2 24 14 24.2487 4.1105 7.2469 27.0459 4.1105
+5 24 12 20.7846 1.8668 14 24.2487 4.1105 15.4352 23.1474 4.1105 10.5221 21.2863 1.809
+2 24 12 20.7846 1.8668 10.5221 21.2863 1.809
+3 16 7.2469 27.0459 4.1105 10.5221 21.2863 1.809 8.9647 21.1842 1.4185
+2 24 10.5221 21.2863 1.809 8.9647 21.1842 1.4185
+4 16 7.2469 27.0459 4.1105 8.9647 21.1842 1.4185 7.565 20.4939 0.7546 5.6278 21.0032 0.6014
+2 24 8.9647 21.1842 1.4185 7.565 20.4939 0.7546
+5 24 5.6278 21.0032 0.6014 7.2469 27.0459 4.1105 8.9647 21.1842 1.4185 0 21.7442 0.6014
+3 16 5.6278 21.0032 0.6014 7.565 20.4939 0.7546 7.3764 20.2789 0.6014
+3 16 12 20.7846 5.0087 14 24.2487 7.2524 10.5221 21.2863 4.9509
+5 24 14 24.2487 7.2524 12 20.7846 5.0087 13.1734 19.7556 4.9509 10.5221 21.2863 4.9509
+2 24 10.5221 21.2863 4.9509 12 20.7846 5.0087
+4 16 10.5221 21.2863 4.9509 14 24.2487 7.2524 7.2469 27.0459 7.2524 8.9647 21.1842 4.5604
+2 24 14 24.2487 7.2524 7.2469 27.0459 7.2524
+2 24 8.9647 21.1842 4.5604 10.5221 21.2863 4.9509
+4 16 5.5105 20.5655 3.4891 7.0636 19.9222 3.4891 7.565 20.4939 3.8965 7.2469 27.0459 7.2524
+5 24 7.0636 19.9222 3.4891 5.5105 20.5655 3.4891 6.5359 19.3205 3.3016 7.565 20.4939 3.8965
+5 24 7.2469 27.0459 7.2524 5.5105 20.5655 3.4891 7.0636 19.9222 3.4891 3.6347 27.5215 7.2524
+3 16 7.2469 27.0459 7.2524 7.565 20.4939 3.8965 8.9647 21.1842 4.5604
+2 24 7.565 20.4939 3.8965 8.9647 21.1842 4.5604
+4 16 6 10.3923 1.21 8 13.8564 2.1912 6.8266 14.8855 2.3153 4.6546 10.9496 1.21
+5 24 8 13.8564 2.1912 6 10.3923 1.21 6.6151 9.9203 1.21 6.8266 14.8855 2.3153
+2 24 8 13.8564 2.1912 6.8266 14.8855 2.3153
+2 24 6 10.3923 1.21 4.6546 10.9496 1.21
+4 16 4.6546 10.9496 1.21 6.8266 14.8855 2.3153 6.1363 16.2852 2.57 4.3332 16.1717 2.3733
+2 24 6.8266 14.8855 2.3153 6.1363 16.2852 2.57
+2 24 4.6546 10.9496 1.21 4.3332 16.1717 2.3733
+3 16 4.3332 16.1717 2.3733 6.1363 16.2852 2.57 6.0342 17.8426 2.9163
+2 24 6.1363 16.2852 2.57 6.0342 17.8426 2.9163
+4 16 4.3332 16.1717 2.3733 6.0342 17.8426 2.9163 6.5359 19.3205 3.3016 5.5105 20.5655 3.4891
+2 24 6.0342 17.8426 2.9163 6.5359 19.3205 3.3016
+5 24 5.5105 20.5655 3.4891 4.3332 16.1717 2.3733 6.0342 17.8426 2.9163 4.051 20.7576 3.4891
+3 16 5.5105 20.5655 3.4891 6.5359 19.3205 3.3016 7.0636 19.9222 3.4891
+3 16 4.051 20.7576 3.4891 3.6347 27.5215 7.2524 3.6347 27.5215 9
+2 24 4.051 20.7576 3.4891 3.6347 27.5215 7.2524
+3 16 4.6546 10.9496 1.21 4.3332 16.1717 2.3733 4.6546 10.9496 3.4983
+2 24 4.6546 10.9496 3.4983 4.6546 10.9496 1.21
+3 16 4.6546 10.9496 3.4983 4.3332 16.1717 2.3733 4.051 20.7576 3.4891
+2 24 4.3332 16.1717 2.3733 4.051 20.7576 3.4891
+4 16 4.6546 10.9496 3.4983 4.051 20.7576 3.4891 3.6347 27.5215 9 4.6546 10.9496 19
+2 24 4.6546 10.9496 19 4.6546 10.9496 3.4983
+4 16 4.6546 10.9496 19 3.6347 27.5215 9 3.4485 30.546 12 3.4485 30.546 20
+2 24 3.6347 27.5215 9 3.4485 30.546 12
+2 24 3.4485 30.546 20 3.4485 30.546 12
+2 24 3.4485 30.546 20 4.6546 10.9496 19
+3 16 2.6073 11.6567 19.0225 2.0308 21.0236 3.4891 2.6073 11.6567 3.4983
+2 24 2.6073 11.6567 3.4983 2.6073 11.6567 19.0225
+3 16 2.6073 11.6567 3.4983 2.0308 21.0236 3.4891 2.6073 11.6567 1.21
+2 24 2.0308 21.0236 3.4891 2.6073 11.6567 1.21
+2 24 2.6073 11.6567 1.21 2.6073 11.6567 3.4983
+4 16 1.6145 27.7874 7.2524 2.0308 21.0236 3.4891 2.6073 11.6567 19.0225 1.6145 27.7874 9
+2 24 1.6145 27.7874 7.2524 2.0308 21.0236 3.4891
+4 16 1.6145 27.7874 9 2.6073 11.6567 19.0225 1.4284 30.8119 20 1.4284 30.8119 12
+2 24 2.6073 11.6567 19.0225 1.4284 30.8119 20
+2 24 1.4284 30.8119 20 1.4284 30.8119 12
+2 24 1.4284 30.8119 12 1.6145 27.7874 9
+2 24 0 10 0 2.5882 9.6593 0
+2 24 2.5882 9.6593 0 5 8.6603 0
+3 16 0 12 3.4983 0 9 3.4983 2.6073 11.6567 3.4983
+2 24 2.6073 11.6567 3.4983 0 12 3.4983
+4 16 2.6073 11.6567 3.4983 0 9 3.4983 2.3294 8.6933 3.4983 4.6546 10.9496 3.4983
+2 24 0 9 3.4983 2.3294 8.6933 3.4983
+2 24 4.6546 10.9496 3.4983 2.6073 11.6567 3.4983
+4 16 4.6546 10.9496 3.4983 2.3294 8.6933 3.4983 4.5 7.7942 3.4983 6 10.3923 3.4983
+2 24 2.3294 8.6933 3.4983 4.5 7.7942 3.4983
+2 24 6 10.3923 3.4983 4.6546 10.9496 3.4983
+4 16 0 12 3.4983 0 12 1.21 -0.5529 11.9272 1.21 -0.5529 11.9272 2.8319
+5 24 0 12 3.4983 0 12 1.21 -0.5529 11.9272 1.21 2.6073 11.6567 3.4983
+5 24 0 12 1.21 0 21.291 3.4891 -0.981 21.1618 3.4891 2.6073 11.6567 1.21
+5 24 0 21.291 3.4891 -0.981 21.1618 3.4891 -0.5529 11.9272 1.21 0 28 7.2524
+5 24 0 21.291 3.4891 0 28 7.2524 -1.2902 27.8301 7.2524 2.0308 21.0236 3.4891
+5 24 0 28 4.1105 0 21.7442 0.6014 -1.0019 21.6122 0.6014 7.2469 27.0459 4.1105
+5 24 0 21.7442 0.6014 -1.0019 21.6122 0.6014 -1.2902 27.8301 4.1105 0 15 -1.053
+5 24 0 21.7442 0.6014 0 15 -1.053 -0.6912 14.909 -1.053 5.6278 21.0032 0.6014
+5 24 0 15 -1.053 0 15 -10 -0.6912 14.909 -10 3.8823 14.4889 -1.053
+5 24 0 10 -10 0 10 0 -0.4608 9.9393 0 2.5882 9.6593 -10
+5 24 5 8.6603 0 5 8.6603 -10 5.5126 8.2669 -10 2.5882 9.6593 0
+5 24 6 10.3923 1.21 6 10.3923 3.4983 6.6151 9.9203 2.872 4.6546 10.9496 1.21
+5 24 14 24.2487 4.1105 14 24.2487 7.2524 15.4352 23.1474 7.2524 7.2469 27.0459 4.1105
+5 24 7.5 12.9904 -10 7.5 12.9904 -1.053 8.2689 12.4004 -1.053 3.8823 14.4889 -10
+5 24 8 13.8564 -0.8077 8 13.8564 2.1912 9.0109 13.5132 2.2761 6.8266 14.8855 -0.6835
+4 16 1.4284 30.8119 12 1.4284 30.8119 20 3.4485 30.546 20 3.4485 30.546 12
+2 24 1.4284 30.8119 20 3.4485 30.546 20
+2 24 3.4485 30.546 12 1.4284 30.8119 12
+4 16 2.0308 21.0236 3.4891 0 21.291 3.4891 0 12 1.21 2.6073 11.6567 1.21
+5 24 2.0308 21.0236 3.4891 0 21.291 3.4891 0 12 1.21 1.6145 27.7874 7.2524
+2 24 0 12 1.21 2.6073 11.6567 1.21
+4 16 1.6145 27.7874 7.2524 0 28 7.2524 0 21.291 3.4891 2.0308 21.0236 3.4891
+4 16 6 10.3923 3.4983 6 10.3923 1.21 4.6546 10.9496 1.21 4.6546 10.9496 3.4983
+4 16 14 24.2487 4.1105 7.2469 27.0459 4.1105 7.2469 27.0459 7.2524 14 24.2487 7.2524
+4 16 7.5 12.9904 -10 3.8823 14.4889 -10 3.8823 14.4889 -1.053 7.5 12.9904 -1.053
+5 24 3.8823 14.4889 -10 3.8823 14.4889 -1.053 7.5 12.9904 -1.053 0 15 -10
+4 16 5 8.6603 0 2.5882 9.6593 0 2.5882 9.6593 -10 5 8.6603 -10
+5 24 2.5882 9.6593 0 2.5882 9.6593 -10 5 8.6603 -10 0 10 0
+4 16 2.6073 11.6567 1.21 0 12 1.21 0 12 3.4983 2.6073 11.6567 3.4983
+3 16 4.051 20.7576 3.4891 4.3332 16.1717 2.3733 5.5105 20.5655 3.4891
+5 24 5.5105 20.5655 3.4891 4.051 20.7576 3.4891 4.3332 16.1717 2.3733 7.2469 27.0459 7.2524
+4 16 4.051 20.7576 3.4891 5.5105 20.5655 3.4891 7.2469 27.0459 7.2524 3.6347 27.5215 7.2524
+4 16 0 28 4.1105 7.2469 27.0459 4.1105 5.6278 21.0032 0.6014 0 21.7442 0.6014
+5 24 5.6278 21.0032 0.6014 0 21.7442 0.6014 0 28 4.1105 3.8823 14.4889 -1.053
+4 16 5.6278 21.0032 0.6014 3.8823 14.4889 -1.053 0 15 -1.053 0 21.7442 0.6014
+2 24 3.8823 14.4889 -1.053 0 15 -1.053
+4 16 0 15 -10 0 15 -1.053 3.8823 14.4889 -1.053 3.8823 14.4889 -10
+4 16 0 10 0 0 10 -10 2.5882 9.6593 -10 2.5882 9.6593 0
+5 24 12 20.7846 5.0087 12 20.7846 1.8668 13.1734 19.7556 1.809 10.5221 21.2863 4.9509
+4 16 8 13.8564 -0.8077 6.8266 14.8855 -0.6835 6.8266 14.8855 2.3153 8 13.8564 2.1912
+5 24 6.8266 14.8855 -0.6835 6.8266 14.8855 2.3153 8 13.8564 2.1912 6.1363 16.2852 -0.4289
+4 16 6.8266 14.8855 -0.6835 6.1363 16.2852 -0.4289 6.1363 16.2852 2.57 6.8266 14.8855 2.3153
+5 24 6.1363 16.2852 -0.4289 6.1363 16.2852 2.57 6.8266 14.8855 2.3153 6.0342 17.8426 -0.0826
+4 16 6.1363 16.2852 -0.4289 6.0342 17.8426 -0.0826 6.0342 17.8426 2.9163 6.1363 16.2852 2.57
+5 24 6.0342 17.8426 -0.0826 6.0342 17.8426 2.9163 6.1363 16.2852 2.57 6.5359 19.3205 0.3027
+4 16 6.0342 17.8426 -0.0826 6.5359 19.3205 0.3027 6.5359 19.3205 3.3016 6.0342 17.8426 2.9163
+4 16 7.565 20.4939 0.7546 8.9647 21.1842 1.4185 8.9647 21.1842 4.5604 7.565 20.4939 3.8965
+5 24 8.9647 21.1842 1.4185 8.9647 21.1842 4.5604 7.565 20.4939 3.8965 10.5221 21.2863 1.809
+4 16 8.9647 21.1842 1.4185 10.5221 21.2863 1.809 10.5221 21.2863 4.9509 8.9647 21.1842 4.5604
+5 24 10.5221 21.2863 1.809 10.5221 21.2863 4.9509 8.9647 21.1842 4.5604 12 20.7846 1.8668
+4 16 10.5221 21.2863 1.809 12 20.7846 1.8668 12 20.7846 5.0087 10.5221 21.2863 4.9509
+4 16 2.6073 11.6567 3.4983 4.6546 10.9496 3.4983 4.6546 10.9496 19 2.6073 11.6567 19.0225
+2 24 4.6546 10.9496 19 2.6073 11.6567 19.0225
+4 16 3.6347 27.5215 9 1.6145 27.7874 9 1.4284 30.8119 12 3.4485 30.546 12
+4 16 4.6546 10.9496 19 3.4485 30.546 20 1.4284 30.8119 20 2.6073 11.6567 19.0225
+
+0 FILE s/54087s09.dat
+0 ~Wheel Rim 20 x 30 - Axle Mount
+0 Name: s/54087s09.dat
+0 Author: Marc Klein [marckl]
+0 !LDRAW_ORG Subpart UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+1 16 0 0 0 1 0 0 0 0 1 0 -20 0 axlehole.dat
+1 16 0 0 0 1 0 0 0 0 1 0 -1 0 axlehol2.dat
+1 16 0 0 -20 1 0 0 0 0 1 0 -1 0 axlehol2.dat
+4 16 -6 0 -20 -8.69 2.33 -20 -7.79 4.5 -20 -5.54 2.3 -20
+2 24 -7.79 4.5 -20 -8.69 2.33 -20
+4 16 -5.54 2.3 -20 -7.79 4.5 -20 -6.36 6.36 -20 -4.24 4.24 -20
+2 24 -6.36 6.36 -20 -7.79 4.5 -20
+4 16 4.24 -4.24 -20 4.5 -7.79 -20 2.33 -8.69 -20 2.3 -5.54 -20
+2 24 2.33 -8.69 -20 4.5 -7.79 -20
+4 16 2.3 -5.54 -20 2.33 -8.69 -20 0 -9 -20 0 -6 -20
+2 24 0 -9 -20 2.33 -8.69 -20
+4 16 0 -6 -20 0 -9 -20 -2.33 -8.69 -20 -2.3 -5.54 -20
+2 24 -2.33 -8.69 -20 0 -9 -20
+3 16 6 0 -20 8.69 -2.33 -20 5.54 -2.3 -20
+4 16 5.54 -2.3 -20 8.69 -2.33 -20 7.79 -4.5 -20 4.24 -4.24 -20
+2 24 7.79 -4.5 -20 8.69 -2.33 -20
+4 16 4.24 -4.24 -20 7.79 -4.5 -20 6.36 -6.36 -20 4.5 -7.79 -20
+2 24 6.36 -6.36 -20 7.79 -4.5 -20
+2 24 4.5 -7.79 -20 6.36 -6.36 -20
+3 16 5.54 2.3 -20 8.69 2.33 -20 6 0 -20
+4 16 6 0 -20 8.69 2.33 -20 9 0 -20 8.69 -2.33 -20
+2 24 9 0 -20 8.69 2.33 -20
+2 24 8.69 -2.33 -20 9 0 -20
+3 16 2.3 5.54 -20 4.5 7.79 -20 4.24 4.24 -20
+4 16 4.24 4.24 -20 4.5 7.79 -20 6.36 6.36 -20 5.54 2.3 -20
+2 24 6.36 6.36 -20 4.5 7.79 -20
+4 16 5.54 2.3 -20 6.36 6.36 -20 7.79 4.5 -20 8.69 2.33 -20
+2 24 7.79 4.5 -20 6.36 6.36 -20
+2 24 8.69 2.33 -20 7.79 4.5 -20
+3 16 -5.54 -2.3 -20 -8.69 -2.33 -20 -6 0 -20
+4 16 -6 0 -20 -8.69 -2.33 -20 -9 0 -20 -8.69 2.33 -20
+2 24 -9 0 -20 -8.69 -2.33 -20
+2 24 -8.69 2.33 -20 -9 0 -20
+4 16 -4.24 4.24 -20 -6.36 6.36 -20 -4.5 7.79 -20 -2.3 5.54 -20
+2 24 -4.5 7.79 -20 -6.36 6.36 -20
+4 16 -2.3 5.54 -20 -4.5 7.79 -20 -2.33 8.69 -20 0 6 -20
+2 24 -2.33 8.69 -20 -4.5 7.79 -20
+4 16 0 6 -20 -2.33 8.69 -20 0 9 -20 2.3 5.54 -20
+2 24 0 9 -20 -2.33 8.69 -20
+4 16 2.3 5.54 -20 0 9 -20 2.33 8.69 -20 4.5 7.79 -20
+2 24 2.33 8.69 -20 0 9 -20
+2 24 4.5 7.79 -20 2.33 8.69 -20
+4 16 -2.3 -5.54 -20 -2.33 -8.69 -20 -4.5 -7.79 -20 -4.24 -4.24 -20
+2 24 -4.5 -7.79 -20 -2.33 -8.69 -20
+4 16 -4.24 -4.24 -20 -4.5 -7.79 -20 -6.36 -6.36 -20 -5.54 -2.3 -20
+2 24 -6.36 -6.36 -20 -4.5 -7.79 -20
+4 16 -5.54 -2.3 -20 -6.36 -6.36 -20 -7.79 -4.5 -20 -8.69 -2.33 -20
+2 24 -7.79 -4.5 -20 -6.36 -6.36 -20
+2 24 -8.69 -2.33 -20 -7.79 -4.5 -20
+2 24 -8.69 2.33 -3.5 -9 0 -3.5
+2 24 -7.79 4.5 -3.5 -8.69 2.33 -3.5
+2 24 -6.36 6.36 -3.5 -7.79 4.5 -3.5
+2 24 -4.5 7.79 -3.5 -6.36 6.36 -3.5
+2 24 -2.33 8.69 -3.5 -4.5 7.79 -3.5
+2 24 0 9 -3.5 -2.33 8.69 -3.5
+2 24 2.33 8.69 -3.5 0 9 -3.5
+2 24 4.5 7.79 -3.5 2.33 8.69 -3.5
+2 24 6.36 6.36 -3.5 4.5 7.79 -3.5
+2 24 7.79 4.5 -3.5 6.36 6.36 -3.5
+2 24 8.69 2.33 -3.5 7.79 4.5 -3.5
+2 24 9 0 -3.5 8.69 2.33 -3.5
+2 24 8.69 -2.33 -3.5 9 0 -3.5
+2 24 7.79 -4.5 -3.5 8.69 -2.33 -3.5
+2 24 6.36 -6.36 -3.5 7.79 -4.5 -3.5
+2 24 4.5 -7.79 -3.5 6.36 -6.36 -3.5
+2 24 2.33 -8.69 -3.5 4.5 -7.79 -3.5
+2 24 0 -9 -3.5 2.33 -8.69 -3.5
+2 24 -2.33 -8.69 -3.5 0 -9 -3.5
+2 24 -4.5 -7.79 -3.5 -2.33 -8.69 -3.5
+2 24 -6.36 -6.36 -3.5 -4.5 -7.79 -3.5
+2 24 -7.79 -4.5 -3.5 -6.36 -6.36 -3.5
+2 24 -8.69 -2.33 -3.5 -7.79 -4.5 -3.5
+2 24 -9 0 -3.5 -8.69 -2.33 -3.5
+3 16 -6 0 0 -5.54 2.3 0 -9.66 2.59 0
+3 16 -2.3 5.54 0 -5 8.66 0 -4.24 4.24 0
+4 16 -4.24 4.24 0 -5 8.66 0 -7.07 7.07 0 -5.54 2.3 0
+2 24 -5 8.66 0 -7.07 7.07 0
+4 16 -5.54 2.3 0 -7.07 7.07 0 -8.66 5 0 -9.66 2.59 0
+2 24 -7.07 7.07 0 -8.66 5 0
+2 24 -8.66 5 0 -9.66 2.59 0
+4 16 6 0 0 9.66 2.59 0 8.66 5 0 5.54 2.3 0
+2 24 9.66 2.59 0 8.66 5 0
+4 16 5.54 2.3 0 8.66 5 0 7.07 7.07 0 4.24 4.24 0
+2 24 8.66 5 0 7.07 7.07 0
+4 16 2.3 -5.54 0 5 -8.66 0 7.07 -7.07 0 4.24 -4.24 0
+2 24 5 -8.66 0 7.07 -7.07 0
+4 16 4.24 -4.24 0 7.07 -7.07 0 8.66 -5 0 5.54 -2.3 0
+2 24 7.07 -7.07 0 8.66 -5 0
+4 16 -9.66 2.59 0 -10 0 0 -9.66 -2.59 0 -6 0 0
+2 24 -9.66 2.59 0 -10 0 0
+2 24 -10 0 0 -9.66 -2.59 0
+4 16 -6 0 0 -9.66 -2.59 0 -8.66 -5 0 -5.54 -2.3 0
+2 24 -9.66 -2.59 0 -8.66 -5 0
+4 16 -5.54 -2.3 0 -8.66 -5 0 -7.07 -7.07 0 -4.24 -4.24 0
+2 24 -8.66 -5 0 -7.07 -7.07 0
+4 16 4.24 4.24 0 7.07 7.07 0 5 8.66 0 2.3 5.54 0
+2 24 7.07 7.07 0 5 8.66 0
+4 16 2.3 5.54 0 5 8.66 0 2.59 9.66 0 0 6 0
+2 24 5 8.66 0 2.59 9.66 0
+4 16 0 6 0 2.59 9.66 0 0 10 0 -2.3 5.54 0
+2 24 2.59 9.66 0 0 10 0
+4 16 -2.3 5.54 0 0 10 0 -2.59 9.66 0 -5 8.66 0
+2 24 0 10 0 -2.59 9.66 0
+2 24 -2.59 9.66 0 -5 8.66 0
+4 16 5.54 -2.3 0 8.66 -5 0 9.66 -2.59 0 6 0 0
+2 24 8.66 -5 0 9.66 -2.59 0
+4 16 6 0 0 9.66 -2.59 0 10 0 0 9.66 2.59 0
+2 24 9.66 -2.59 0 10 0 0
+2 24 10 0 0 9.66 2.59 0
+4 16 -4.24 -4.24 0 -7.07 -7.07 0 -5 -8.66 0 -2.3 -5.54 0
+2 24 -7.07 -7.07 0 -5 -8.66 0
+4 16 -2.3 -5.54 0 -5 -8.66 0 -2.59 -9.66 0 0 -6 0
+2 24 -5 -8.66 0 -2.59 -9.66 0
+4 16 0 -6 0 -2.59 -9.66 0 0 -10 0 2.3 -5.54 0
+2 24 -2.59 -9.66 0 0 -10 0
+4 16 2.3 -5.54 0 0 -10 0 2.59 -9.66 0 5 -8.66 0
+2 24 0 -10 0 2.59 -9.66 0
+2 24 2.59 -9.66 0 5 -8.66 0
+4 16 4.5 7.79 -20 2.33 8.69 -20 2.33 8.69 -3.5 4.5 7.79 -3.5
+5 24 2.33 8.69 -20 2.33 8.69 -3.5 4.5 7.79 -3.5 0 9 -20
+5 24 4.5 7.79 -3.5 4.5 7.79 -20 2.33 8.69 -20 6.36 6.36 -3.5
+4 16 6.36 6.36 -20 4.5 7.79 -20 4.5 7.79 -3.5 6.36 6.36 -3.5
+5 24 6.36 6.36 -3.5 6.36 6.36 -20 4.5 7.79 -20 7.79 4.5 -3.5
+4 16 7.79 4.5 -20 6.36 6.36 -20 6.36 6.36 -3.5 7.79 4.5 -3.5
+5 24 7.79 4.5 -3.5 7.79 4.5 -20 6.36 6.36 -20 8.69 2.33 -3.5
+4 16 8.69 2.33 -20 7.79 4.5 -20 7.79 4.5 -3.5 8.69 2.33 -3.5
+5 24 8.69 2.33 -3.5 8.69 2.33 -20 7.79 4.5 -20 9 0 -3.5
+4 16 9 0 -20 8.69 2.33 -20 8.69 2.33 -3.5 9 0 -3.5
+5 24 9 0 -3.5 9 0 -20 8.69 2.33 -20 8.69 -2.33 -3.5
+4 16 8.69 -2.33 -20 9 0 -20 9 0 -3.5 8.69 -2.33 -3.5
+5 24 8.69 -2.33 -3.5 8.69 -2.33 -20 9 0 -20 7.79 -4.5 -3.5
+4 16 7.79 -4.5 -20 8.69 -2.33 -20 8.69 -2.33 -3.5 7.79 -4.5 -3.5
+5 24 7.79 -4.5 -3.5 7.79 -4.5 -20 8.69 -2.33 -20 6.36 -6.36 -3.5
+4 16 6.36 -6.36 -20 7.79 -4.5 -20 7.79 -4.5 -3.5 6.36 -6.36 -3.5
+5 24 6.36 -6.36 -3.5 6.36 -6.36 -20 7.79 -4.5 -20 4.5 -7.79 -3.5
+4 16 4.5 -7.79 -20 6.36 -6.36 -20 6.36 -6.36 -3.5 4.5 -7.79 -3.5
+5 24 4.5 -7.79 -3.5 4.5 -7.79 -20 6.36 -6.36 -20 2.33 -8.69 -3.5
+4 16 2.33 -8.69 -20 4.5 -7.79 -20 4.5 -7.79 -3.5 2.33 -8.69 -3.5
+5 24 2.33 -8.69 -3.5 2.33 -8.69 -20 4.5 -7.79 -20 0 -9 -3.5
+4 16 0 -9 -20 2.33 -8.69 -20 2.33 -8.69 -3.5 0 -9 -3.5
+5 24 0 -9 -3.5 0 -9 -20 2.33 -8.69 -20 -2.33 -8.69 -3.5
+4 16 -2.33 -8.69 -20 0 -9 -20 0 -9 -3.5 -2.33 -8.69 -3.5
+5 24 -2.33 -8.69 -3.5 -2.33 -8.69 -20 0 -9 -20 -4.5 -7.79 -3.5
+4 16 -4.5 -7.79 -20 -2.33 -8.69 -20 -2.33 -8.69 -3.5 -4.5 -7.79 -3.5
+5 24 -4.5 -7.79 -3.5 -4.5 -7.79 -20 -2.33 -8.69 -20 -6.36 -6.36 -3.5
+4 16 -6.36 -6.36 -20 -4.5 -7.79 -20 -4.5 -7.79 -3.5 -6.36 -6.36 -3.5
+5 24 -6.36 -6.36 -3.5 -6.36 -6.36 -20 -4.5 -7.79 -20 -7.79 -4.5 -3.5
+4 16 -7.79 -4.5 -20 -6.36 -6.36 -20 -6.36 -6.36 -3.5 -7.79 -4.5 -3.5
+5 24 -7.79 -4.5 -3.5 -7.79 -4.5 -20 -6.36 -6.36 -20 -8.69 -2.33 -3.5
+4 16 -8.69 -2.33 -20 -7.79 -4.5 -20 -7.79 -4.5 -3.5 -8.69 -2.33 -3.5
+5 24 -8.69 -2.33 -3.5 -8.69 -2.33 -20 -7.79 -4.5 -20 -9 0 -3.5
+4 16 -9 0 -20 -8.69 -2.33 -20 -8.69 -2.33 -3.5 -9 0 -3.5
+5 24 -9 0 -3.5 -9 0 -20 -8.69 -2.33 -20 -8.69 2.33 -3.5
+4 16 -8.69 2.33 -20 -9 0 -20 -9 0 -3.5 -8.69 2.33 -3.5
+5 24 -8.69 2.33 -3.5 -8.69 2.33 -20 -9 0 -20 -7.79 4.5 -3.5
+4 16 -7.79 4.5 -20 -8.69 2.33 -20 -8.69 2.33 -3.5 -7.79 4.5 -3.5
+5 24 -7.79 4.5 -3.5 -7.79 4.5 -20 -8.69 2.33 -20 -6.36 6.36 -3.5
+4 16 -6.36 6.36 -20 -7.79 4.5 -20 -7.79 4.5 -3.5 -6.36 6.36 -3.5
+5 24 -6.36 6.36 -3.5 -6.36 6.36 -20 -7.79 4.5 -20 -4.5 7.79 -3.5
+4 16 -4.5 7.79 -20 -6.36 6.36 -20 -6.36 6.36 -3.5 -4.5 7.79 -3.5
+5 24 -4.5 7.79 -3.5 -4.5 7.79 -20 -6.36 6.36 -20 -2.33 8.69 -3.5
+4 16 -2.33 8.69 -20 -4.5 7.79 -20 -4.5 7.79 -3.5 -2.33 8.69 -3.5
+5 24 -2.33 8.69 -3.5 -2.33 8.69 -20 -4.5 7.79 -20 0 9 -3.5
+4 16 0 9 -20 -2.33 8.69 -20 -2.33 8.69 -3.5 0 9 -3.5
+5 24 0 9 -3.5 0 9 -20 -2.33 8.69 -20 2.33 8.69 -3.5
+4 16 2.33 8.69 -20 0 9 -20 0 9 -3.5 2.33 8.69 -3.5
+1 16 0 16 10 3 0 0 0 0 3 0 -1 0 2-4edge.dat
+0 BFC INVERTNEXT
+1 16 0 -12.5 10 1 0 0 0 0 1 0 -1 0 4-4cyli.dat
+1 16 0 -12.5 10 1 0 0 0 0 1 0 -1 0 4-4edge.dat
+1 16 0 -12.5 9 1 0 0 0 0 1 0 -1 0 4-4edge.dat
+1 16 0 -12.5 9 1 0 0 0 0 1 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 7.347 -10.113 10 0.809 0 -0.588 0.588 0 0.809 0 -1 0 4-4cyli.dat
+1 16 7.347 -10.113 10 0.809 0 -0.588 0.588 0 0.809 0 -1 0 4-4edge.dat
+1 16 7.347 -10.113 9 0.809 0 -0.588 0.588 0 0.809 0 -1 0 4-4edge.dat
+1 16 7.347 -10.113 9 0.809 0 -0.588 0.588 0 0.809 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 11.888 -3.863 10 0.309 0 -0.951 0.951 0 0.309 0 -1 0 4-4cyli.dat
+1 16 11.888 -3.863 10 0.309 0 -0.951 0.951 0 0.309 0 -1 0 4-4edge.dat
+1 16 11.888 -3.863 9 0.309 0 -0.951 0.951 0 0.309 0 -1 0 4-4edge.dat
+1 16 11.888 -3.863 9 0.309 0 -0.951 0.951 0 0.309 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 11.888 3.863 10 -0.309 0 -0.951 0.951 0 -0.309 0 -1 0 4-4cyli.dat
+1 16 11.888 3.863 10 -0.309 0 -0.951 0.951 0 -0.309 0 -1 0 4-4edge.dat
+1 16 11.888 3.863 9 -0.309 0 -0.951 0.951 0 -0.309 0 -1 0 4-4edge.dat
+1 16 11.888 3.863 9 -0.309 0 -0.951 0.951 0 -0.309 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 7.347 10.113 10 -0.809 0 -0.588 0.588 0 -0.809 0 -1 0 4-4cyli.dat
+1 16 7.347 10.113 10 -0.809 0 -0.588 0.588 0 -0.809 0 -1 0 4-4edge.dat
+1 16 7.347 10.113 9 -0.809 0 -0.588 0.588 0 -0.809 0 -1 0 4-4edge.dat
+1 16 7.347 10.113 9 -0.809 0 -0.588 0.588 0 -0.809 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 -7.347 10.113 10 -0.809 0 0.588 -0.588 0 -0.809 0 -1 0 4-4cyli.dat
+1 16 -7.347 10.113 10 -0.809 0 0.588 -0.588 0 -0.809 0 -1 0 4-4edge.dat
+1 16 -7.347 10.113 9 -0.809 0 0.588 -0.588 0 -0.809 0 -1 0 4-4edge.dat
+1 16 -7.347 10.113 9 -0.809 0 0.588 -0.588 0 -0.809 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 -11.888 3.863 10 -0.309 0 0.951 -0.951 0 -0.309 0 -1 0 4-4cyli.dat
+1 16 -11.888 3.863 10 -0.309 0 0.951 -0.951 0 -0.309 0 -1 0 4-4edge.dat
+1 16 -11.888 3.863 9 -0.309 0 0.951 -0.951 0 -0.309 0 -1 0 4-4edge.dat
+1 16 -11.888 3.863 9 -0.309 0 0.951 -0.951 0 -0.309 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 -11.888 -3.863 10 0.309 0 0.951 -0.951 0 0.309 0 -1 0 4-4cyli.dat
+1 16 -11.888 -3.863 10 0.309 0 0.951 -0.951 0 0.309 0 -1 0 4-4edge.dat
+1 16 -11.888 -3.863 9 0.309 0 0.951 -0.951 0 0.309 0 -1 0 4-4edge.dat
+1 16 -11.888 -3.863 9 0.309 0 0.951 -0.951 0 0.309 0 -1 0 4-4disc.dat
+0 BFC INVERTNEXT
+1 16 -7.347 -10.113 10 0.809 0 0.588 -0.588 0 0.809 0 -1 0 4-4cyli.dat
+1 16 -7.347 -10.113 10 0.809 0 0.588 -0.588 0 0.809 0 -1 0 4-4edge.dat
+1 16 -7.347 -10.113 9 0.809 0 0.588 -0.588 0 0.809 0 -1 0 4-4edge.dat
+1 16 -7.347 -10.113 9 0.809 0 0.588 -0.588 0 0.809 0 -1 0 4-4disc.dat
+3 16 -10.997 4.317 10 -10.891 3.941 10 -10.446 6.992 10
+3 16 -8.2 -10.635 10 -8.335 -10.269 10 -9.168 -10.55 10
+3 16 8.66 -5 10 7.071 -7.071 10 10.446 -6.992 10
+2 24 7.071 -7.071 10 8.66 -5 10
+4 16 -5 8.66 10 -6.495 9.59 10 -6.76 9.304 10 -7.071 7.071 10
+2 24 -5 8.66 10 -7.071 7.071 10
+3 16 -7.071 7.071 10 -6.76 9.304 10 -7.114 9.14 10
+4 16 -8.32 9.879 10 -9.168 10.55 10 -9.168 6.992 10 -8.156 9.525 10
+3 16 -8.156 9.525 10 -9.168 6.992 10 -7.87 9.26 10
+3 16 -7.87 9.26 10 -9.168 6.992 10 -7.504 9.125 10
+3 16 -6.538 10.7 10 -6.375 10.346 10 -3.68 10.55 10
+4 16 -2.588 9.659 10 -6.36 9.956 10 -6.495 9.59 10 -5 8.66 10
+2 24 -2.588 9.659 10 -5 8.66 10
+3 16 -9.168 6.992 10 -8.66 5 10 -7.071 7.071 10
+2 24 -7.071 7.071 10 -8.66 5 10
+4 16 -9.168 6.992 10 -7.071 7.071 10 -7.114 9.14 10 -7.504 9.125 10
+4 16 -9.659 2.588 10 -10.446 6.992 10 -10.891 3.941 10 -10 0 10
+2 24 -9.659 2.588 10 -10 0 10
+4 16 -9.659 -2.588 10 -10 0 10 -10.937 -3.554 10 -10.446 -6.992 10
+2 24 -10 0 10 -9.659 -2.588 10
+3 16 -9.168 -6.992 10 -8.66 -5 10 -9.659 -2.588 10
+2 24 -9.659 -2.588 10 -8.66 -5 10
+3 16 -9.168 -10.55 10 -8.335 -10.269 10 -8.32 -9.879 10
+4 16 -9.168 -10.55 10 -8.32 -9.879 10 -9.168 -6.992 10 -10.446 -10.55 10
+3 16 -8.32 -9.879 10 -8.156 -9.525 10 -9.168 -6.992 10
+3 16 -9.168 -6.992 10 -8.156 -9.525 10 -7.87 -9.26 10
+4 16 -9.168 -6.992 10 -7.87 -9.26 10 -7.504 -9.125 10 -8.66 -5 10
+4 16 -8.66 -5 10 -7.504 -9.125 10 -7.114 -9.14 10 -7.071 -7.071 10
+2 24 -8.66 -5 10 -7.071 -7.071 10
+4 16 -7.071 -7.071 10 -7.114 -9.14 10 -6.76 -9.304 10 -5 -8.66 10
+2 24 -7.071 -7.071 10 -5 -8.66 10
+3 16 -5 -8.66 10 -6.76 -9.304 10 -6.495 -9.59 10
+3 16 -5 -8.66 10 -6.495 -9.59 10 -6.36 -9.956 10
+4 16 -5 -8.66 10 -6.36 -9.956 10 -6.375 -10.346 10 -3.68 -10.55 10
+3 16 3.68 -10.55 10 2.588 -9.659 10 0 -10 10
+2 24 0 -10 10 2.588 -9.659 10
+4 16 3.68 -10.55 10 0 -10 10 -3.68 -10.55 10 -0.383 -11.576 10
+3 16 -3.68 -10.55 10 0 -10 10 -2.588 -9.659 10
+2 24 -2.588 -9.659 10 0 -10 10
+3 16 -3.68 -10.55 10 -2.588 -9.659 10 -5 -8.66 10
+2 24 -5 -8.66 10 -2.588 -9.659 10
+3 16 3.68 -10.55 10 6.538 -10.7 10 6.375 -10.346 10
+4 16 3.68 -10.55 10 6.375 -10.346 10 6.36 -9.956 10 2.588 -9.659 10
+4 16 2.588 -9.659 10 6.36 -9.956 10 6.495 -9.59 10 5 -8.66 10
+2 24 2.588 -9.659 10 5 -8.66 10
+3 16 8.32 -9.879 10 10.446 -10.55 10 8.156 -9.525 10
+4 16 8.156 -9.525 10 10.446 -10.55 10 10.446 -6.992 10 7.87 -9.26 10
+3 16 5 -8.66 10 6.495 -9.59 10 6.76 -9.304 10
+4 16 5 -8.66 10 6.76 -9.304 10 7.114 -9.14 10 7.071 -7.071 10
+2 24 5 -8.66 10 7.071 -7.071 10
+3 16 7.071 -7.071 10 7.114 -9.14 10 7.504 -9.125 10
+4 16 7.071 -7.071 10 7.504 -9.125 10 7.87 -9.26 10 10.446 -6.992 10
+2 24 9.659 2.588 10 8.66 5 10
+2 24 9.659 2.588 10 10 0 10
+3 16 10.446 -6.992 10 9.659 -2.588 10 8.66 -5 10
+2 24 8.66 -5 10 9.659 -2.588 10
+3 16 8.335 10.269 10 8.32 9.879 10 10.446 10.55 10
+4 16 10.446 10.55 10 8.32 9.879 10 8.156 9.525 10 11.579 4.814 10
+3 16 11.579 4.814 10 8.156 9.525 10 7.87 9.26 10
+4 16 11.579 4.814 10 7.87 9.26 10 7.504 9.125 10 8.66 5 10
+4 16 8.66 5 10 7.504 9.125 10 7.114 9.14 10 7.071 7.071 10
+2 24 8.66 5 10 7.071 7.071 10
+4 16 7.071 7.071 10 7.114 9.14 10 6.76 9.304 10 5 8.66 10
+2 24 7.071 7.071 10 5 8.66 10
+3 16 5 8.66 10 6.76 9.304 10 6.495 9.59 10
+3 16 6.495 9.59 10 6.36 9.956 10 5 8.66 10
+4 16 5 8.66 10 6.36 9.956 10 3.68 10.55 10 2.588 9.659 10
+2 24 5 8.66 10 2.588 9.659 10
+3 16 2.588 9.659 10 3.68 10.55 10 0 10 10
+2 24 2.588 9.659 10 0 10 10
+3 16 0 10 10 3.68 10.55 10 -2.588 9.659 10
+2 24 -2.588 9.659 10 0 10 10
+3 16 -2.588 9.659 10 3.68 10.55 10 -3.68 10.55 10
+4 16 -2.588 9.659 10 -3.68 10.55 10 -6.375 10.346 10 -6.36 9.956 10
+3 16 7.191 11.1 10 7.5 12.99 10 6.825 10.965 10
+4 16 6.825 10.965 10 7.5 12.99 10 3.882 14.489 10 6.538 10.7 10
+2 24 3.882 14.489 10 7.5 12.99 10
+4 16 6.538 10.7 10 3.882 14.489 10 3.68 14.516 10 6.375 10.346 10
+2 24 3.68 14.516 10 3.882 14.489 10
+3 16 7.191 11.1 10 7.581 11.085 10 7.5 12.99 10
+3 16 7.5 12.99 10 7.581 11.085 10 7.935 10.922 10
+4 16 7.5 12.99 10 7.935 10.922 10 8.2 10.635 10 10.607 10.607 10
+2 24 7.5 12.99 10 10.607 10.607 10
+4 16 10.607 10.607 10 8.2 10.635 10 8.335 10.269 10 10.446 10.55 10
+3 16 12.99 7.5 10 11.967 4.86 10 12.342 4.754 10
+4 16 12.779 3.409 10 13.943 0 10 13.943 5.201 10 12.885 3.784 10
+3 16 12.885 3.784 10 13.943 5.201 10 12.839 4.172 10
+3 16 12.779 3.409 10 12.538 3.102 10 13.943 0 10
+3 16 13.943 0 10 12.538 3.102 10 12.197 2.912 10
+4 16 13.943 0 10 12.197 2.912 10 11.81 2.866 10 10 0 10
+3 16 10 0 10 11.81 2.866 10 11.434 2.972 10
+4 16 12.99 7.5 10 12.342 4.754 10 12.649 4.512 10 13.943 5.201 10
+2 24 12.99 7.5 10 13.943 5.201 10
+3 16 13.943 5.201 10 12.649 4.512 10 12.839 4.172 10
+3 16 11.579 4.814 10 8.66 5 10 11.239 4.623 10
+3 16 11.239 4.623 10 8.66 5 10 10.997 4.317 10
+3 16 10.997 4.317 10 8.66 5 10 10.891 3.941 10
+4 16 8.66 5 10 9.659 2.588 10 10.937 3.554 10 10.891 3.941 10
+3 16 10.937 3.554 10 9.659 2.588 10 10 0 10
+3 16 11.434 2.972 10 11.128 3.213 10 10 0 10
+3 16 10 0 10 11.128 3.213 10 10.937 3.554 10
+3 16 10.607 10.607 10 10.446 10.55 10 12.99 7.5 10
+2 24 10.607 10.607 10 12.99 7.5 10
+4 16 12.99 7.5 10 10.446 10.55 10 11.579 4.814 10 11.967 4.86 10
+3 16 12.538 -3.102 10 12.779 -3.409 10 13.943 0 10
+4 16 14.489 3.882 10 13.943 5.201 10 13.943 0 10 15 0 10
+2 24 13.943 5.201 10 14.489 3.882 10
+2 24 14.489 3.882 10 15 0 10
+3 16 15 0 10 13.943 0 10 14.489 -3.882 10
+2 24 15 0 10 14.489 -3.882 10
+4 16 14.489 -3.882 10 13.943 0 10 12.779 -3.409 10 12.885 -3.784 10
+3 16 11.579 -4.814 10 11.239 -4.623 10 10.446 -6.992 10
+3 16 11.579 -4.814 10 10.446 -6.992 10 11.967 -4.86 10
+3 16 11.128 -3.213 10 11.434 -2.972 10 10 0 10
+3 16 10 0 10 11.434 -2.972 10 11.81 -2.866 10
+4 16 10 0 10 11.81 -2.866 10 12.197 -2.912 10 13.943 0 10
+3 16 13.943 0 10 12.197 -2.912 10 12.538 -3.102 10
+3 16 12.342 -4.754 10 13.201 -6.992 10 12.649 -4.512 10
+4 16 12.649 -4.512 10 13.201 -6.992 10 14.489 -3.882 10 12.839 -4.172 10
+2 24 14.489 -3.882 10 13.201 -6.992 10
+3 16 12.839 -4.172 10 14.489 -3.882 10 12.885 -3.784 10
+3 16 11.239 -4.623 10 10.997 -4.317 10 10.446 -6.992 10
+3 16 10.446 -6.992 10 10.997 -4.317 10 10.891 -3.941 10
+4 16 10.446 -6.992 10 10.891 -3.941 10 10 0 10 9.659 -2.588 10
+2 24 9.659 -2.588 10 10 0 10
+3 16 10 0 10 10.891 -3.941 10 10.937 -3.554 10
+3 16 10 0 10 10.937 -3.554 10 11.128 -3.213 10
+4 16 12.342 -4.754 10 11.967 -4.86 10 10.446 -6.992 10 13.201 -6.992 10
+4 16 13.201 -6.992 10 10.446 -6.992 10 10.446 -10.55 10 12.99 -7.5 10
+2 24 13.201 -6.992 10 12.99 -7.5 10
+4 16 12.99 -7.5 10 10.446 -10.55 10 10.446 -10.73 10 10.607 -10.607 10
+2 24 12.99 -7.5 10 10.607 -10.607 10
+3 16 8.32 -9.879 10 8.335 -10.269 10 10.446 -10.55 10
+4 16 10.446 -10.55 10 8.335 -10.269 10 8.2 -10.635 10 10.446 -10.73 10
+4 16 10.446 -10.73 10 8.2 -10.635 10 7.935 -10.922 10 7.5 -12.99 10
+2 24 10.446 -10.73 10 7.5 -12.99 10
+4 16 6.538 -10.7 10 3.68 -10.55 10 3.882 -14.489 10 6.825 -10.965 10
+3 16 6.825 -10.965 10 3.882 -14.489 10 7.191 -11.1 10
+4 16 7.191 -11.1 10 3.882 -14.489 10 7.5 -12.99 10 7.581 -11.085 10
+2 24 7.5 -12.99 10 3.882 -14.489 10
+3 16 7.581 -11.085 10 7.5 -12.99 10 7.935 -10.922 10
+4 16 1 -12.5 10 0.924 -12.883 10 3.882 -14.489 10 3.68 -10.55 10
+3 16 0.383 -11.576 10 0.707 -11.793 10 3.68 -10.55 10
+3 16 3.68 -10.55 10 0.707 -11.793 10 0.924 -12.117 10
+3 16 3.68 -10.55 10 0.924 -12.117 10 1 -12.5 10
+3 16 -0.924 -12.117 10 -0.707 -11.793 10 -3.68 -10.55 10
+3 16 -3.68 -10.55 10 -0.707 -11.793 10 -0.383 -11.576 10
+3 16 3.68 -10.55 10 -0.383 -11.576 10 0 -11.5 10
+3 16 3.68 -10.55 10 0 -11.5 10 0.383 -11.576 10
+3 16 3.882 -14.489 10 0.924 -12.883 10 0.707 -13.207 10
+4 16 3.882 -14.489 10 0.707 -13.207 10 0.383 -13.424 10 0 -15 10
+2 24 3.882 -14.489 10 0 -15 10
+3 16 0.383 -13.424 10 0 -13.5 10 0 -15 10
+3 16 0 -15 10 0 -13.5 10 -0.383 -13.424 10
+4 16 0 -15 10 -0.383 -13.424 10 -0.707 -13.207 10 -3.68 -14.516 10
+2 24 0 -15 10 -3.68 -14.516 10
+3 16 -3.68 -14.516 10 -0.707 -13.207 10 -0.924 -12.883 10
+4 16 -3.68 -14.516 10 -0.924 -12.883 10 -1 -12.5 10 -3.68 -10.55 10
+3 16 -3.68 -10.55 10 -1 -12.5 10 -0.924 -12.117 10
+4 16 -3.68 -10.55 10 -6.375 -10.346 10 -6.538 -10.7 10 -3.68 -14.516 10
+4 16 -3.68 -14.516 10 -6.538 -10.7 10 -6.825 -10.965 10 -3.882 -14.489 10
+2 24 -3.68 -14.516 10 -3.882 -14.489 10
+4 16 -3.882 -14.489 10 -6.825 -10.965 10 -7.191 -11.1 10 -7.5 -12.99 10
+2 24 -3.882 -14.489 10 -7.5 -12.99 10
+3 16 -7.5 -12.99 10 -7.191 -11.1 10 -7.581 -11.085 10
+4 16 -7.5 -12.99 10 -7.581 -11.085 10 -7.935 -10.922 10 -9.168 -11.711 10
+2 24 -7.5 -12.99 10 -9.168 -11.711 10
+4 16 -10.446 -10.55 10 -10.607 -10.607 10 -9.168 -11.711 10 -9.168 -10.55 10
+2 24 -9.168 -11.711 10 -10.607 -10.607 10
+3 16 -10.997 -4.317 10 -11.239 -4.623 10 -10.446 -6.992 10
+3 16 -10.446 -6.992 10 -11.239 -4.623 10 -11.579 -4.814 10
+4 16 -10.607 -10.607 10 -10.446 -10.55 10 -10.446 -6.992 10 -12.99 -7.5 10
+2 24 -10.607 -10.607 10 -12.99 -7.5 10
+4 16 -12.99 -7.5 10 -10.446 -6.992 10 -11.579 -4.814 10 -11.967 -4.86 10
+3 16 -11.967 -4.86 10 -12.342 -4.754 10 -12.99 -7.5 10
+3 16 -12.99 -7.5 10 -12.342 -4.754 10 -12.649 -4.512 10
+4 16 -12.99 -7.5 10 -12.649 -4.512 10 -12.839 -4.172 10 -14.489 -3.882 10
+2 24 -12.99 -7.5 10 -14.489 -3.882 10
+3 16 -11.434 -2.972 10 -11.128 -3.213 10 -10 0 10
+3 16 -10 0 10 -11.128 -3.213 10 -10.937 -3.554 10
+3 16 -10.446 -6.992 10 -10.937 -3.554 10 -10.891 -3.941 10
+3 16 -10.446 -6.992 10 -10.891 -3.941 10 -10.997 -4.317 10
+3 16 -12.779 -3.409 10 -15 0 10 -12.885 -3.784 10
+4 16 -12.885 -3.784 10 -15 0 10 -14.489 -3.882 10 -12.839 -4.172 10
+2 24 -14.489 -3.882 10 -15 0 10
+3 16 -12.779 -3.409 10 -12.538 -3.102 10 -15 0 10
+3 16 -15 0 10 -12.538 -3.102 10 -12.197 -2.912 10
+4 16 -15 0 10 -12.197 -2.912 10 -11.81 -2.866 10 -10 0 10
+3 16 -10 0 10 -11.81 -2.866 10 -11.434 -2.972 10
+3 16 -10 0 10 -10.891 3.941 10 -10.937 3.554 10
+3 16 -10 0 10 -10.937 3.554 10 -11.128 3.213 10
+3 16 -11.128 3.213 10 -11.434 2.972 10 -10 0 10
+3 16 -10 0 10 -11.434 2.972 10 -11.81 2.866 10
+4 16 -10 0 10 -11.81 2.866 10 -12.197 2.912 10 -15 0 10
+3 16 -12.197 2.912 10 -12.538 3.102 10 -15 0 10
+3 16 -15 0 10 -12.538 3.102 10 -12.779 3.409 10
+4 16 -15 0 10 -12.779 3.409 10 -12.885 3.784 10 -14.489 3.882 10
+2 24 -15 0 10 -14.489 3.882 10
+3 16 -11.967 4.86 10 -11.579 4.814 10 -10.446 6.992 10
+3 16 -10.446 6.992 10 -11.579 4.814 10 -11.239 4.623 10
+3 16 -10.446 6.992 10 -11.239 4.623 10 -10.997 4.317 10
+3 16 -14.489 3.882 10 -12.885 3.784 10 -12.839 4.172 10
+4 16 -14.489 3.882 10 -12.839 4.172 10 -12.649 4.512 10 -12.99 7.5 10
+2 24 -14.489 3.882 10 -12.99 7.5 10
+3 16 -12.99 7.5 10 -12.649 4.512 10 -12.342 4.754 10
+4 16 -12.342 4.754 10 -11.967 4.86 10 -10.446 6.992 10 -12.99 7.5 10
+4 16 -12.99 7.5 10 -10.446 6.992 10 -10.446 10.55 10 -10.65 10.55 10
+2 24 -12.99 7.5 10 -10.65 10.55 10
+4 16 -9.168 10.55 10 -9.168 11.711 10 -10.607 10.607 10 -10.446 10.55 10
+2 24 -10.607 10.607 10 -9.168 11.711 10
+3 16 -8.32 9.879 10 -8.335 10.269 10 -9.168 10.55 10
+3 16 -9.168 10.55 10 -8.335 10.269 10 -8.2 10.635 10
+4 16 -9.168 10.55 10 -8.2 10.635 10 -7.935 10.922 10 -9.168 11.711 10
+4 16 -7.5 12.99 10 -7.581 11.085 10 -7.191 11.1 10 -3.882 14.489 10
+2 24 -7.5 12.99 10 -3.882 14.489 10
+3 16 -3.882 14.489 10 -7.191 11.1 10 -6.825 10.965 10
+4 16 -9.168 11.711 10 -7.935 10.922 10 -7.581 11.085 10 -7.5 12.99 10
+2 24 -9.168 11.711 10 -7.5 12.99 10
+3 16 -6.825 10.965 10 -6.538 10.7 10 -3.882 14.489 10
+4 16 -3.882 14.489 10 -6.538 10.7 10 -3.68 10.55 10 -3 14.605 10
+2 24 -3.882 14.489 10 -3 14.605 10
+4 16 -3 14.605 10 -3.68 10.55 10 3.68 10.55 10 3.68 14.516 10
+3 16 -2.121 18.121 10 -2.772 17.148 10 -3 16 10
+3 16 3 16 10 0 19 10 -1.148 18.772 10
+3 16 1.148 18.772 10 0 19 10 2.121 18.121 10
+4 16 2.121 18.121 10 0 19 10 3 16 10 2.772 17.148 10
+4 16 -1.148 18.772 10 -2.121 18.121 10 -3 16 10 3 16 10
+4 16 3 16 10 -3 16 10 -3 14.605 10 3 14.605 10
+2 24 -3 16 10 -3 14.605 10
+2 24 3 14.605 10 3 16 10
+3 16 3 14.605 10 -3 14.605 10 3.68 14.516 10
+2 24 3 14.605 10 3.68 14.516 10
+4 16 3.68 14.516 10 3.68 10.55 10 6.36 9.956 10 6.375 10.346 10
+4 16 -7.935 -10.922 10 -8.2 -10.635 10 -9.168 -10.55 10 -9.168 -11.711 10
+4 16 -10.446 -10.55 10 -9.168 -6.992 10 -9.659 -2.588 10 -10.446 -6.992 10
+3 16 -10.607 10.607 10 -10.65 10.55 10 -10.446 10.55 10
+4 16 -9.168 10.55 10 -10.446 10.55 10 -10.446 6.992 10 -9.168 6.992 10
+4 16 -9.168 6.992 10 -10.446 6.992 10 -9.659 2.588 10 -8.66 5 10
+2 24 -8.66 5 10 -9.659 2.588 10
+
+0 FILE axlehole.dat
+0 Hi-Res Technic Axle Hole Closed
+0 Name: 48/axlehole.dat
+0 Author: BLStudio
+0 !LDRAW_ORG
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+0 BFC CERTIFY CCW
+5 24 6 0 0 6 1 0 5.644 0 2 5.644 0 -2
+5 24 0 0 6 0 1 6 2 0 5.644 -2 0 5.644
+5 24 -6 0 0 -6 1 0 -5.644 0 -2 -5.644 0 2
+5 24 0 0 -6 0 1 -6 -2 0 -5.644 2 0 -5.644
+2 24 5.644 0 2 2 0 2
+2 24 2 0 2 2 0 5.644
+2 24 -5.644 0 2 -2 0 2
+2 24 -2 0 2 -2 0 5.644
+2 24 5.644 0 -2 2 0 -2
+2 24 2 0 -2 2 0 -5.644
+2 24 -5.644 0 -2 -2 0 -2
+2 24 -2 0 -2 -2 0 -5.644
+2 24 5.644 1 2 2 1 2
+2 24 2 1 2 2 1 5.644
+2 24 -5.644 1 2 -2 1 2
+2 24 -2 1 2 -2 1 5.644
+2 24 5.644 1 -2 2 1 -2
+2 24 2 1 -2 2 1 -5.644
+2 24 -5.644 1 -2 -2 1 -2
+2 24 -2 1 -2 -2 1 -5.644
+2 24 5.644 0 2 5.644 1 2
+2 24 2 0 2 2 1 2
+2 24 2 0 5.644 2 1 5.644
+2 24 -5.644 0 2 -5.644 1 2
+2 24 -2 0 2 -2 1 2
+2 24 -2 0 5.644 -2 1 5.644
+2 24 5.644 0 -2 5.644 1 -2
+2 24 2 0 -2 2 1 -2
+2 24 2 0 -5.644 2 1 -5.644
+2 24 -5.644 0 -2 -5.644 1 -2
+2 24 -2 0 -2 -2 1 -2
+2 24 -2 0 -5.644 -2 1 -5.644
+4 16 2 0 2 2 1 2 5.644 1 2 5.644 0 2
+4 16 2 0 5.644 2 1 5.644 2 1 2 2 0 2
+4 16 -5.644 1 2 -2 1 2 -2 0 2 -5.644 0 2
+4 16 -2 1 2 -2 1 5.644 -2 0 5.644 -2 0 2
+4 16 5.644 1 -2 2 1 -2 2 0 -2 5.644 0 -2
+4 16 2 1 -2 2 1 -5.644 2 0 -5.644 2 0 -2
+4 16 -2 0 -2 -2 1 -2 -5.644 1 -2 -5.644 0 -2
+4 16 -2 0 -5.644 -2 1 -5.644 -2 1 -2 -2 0 -2
+3 16 2 0 -2 5.543 0 -2.296 5.644 0 -2
+3 16 2 0 -2 2 0 -5.644 2.296 0 -5.543
+3 16 -5.644 0 -2 -5.543 0 -2.296 -2 0 -2
+3 16 -2.296 0 -5.543 -2 0 -5.644 -2 0 -2
+3 16 5.644 0 2 5.543 0 2.296 2 0 2
+3 16 2.296 0 5.543 2 0 5.644 2 0 2
+3 16 -2 0 2 -5.543 0 2.296 -5.644 0 2
+3 16 -2 0 2 -2 0 5.644 -2.296 0 5.543
+3 16 5.644 1 -2 5.543 1 -2.296 2 1 -2
+3 16 2.296 1 -5.543 2 1 -5.644 2 1 -2
+3 16 -2 1 -2 -5.543 1 -2.296 -5.644 1 -2
+3 16 -2 1 -2 -2 1 -5.644 -2.296 1 -5.543
+3 16 2 1 2 5.543 1 2.296 5.644 1 2
+3 16 2 1 2 2 1 5.644 2.296 1 5.543
+3 16 -5.644 1 2 -5.543 1 2.296 -2 1 2
+3 16 -2.296 1 5.543 -2 1 5.644 -2 1 2
+3 16 2 0 -2 2.296 0 -5.543 5.543 0 -2.296
+1 16 0 0 0 5.54328 0 -2.2961 0 1 0 2.2961 0 5.54328 1-8chrd.dat
+3 16 -2 0 -2 -5.543 0 -2.296 -2.296 0 -5.543
+1 16 0 0 0 -2.2961 0 -5.54328 0 1 0 5.54328 0 -2.2961 1-8chrd.dat
+3 16 -2 0 2 -2.296 0 5.543 -5.543 0 2.296
+1 16 0 0 0 -5.54328 0 2.2961 0 1 0 -2.2961 0 -5.54328 1-8chrd.dat
+3 16 2 0 2 5.543 0 2.296 2.296 0 5.543
+1 16 0 0 0 2.2961 0 5.54328 0 1 0 -5.54328 0 2.2961 1-8chrd.dat
+3 16 2 1 2 2.296 1 5.543 5.543 1 2.296
+1 16 0 1 0 5.54328 0 -2.2961 0 -1 0 -2.2961 0 -5.54328 1-8chrd.dat
+3 16 -2 1 2 -5.543 1 2.296 -2.296 1 5.543
+1 16 0 1 0 -2.2961 0 -5.54328 0 -1 0 -5.54328 0 2.2961 1-8chrd.dat
+3 16 -2 1 -2 -2.296 1 -5.543 -5.543 1 -2.296
+1 16 0 1 0 -5.54328 0 2.2961 0 -1 0 2.2961 0 5.54328 1-8chrd.dat
+3 16 2 1 -2 5.543 1 -2.296 2.296 1 -5.543
+1 16 0 1 0 2.2961 0 5.54328 0 -1 0 5.54328 0 -2.2961 1-8chrd.dat
+4 16 5.7954 0 -1.5528 5.7954 1 -1.5528 5.644 1 -2 5.644 0 -2
+4 16 5.9484 0 -0.783 5.9484 1 -0.783 5.7954 1 -1.5528 5.7954 0 -1.5528
+4 16 6 0 0 6 1 0 5.9484 1 -0.783 5.9484 0 -0.783
+4 16 5.9484 0 0.783 5.9484 1 0.783 6 1 0 6 0 0
+4 16 5.7954 0 1.5528 5.7954 1 1.5528 5.9484 1 0.783 5.9484 0 0.783
+4 16 5.644 0 2 5.644 1 2 5.7954 1 1.5528 5.7954 0 1.5528
+4 16 1.5528 0 5.7954 1.5528 1 5.7954 2 1 5.644 2 0 5.644
+4 16 0.783 0 5.9484 0.783 1 5.9484 1.5528 1 5.7954 1.5528 0 5.7954
+4 16 0 0 6 0 1 6 0.783 1 5.9484 0.783 0 5.9484
+4 16 -0.783 0 5.9484 -0.783 1 5.9484 0 1 6 0 0 6
+4 16 -1.5528 0 5.7954 -1.5528 1 5.7954 -0.783 1 5.9484 -0.783 0 5.9484
+4 16 -2 0 5.644 -2 1 5.644 -1.5528 1 5.7954 -1.5528 0 5.7954
+4 16 -5.7954 0 1.5528 -5.7954 1 1.5528 -5.644 1 2 -5.644 0 2
+4 16 -5.9484 0 0.783 -5.9484 1 0.783 -5.7954 1 1.5528 -5.7954 0 1.5528
+4 16 -6 0 0 -6 1 0 -5.9484 1 0.783 -5.9484 0 0.783
+4 16 -5.9484 0 -0.783 -5.9484 1 -0.783 -6 1 0 -6 0 0
+4 16 -5.7954 0 -1.5528 -5.7954 1 -1.5528 -5.9484 1 -0.783 -5.9484 0 -0.783
+4 16 -5.644 0 -2 -5.644 1 -2 -5.7954 1 -1.5528 -5.7954 0 -1.5528
+4 16 -1.5528 0 -5.7954 -1.5528 1 -5.7954 -2 1 -5.644 -2 0 -5.644
+4 16 -0.783 0 -5.9484 -0.783 1 -5.9484 -1.5528 1 -5.7954 -1.5528 0 -5.7954
+4 16 0 0 -6 0 1 -6 -0.783 1 -5.9484 -0.783 0 -5.9484
+4 16 0.783 0 -5.9484 0.783 1 -5.9484 0 1 -6 0 0 -6
+4 16 1.5528 0 -5.7954 1.5528 1 -5.7954 0.783 1 -5.9484 0.783 0 -5.9484
+4 16 2 0 -5.644 2 1 -5.644 1.5528 1 -5.7954 1.5528 0 -5.7954
+0
+
+0 FILE axlehol2.dat
+0 Hi-Res Technic Axle Hole Side Edges
+0 Name: 48/axlehol2.dat
+0 Author: BLStudio
+0 !LDRAW_ORG
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+0 BFC CERTIFY CCW
+2 24 5.644 0 -2 5.7954 0 -1.5528
+2 24 5.7954 0 -1.5528 5.9484 0 -0.783
+2 24 5.9484 0 -0.783 6 0 0
+2 24 6 0 0 5.9484 0 0.783
+2 24 5.9484 0 0.783 5.7954 0 1.5528
+2 24 5.7954 0 1.5528 5.644 0 2
+2 24 2 0 5.644 1.5528 0 5.7954
+2 24 1.5528 0 5.7954 0.783 0 5.9484
+2 24 0.783 0 5.9484 0 0 6
+2 24 0 0 6 -0.783 0 5.9484
+2 24 -0.783 0 5.9484 -1.5528 0 5.7954
+2 24 -1.5528 0 5.7954 -2 0 5.644
+2 24 -5.644 0 2 -5.7954 0 1.5528
+2 24 -5.7954 0 1.5528 -5.9484 0 0.783
+2 24 -5.9484 0 0.783 -6 0 0
+2 24 -6 0 0 -5.9484 0 -0.783
+2 24 -5.9484 0 -0.783 -5.7954 0 -1.5528
+2 24 -5.7954 0 -1.5528 -5.644 0 -2
+2 24 -2 0 -5.644 -1.5528 0 -5.7954
+2 24 -1.5528 0 -5.7954 -0.783 0 -5.9484
+2 24 -0.783 0 -5.9484 0 0 -6
+2 24 0 0 -6 0.783 0 -5.9484
+2 24 0.783 0 -5.9484 1.5528 0 -5.7954
+2 24 1.5528 0 -5.7954 2 0 -5.644
+0
+
+0 FILE 2-4edge.dat
+0 Hi-Res Circle 0.5
+0 Name: 48/2-4edge.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-08-18 [PTadmin] Official Update 2002-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-01-15 [MagFors] BFC'ed, title changed from Edge to Circle
+0 !HISTORY 2012-03-30 [PTadmin] Official Update 2012-01
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 48/1-4edge.dat
+1 16 0 0 0 0 0 -1 0 1 0 1 0 0 48/1-4edge.dat
+
+
+0 FILE 4-4cyli.dat
+0 Hi-Res Cylinder 1.0
+0 Name: 48/4-4cyli.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-08-18 [PTadmin] Official Update 2002-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 48/1-4cyli.dat
+1 16 0 0 0 0 0 -1 0 1 0 1 0 0 48/1-4cyli.dat
+1 16 0 0 0 -1 0 0 0 1 0 0 0 -1 48/1-4cyli.dat
+1 16 0 0 0 0 0 1 0 1 0 -1 0 0 48/1-4cyli.dat
+
+0 FILE 4-4edge.dat
+0 Hi-Res Circle 1.0
+0 Name: 48/4-4edge.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-08-18 [PTadmin] Official Update 2002-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-01-15 [MagFors] BFC'ed, title changed from Edge to Circle
+0 !HISTORY 2012-03-30 [PTadmin] Official Update 2012-01
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 48/1-4edge.dat
+1 16 0 0 0 0 0 -1 0 1 0 1 0 0 48/1-4edge.dat
+1 16 0 0 0 -1 0 0 0 1 0 0 0 -1 48/1-4edge.dat
+1 16 0 0 0 0 0 1 0 1 0 -1 0 0 48/1-4edge.dat
+
+
+0 FILE 4-4disc.dat
+0 Hi-Res Disc 1.0
+0 Name: 48/4-4disc.dat
+0 Author: Miklos Hosszu [hmick]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2004-11-06 [PTadmin] Official Update 2004-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+3 16 1 0 0 0.9914 0 0.1305 0 0 0
+3 16 0.9914 0 0.1305 0.9659 0 0.2588 0 0 0
+3 16 0.9659 0 0.2588 0.9239 0 0.3827 0 0 0
+3 16 0.9239 0 0.3827 0.866 0 0.5 0 0 0
+3 16 0.866 0 0.5 0.7934 0 0.6088 0 0 0
+3 16 0.7934 0 0.6088 0.7071 0 0.7071 0 0 0
+3 16 0.7071 0 0.7071 0.6088 0 0.7934 0 0 0
+3 16 0.6088 0 0.7934 0.5 0 0.866 0 0 0
+3 16 0.5 0 0.866 0.3827 0 0.9239 0 0 0
+3 16 0.3827 0 0.9239 0.2588 0 0.9659 0 0 0
+3 16 0.2588 0 0.9659 0.1305 0 0.9914 0 0 0
+3 16 0.1305 0 0.9914 0 0 1 0 0 0
+3 16 0 0 1 -0.1305 0 0.9914 0 0 0
+3 16 -0.1305 0 0.9914 -0.2588 0 0.9659 0 0 0
+3 16 -0.2588 0 0.9659 -0.3827 0 0.9239 0 0 0
+3 16 -0.3827 0 0.9239 -0.5 0 0.866 0 0 0
+3 16 -0.5 0 0.866 -0.6088 0 0.7934 0 0 0
+3 16 -0.6088 0 0.7934 -0.7071 0 0.7071 0 0 0
+3 16 -0.7071 0 0.7071 -0.7934 0 0.6088 0 0 0
+3 16 -0.7934 0 0.6088 -0.866 0 0.5 0 0 0
+3 16 -0.866 0 0.5 -0.9239 0 0.3827 0 0 0
+3 16 -0.9239 0 0.3827 -0.9659 0 0.2588 0 0 0
+3 16 -0.9659 0 0.2588 -0.9914 0 0.1305 0 0 0
+3 16 -0.9914 0 0.1305 -1 0 0 0 0 0
+3 16 -1 0 0 -0.9914 0 -0.1305 0 0 0
+3 16 -0.9914 0 -0.1305 -0.9659 0 -0.2588 0 0 0
+3 16 -0.9659 0 -0.2588 -0.9239 0 -0.3827 0 0 0
+3 16 -0.9239 0 -0.3827 -0.866 0 -0.5 0 0 0
+3 16 -0.866 0 -0.5 -0.7934 0 -0.6088 0 0 0
+3 16 -0.7934 0 -0.6088 -0.7071 0 -0.7071 0 0 0
+3 16 -0.7071 0 -0.7071 -0.6088 0 -0.7934 0 0 0
+3 16 -0.6088 0 -0.7934 -0.5 0 -0.866 0 0 0
+3 16 -0.5 0 -0.866 -0.3827 0 -0.9239 0 0 0
+3 16 -0.3827 0 -0.9239 -0.2588 0 -0.9659 0 0 0
+3 16 -0.2588 0 -0.9659 -0.1305 0 -0.9914 0 0 0
+3 16 -0.1305 0 -0.9914 0 0 -1 0 0 0
+3 16 0 0 -1 0.1305 0 -0.9914 0 0 0
+3 16 0.1305 0 -0.9914 0.2588 0 -0.9659 0 0 0
+3 16 0.2588 0 -0.9659 0.3827 0 -0.9239 0 0 0
+3 16 0.3827 0 -0.9239 0.5 0 -0.866 0 0 0
+3 16 0.5 0 -0.866 0.6088 0 -0.7934 0 0 0
+3 16 0.6088 0 -0.7934 0.7071 0 -0.7071 0 0 0
+3 16 0.7071 0 -0.7071 0.7934 0 -0.6088 0 0 0
+3 16 0.7934 0 -0.6088 0.866 0 -0.5 0 0 0
+3 16 0.866 0 -0.5 0.9239 0 -0.3827 0 0 0
+3 16 0.9239 0 -0.3827 0.9659 0 -0.2588 0 0 0
+3 16 0.9659 0 -0.2588 0.9914 0 -0.1305 0 0 0
+3 16 0.9914 0 -0.1305 1 0 0 0 0 0
+
+0 FILE 1-8chrd.dat
+0 Hi-Res Chord 0.125
+0 Name: 48/1-8chrd.dat
+0 Author: Guy Vivan [guyvivan]
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+4 16 1 0 0 0.9914 0 0.1305 0.7934 0 0.6088 0.7071 0 0.7071
+4 16 0.9914 0 0.1305 0.9659 0 0.2588 0.866 0 0.5 0.7934 0 0.6088
+3 16 0.9659 0 0.2588 0.9239 0 0.3827 0.866 0 0.5
+0
+
+0 FILE 48/1-4edge.dat
+0 Hi-Res Circle 0.25
+0 Name: 48/1-4edge.dat
+0 Author: Manfred Moolhuysen
+0 !LDRAW_ORG 48_Primitive UPDATE 2010-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-03-17 [MagFors] Updated description
+0 !HISTORY 2010-05-21 [mikeheide] BFC'ed and compacted numbers (saved 10% filesize)
+0 !HISTORY 2010-07-05 [PTadmin] Official Update 2010-02
+
+2 24 1 0 0 0.9914 0 0.1305
+2 24 0.9914 0 0.1305 0.9659 0 0.2588
+2 24 0.9659 0 0.2588 0.9239 0 0.3827
+2 24 0.9239 0 0.3827 0.866 0 0.5
+2 24 0.866 0 0.5 0.7934 0 0.6088
+2 24 0.7934 0 0.6088 0.7071 0 0.7071
+2 24 0.7071 0 0.7071 0.6088 0 0.7934
+2 24 0.6088 0 0.7934 0.5 0 0.866
+2 24 0.5 0 0.866 0.3827 0 0.9239
+2 24 0.3827 0 0.9239 0.2588 0 0.9659
+2 24 0.2588 0 0.9659 0.1305 0 0.9914
+2 24 0.1305 0 0.9914 0 0 1
+0 //
+
+0 FILE 48/1-4cyli.dat
+0 Hi-Res Cylinder 0.25
+0 Name: 48/1-4cyli.dat
+0 Author: Manfred Moolhuysen
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2002-02-28 [hafhead] Added BFC statement
+0 !HISTORY 2002-04-25 [PTadmin] Official Update 2002-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2008-07-07 [guyvivan] Made BFC'ed CCW (2005-12-06)
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+4 16 0.9914 0 0.1305 1 0 0 1 1 0 0.9914 1 0.1305
+4 16 0.9659 0 0.2588 0.9914 0 0.1305 0.9914 1 0.1305 0.9659 1 0.2588
+4 16 0.9239 0 0.3827 0.9659 0 0.2588 0.9659 1 0.2588 0.9239 1 0.3827
+4 16 0.866 0 0.5 0.9239 0 0.3827 0.9239 1 0.3827 0.866 1 0.5
+4 16 0.7934 0 0.6088 0.866 0 0.5 0.866 1 0.5 0.7934 1 0.6088
+4 16 0.7071 0 0.7071 0.7934 0 0.6088 0.7934 1 0.6088 0.7071 1 0.7071
+4 16 0.6088 0 0.7934 0.7071 0 0.7071 0.7071 1 0.7071 0.6088 1 0.7934
+4 16 0.5 0 0.866 0.6088 0 0.7934 0.6088 1 0.7934 0.5 1 0.866
+4 16 0.3827 0 0.9239 0.5 0 0.866 0.5 1 0.866 0.3827 1 0.9239
+4 16 0.2588 0 0.9659 0.3827 0 0.9239 0.3827 1 0.9239 0.2588 1 0.9659
+4 16 0.1305 0 0.9914 0.2588 0 0.9659 0.2588 1 0.9659 0.1305 1 0.9914
+4 16 0 0 1 0.1305 0 0.9914 0.1305 1 0.9914 0 1 1
+
+0 conditional lines
+5 24 1 1 0 1 0 0 1 1 -1 0.9914 1 0.1305
+5 24 0.9914 1 0.1305 0.9914 0 0.1305 1 1 0 0.9659 1 0.2588
+5 24 0.9659 1 0.2588 0.9659 0 0.2588 0.9914 1 0.1305 0.9239 1 0.3827
+5 24 0.9239 1 0.3827 0.9239 0 0.3827 0.9659 1 0.2588 0.866 1 0.5
+5 24 0.866 1 0.5 0.866 0 0.5 0.9239 1 0.3827 0.7934 1 0.6088
+5 24 0.7934 1 0.6088 0.7934 0 0.6088 0.866 1 0.5 0.7071 1 0.7071
+5 24 0.7071 1 0.7071 0.7071 0 0.7071 0.7934 1 0.6088 0.6088 1 0.7934
+5 24 0.6088 1 0.7934 0.6088 0 0.7934 0.7071 1 0.7071 0.5 1 0.866
+5 24 0.5 1 0.866 0.5 0 0.866 0.6088 1 0.7934 0.3827 1 0.9239
+5 24 0.3827 1 0.9239 0.3827 0 0.9239 0.5 1 0.866 0.2588 1 0.9659
+5 24 0.2588 1 0.9659 0.2588 0 0.9659 0.3827 1 0.9239 0.1305 1 0.9914
+5 24 0.1305 1 0.9914 0.1305 0 0.9914 0.2588 1 0.9659 0 1 1
+5 24 0 1 1 0 0 1 0.1305 1 0.9914 -1 1 1
+
+0 end of file

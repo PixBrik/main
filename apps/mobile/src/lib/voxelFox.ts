@@ -110,6 +110,8 @@ export interface BuildModelOptions {
   preserveShapes?: boolean;
   /** Physical vertical pitch; defaults to `size` for square photo grids. */
   layerHeight?: number;
+  /** Wheel mounts detected upstream, carried onto the model verbatim. */
+  wheelAnchors?: WheelAnchor[];
 }
 
 /**
@@ -154,9 +156,24 @@ export function buildModelFromCells(
     cells: [...index.values()],
     exposedFaceCount,
     ...(options.layerHeight ? { layerHeight: options.layerHeight } : {}),
+    ...(options.wheelAnchors?.length ? { wheelAnchors: options.wheelAnchors } : {}),
     shell,
     size,
   };
+}
+
+/**
+ * Where a detected vehicle wheel was carved out of the grid. `i` is the
+ * outermost remaining body column; the real wheel+tire assembly mounts on an
+ * axle exiting that face toward `side` (+1 = +i, −1 = −i).
+ */
+export interface WheelAnchor {
+  i: number;
+  j: number;
+  k: number;
+  side: 1 | -1;
+  /** Carved wheel radius in cells — sizes the rendered assembly sanity check. */
+  radiusCells: number;
 }
 
 export interface VoxelModel {
@@ -169,6 +186,8 @@ export interface VoxelModel {
   shell: Voxel[];
   /** Every cell including interiors — used for part packing and the BOM. */
   cells: VoxelCell[];
+  /** Present when a vehicle's wheels were carved for real wheel assemblies. */
+  wheelAnchors?: WheelAnchor[];
 }
 
 /** Order matters: it must match the face definitions in the renderer. */

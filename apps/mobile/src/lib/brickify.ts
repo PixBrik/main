@@ -60,6 +60,23 @@ export const FACED_SHAPES: ReadonlySet<BrickPlacement['shape']> = new Set([
   'slopeInverted',
 ]);
 
+/**
+ * One real wheel: an axle through a technic brick in the body, a wheel on
+ * the axle stub, a tire on the wheel. Lives OUTSIDE the stud grid, so it is
+ * carried separately from placements — the assembly plan, hollow audits and
+ * guide wire format stay untouched.
+ */
+export interface WheelAccessory {
+  i: number;
+  j: number;
+  k: number;
+  side: 1 | -1;
+  axlePart: string;
+  wheelPart: string;
+  tirePart: string;
+  holderPart: string;
+}
+
 export interface BillOfMaterials {
   lines: BomLine[];
   totalParts: number;
@@ -69,6 +86,11 @@ export interface BillOfMaterials {
   isEstimate: boolean;
   /** Physical placement of every packed brick — feeds exports. */
   placements: BrickPlacement[];
+  /** Real wheel assemblies for detected vehicles (not persisted in guides). */
+  accessories?: WheelAccessory[];
+  /** Axles, wheels, tires and holder bricks — priced separately from lines. */
+  accessoryLines?: BomLine[];
+  accessoryTotalEur?: number;
 }
 
 interface CatalogColor {
@@ -1556,7 +1578,82 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   const totalParts = lines.reduce((sum, line) => sum + line.quantity, 0);
   const totalEur = Number(lines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2));
 
+  // ---- real wheel assemblies for detected vehicles ----
+  // Axle 3L through a technic brick, 18mm wheel, 24×14 tire: every SKU and
+  // price from the GoBricks harvest. Kept out of `lines`/`totalParts` so the
+  // assembly plan's placement-count invariant is untouched.
+  const anchors = (model as {
+    wheelAnchors?: Array<{ i: number; j: number; k: number; side: 1 | -1; radiusCells?: number }>;
+  }).wheelAnchors;
+  let accessories: WheelAccessory[] | undefined;
+  let accessoryLines: BomLine[] | undefined;
+  let accessoryTotalEur: number | undefined;
+  if (anchors?.length) {
+    // Two real wheel sizes: 43.2mm ZR tires fill large carved arches (≈5
+    // studs), 24mm tires suit small ones. Sized per anchor from the carve.
+    accessories = anchors.map((anchor) => {
+      const big = (anchor.radiusCells ?? 2) >= 1.8;
+      return {
+        axlePart: '4519',
+        holderPart: '3700',
+        i: anchor.i,
+        j: anchor.j,
+        k: anchor.k,
+        side: anchor.side,
+        tirePart: big ? '44309' : '24341',
+        wheelPart: big ? '56145' : '55982',
+      };
+    });
+    const count = anchors.length;
+    const bigCount = accessories.filter((accessory) => accessory.tirePart === '44309').length;
+    const smallCount = count - bigCount;
+    const catalogueBlack = COLORS.find((color) => color.id === 11) ?? COLORS[0]!;
+    const wheelGrey = COLORS.find((color) => color.id === 71) ?? catalogueBlack;
+    const accessoryLine = (
+      part: string,
+      partName: string,
+      colour: CatalogColor,
+      sku: string,
+      unitPriceEur: number,
+      quantity: number,
+    ): BomLine => ({
+      colorId: colour.id,
+      colorName: colour.name,
+      colorRgb: colour.rgb,
+      elementId: sku,
+      estimated: false,
+      imageUrl: null,
+      l: 1,
+      lineTotalEur: Number((unitPriceEur * quantity).toFixed(2)),
+      part,
+      partName,
+      quantity,
+      skuId: null,
+      substituted: false,
+      unitPriceEur,
+      w: 1,
+    });
+    accessoryLines = [
+      accessoryLine('3700', 'Technic Brick 1 x 2 with Hole', catalogueBlack, 'GDS-623-011', 0.08, count),
+      accessoryLine('4519', 'Technic Axle 3L', catalogueBlack, 'GDS-579-011', 0.05, count),
+      ...(bigCount
+        ? [
+            accessoryLine('56145', 'Wheel 30.4mm D. x 20mm', wheelGrey, 'GDS-1231-071', 0.38, bigCount),
+            accessoryLine('44309', 'Tire 43.2 x 22 ZR', catalogueBlack, 'GDS-1234-080', 0.77, bigCount),
+          ]
+        : []),
+      ...(smallCount
+        ? [
+            accessoryLine('55982', 'Wheel 18mm D. x 14mm', wheelGrey, 'GDS-1158-071', 0.14, smallCount),
+            accessoryLine('24341', 'Tire 24 x 14 Shallow Tread', catalogueBlack, 'GDS-2218-090', 0.22, smallCount),
+          ]
+        : []),
+    ];
+    accessoryTotalEur = Number(accessoryLines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2));
+  }
+
   return {
+    ...(accessories ? { accessories, accessoryLines, accessoryTotalEur } : {}),
     colorCount: new Set(lines.map((line) => line.colorId)).size,
     isEstimate: lines.some((line) => line.estimated),
     lines,

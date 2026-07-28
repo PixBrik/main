@@ -59,6 +59,15 @@ export interface LDrawRenderOptions {
    * a single colour, with form carried entirely by geometry and real light.
    */
   monochrome?: string;
+  /** Wheel assemblies (axle + wheel + tire) mounted outside the stud grid. */
+  accessories?: ReadonlyArray<{
+    i: number;
+    j: number;
+    k: number;
+    side: 1 | -1;
+    wheelPart: string;
+    tirePart: string;
+  }>;
 }
 
 interface PreparedPart {
@@ -194,7 +203,9 @@ export async function renderLDrawTurntable(
       lumaSum += 0.2126 * probe.r + 0.7152 * probe.g + 0.0722 * probe.b;
     }
     const averageLuma = lumaSum / placements.length;
-    renderer.toneMappingExposure = light ? 1.05 : THREE.MathUtils.clamp(1.15 - averageLuma * 0.55, 0.62, 1.12);
+    // Pale builds (ivory sculpture, white cat) clipped to featureless white at
+    // the old 0.62 floor; very bright subjects need a genuinely dim key.
+    renderer.toneMappingExposure = light ? 1.05 : THREE.MathUtils.clamp(1.18 - averageLuma * 0.85, 0.42, 1.12);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
@@ -273,6 +284,54 @@ export async function renderLDrawTurntable(
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       build.add(mesh);
+    }
+
+    // Real wheels: the wheel's and tire's native axis is LDraw z; a quarter
+    // turn about Y points it along ±x (out the car's side). The centre sits
+    // half a tire-width beyond the anchor cell's outer face, at the middle of
+    // the anchor layer.
+    if (options.accessories?.length) {
+      const wheelMaterial = new THREE.MeshStandardMaterial({ color: '#9BA19D', metalness: 0.1, roughness: 0.35 });
+      const tireMaterial = new THREE.MeshStandardMaterial({ color: '#1B1D1E', metalness: 0, roughness: 0.85 });
+      materials.push(wheelMaterial, tireMaterial);
+      for (const accessory of options.accessories) {
+        const wheelPrepared = await loadPart(accessory.wheelPart, ldrawBase);
+        const tirePrepared = await loadPart(accessory.tirePart, ldrawBase);
+        // The anchor is the carve's outermost column: mount the assembly with
+        // its outer sidewall flush to that face, like the source's wheels.
+        // Tire width comes from the part's own geometry (native axis = z).
+        let tireHalf = 18;
+        if (tirePrepared) {
+          tirePrepared.geometry.computeBoundingBox();
+          const box = tirePrepared.geometry.boundingBox!;
+          tireHalf = (box.max.z - box.min.z) / 2;
+        }
+        const outerFace = (accessory.i + (accessory.side > 0 ? 1 : 0)) * LDU_PER_STUD;
+        const centreX = outerFace - accessory.side * tireHalf;
+        const centreY = -(accessory.j + 0.5) * LDU_PER_BRICK;
+        const centreZ = (accessory.k + 0.5) * LDU_PER_STUD;
+        for (const [prepared, material] of [
+          [wheelPrepared, wheelMaterial],
+          [tirePrepared, tireMaterial],
+        ] as const) {
+          if (!prepared) continue;
+          const mesh = new THREE.Mesh(prepared.geometry, material);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          // Place the part's bbox centre exactly at the wheel centre: with a
+          // quarter turn about Y, a part-space point p lands at position +
+          // (p.z, p.y, −p.x), so subtract the rotated bbox centre.
+          prepared.geometry.computeBoundingBox();
+          const partCentre = prepared.geometry.boundingBox!.getCenter(new THREE.Vector3());
+          mesh.rotation.y = Math.PI / 2;
+          mesh.position.set(
+            centreX - partCentre.z,
+            centreY - partCentre.y,
+            centreZ + partCentre.x,
+          );
+          build.add(mesh);
+        }
+      }
     }
 
     // Centre on the origin, sit on the floor, and flip LDraw's Y-down to Y-up.

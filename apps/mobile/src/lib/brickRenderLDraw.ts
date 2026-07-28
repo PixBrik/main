@@ -26,6 +26,14 @@ export interface LDrawRenderOptions {
   elevation?: number;
   yaw?: number;
   monochrome?: string;
+  accessories?: ReadonlyArray<{
+    i: number;
+    j: number;
+    k: number;
+    side: 1 | -1;
+    wheelPart: string;
+    tirePart: string;
+  }>;
 }
 
 export async function renderLDrawTurntable(

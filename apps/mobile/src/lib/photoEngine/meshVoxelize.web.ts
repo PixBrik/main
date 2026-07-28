@@ -971,13 +971,195 @@ async function voxelizeMeshes(
     [...interiorCells, ...buriedSurfaceCells],
     options.colorStyle ?? 'natural',
   );
-  const anchored = await anchorAgainstReleaseGate(cells, worldSize, worldLayerHeight);
+  return finishModel(cells, worldSize, worldLayerHeight);
+}
+
+/**
+ * Conservative wheel detection. Wheels present as DARK, roughly disc-shaped
+ * clusters of surface cells hugging the model's ±i sides in its lower half,
+ * mirrored left/right and repeated front/rear. Anything short of exactly two
+ * mirrored pairs means "this is probably not a car" and the model is left
+ * untouched — a false wheel on a dog would be far worse than a square wheel.
+ */
+function detectAndCarveWheels(
+  cells: VoxelCell[],
+): { anchors: import('../voxelFox').WheelAnchor[]; carved: Set<VoxelCell> } | null {
+  if (cells.length < 300) return null;
+  let minI = Infinity;
+  let maxI = -Infinity;
+  let maxJ = -Infinity;
+  for (const cell of cells) {
+    minI = Math.min(minI, cell.i);
+    maxI = Math.max(maxI, cell.i);
+    maxJ = Math.max(maxJ, cell.j);
+  }
+  const spanI = maxI - minI + 1;
+  const sideBand = Math.max(2, Math.round(spanI * 0.3));
+  const luma = (hex: string | undefined): number => {
+    if (!hex || hex.length !== 7) return 255;
+    return (
+      0.2126 * Number.parseInt(hex.slice(1, 3), 16)
+      + 0.7152 * Number.parseInt(hex.slice(3, 5), 16)
+      + 0.0722 * Number.parseInt(hex.slice(5, 7), 16)
+    );
+  };
+  const isWheelish = (cell: VoxelCell): 1 | -1 | 0 => {
+    if (cell.j > maxJ * 0.55) return 0;
+    if (luma(cell.colorHex) > 80) return 0;
+    if (cell.i <= minI + sideBand - 1) return -1;
+    if (cell.i >= maxI - sideBand + 1) return 1;
+    return 0;
+  };
+
+  // Flood dark side cells into components per side.
+  const key = (i: number, j: number, k: number) => `${i}|${j}|${k}`;
+  const candidates = new Map<string, { cell: VoxelCell; side: 1 | -1 }>();
+  for (const cell of cells) {
+    const side = isWheelish(cell);
+    if (side !== 0) candidates.set(key(cell.i, cell.j, cell.k), { cell, side });
+  }
+  if (candidates.size < 16) return null;
+  const seen = new Set<string>();
+  interface Component { cells: VoxelCell[]; side: 1 | -1; sumJ: number; sumK: number }
+  const components: Component[] = [];
+  for (const [startKey, start] of candidates) {
+    if (seen.has(startKey)) continue;
+    const queue = [startKey];
+    seen.add(startKey);
+    const component: Component = { cells: [], side: start.side, sumJ: 0, sumK: 0 };
+    while (queue.length) {
+      const current = queue.pop()!;
+      const entry = candidates.get(current)!;
+      component.cells.push(entry.cell);
+      component.sumJ += entry.cell.j;
+      component.sumK += entry.cell.k;
+      const { i, j, k } = entry.cell;
+      for (const [di, dj, dk] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const) {
+        const neighbourKey = key(i + di, j + dj, k + dk);
+        const neighbour = candidates.get(neighbourKey);
+        if (!neighbour || seen.has(neighbourKey) || neighbour.side !== entry.side) continue;
+        seen.add(neighbourKey);
+        queue.push(neighbourKey);
+      }
+    }
+    if (component.cells.length >= 8) components.push(component);
+  }
+  // eslint-disable-next-line no-console -- dev diagnostics for wheel tuning
+  console.debug('[wheels] candidates', candidates.size, 'components', JSON.stringify(components.map((component) => ({
+    extentJ: Math.max(...component.cells.map((cell) => cell.j)) - Math.min(...component.cells.map((cell) => cell.j)) + 1,
+    extentK: Math.max(...component.cells.map((cell) => cell.k)) - Math.min(...component.cells.map((cell) => cell.k)) + 1,
+    meanJ: Math.round((component.sumJ / component.cells.length) * 10) / 10,
+    meanK: Math.round((component.sumK / component.cells.length) * 10) / 10,
+    side: component.side,
+    size: component.cells.length,
+  }))));
+
+  interface WheelSpot { side: 1 | -1; j: number; k: number; radius: number; cells: VoxelCell[] }
+  const spots: WheelSpot[] = [];
+  for (const component of components) {
+    const js = component.cells.map((cell) => cell.j);
+    const ks = component.cells.map((cell) => cell.k);
+    const extentJ = Math.max(...js) - Math.min(...js) + 1;
+    const extentK = Math.max(...ks) - Math.min(...ks) + 1;
+    // A wheel patch is roughly as tall as it is long; skirts and shadows are
+    // long and shallow, spoilers tall and thin.
+    if (extentJ / extentK < 0.45 || extentJ / extentK > 2.2) continue;
+    if (extentK > spanI) continue;
+    spots.push({
+      cells: component.cells,
+      j: component.sumJ / component.cells.length,
+      k: component.sumK / component.cells.length,
+      radius: Math.max(extentJ, extentK) / 2,
+      side: component.side,
+    });
+  }
+  // Wheels come in mirrored left/right pairs. Real sides also carry clutter
+  // (light strips, dark trim), so instead of demanding a clean count, match
+  // each left spot to its nearest right counterpart and keep the two
+  // strongest pairs — genuine wheels are the biggest mirrored dark discs.
+  const left = spots.filter((spot) => spot.side === -1);
+  const right = spots.filter((spot) => spot.side === 1);
+  const pairs: Array<{ a: WheelSpot; b: WheelSpot; size: number }> = [];
+  const taken = new Set<WheelSpot>();
+  for (const a of [...left].sort((x, y) => y.cells.length - x.cells.length)) {
+    let best: WheelSpot | null = null;
+    let bestDistance = Infinity;
+    for (const b of right) {
+      if (taken.has(b)) continue;
+      const distance = Math.abs(a.k - b.k);
+      if (distance > 3 || Math.abs(a.j - b.j) > 2.5) continue;
+      if (distance < bestDistance) {
+        best = b;
+        bestDistance = distance;
+      }
+    }
+    if (best) {
+      taken.add(best);
+      pairs.push({ a, b: best, size: a.cells.length + best.cells.length });
+    }
+  }
+  if (pairs.length < 2) return null;
+  pairs.sort((x, y) => y.size - x.size);
+  const [front, rear] = [pairs[0]!, pairs[1]!];
+  // Front and rear axles must be genuinely apart, or we grabbed one wheel
+  // twice through its neighbouring trim.
+  if (Math.abs(front.a.k - rear.a.k) < 5) return null;
+
+  const carved = new Set<VoxelCell>();
+  const anchors: import('../voxelFox').WheelAnchor[] = [];
+  const cellAt = new Map(cells.map((cell) => [key(cell.i, cell.j, cell.k), cell]));
+  for (const spot of [front.a, front.b, rear.a, rear.b]) {
+    for (const cell of spot.cells) carved.add(cell);
+    const j = Math.max(0, Math.round(spot.j));
+    const k = Math.round(spot.k);
+    // The anchor is the outermost surviving BODY cell near the wheel centre.
+    // The exact centre row is usually AIR (ground clearance under the
+    // chassis), so search a small neighbourhood around it — the axle brick
+    // then sits in the arch's inner wall, which is where it belongs.
+    let anchor: { i: number; j: number; k: number } | null = null;
+    outer: for (let step = 0; step < spanI && !anchor; step++) {
+      const i = spot.side === 1 ? maxI - step : minI + step;
+      for (const dj of [0, 1, -1, 2]) {
+        for (const dk of [0, 1, -1]) {
+          const candidate = cellAt.get(key(i, j + dj, k + dk));
+          if (candidate && !carved.has(candidate)) {
+            anchor = { i, j: j + dj, k: k + dk };
+            break outer;
+          }
+        }
+      }
+    }
+    if (!anchor) return null;
+    // The anchor records the carve's OUTERMOST column: the wheel mounts with
+    // its outer face flush there, like the source's wheels. The body scan
+    // above only proves there is structure nearby to bolt the axle into.
+    const outerI = spot.side === 1
+      ? Math.max(...spot.cells.map((cell) => cell.i))
+      : Math.min(...spot.cells.map((cell) => cell.i));
+    anchors.push({ i: outerI, j, k, radiusCells: spot.radius, side: spot.side });
+  }
+  return { anchors, carved };
+}
+
+async function finishModel(
+  cells: VoxelCell[],
+  worldSize: number,
+  worldLayerHeight: number,
+): Promise<VoxelModel> {
+  // Vehicles: dark disc clusters low on the model's sides are wheels. Carve
+  // them from the grid and record anchors so the kit ships real wheel and
+  // tire parts on axles — square brick wheels never read as wheels.
+  const wheels = detectAndCarveWheels(cells);
+  const bodyCells = wheels ? cells.filter((cell) => !wheels.carved.has(cell)) : cells;
+
+  const anchored = await anchorAgainstReleaseGate(bodyCells, worldSize, worldLayerHeight);
   // Slope detection turns single-step staircases into real 45° wedge parts.
   // It was disabled while previews drew flat cubes (a wedge read as erosion),
   // but with parts rendered from their true LDraw geometry the wedges are
   // exactly what makes curved bodywork and shoulders stop stair-stepping.
   return buildModelFromCells(anchored, worldSize, {
     layerHeight: worldLayerHeight,
+    ...(wheels ? { wheelAnchors: wheels.anchors } : {}),
   });
 }
 

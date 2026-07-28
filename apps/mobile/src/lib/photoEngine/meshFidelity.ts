@@ -319,8 +319,38 @@ export function colorizeMeshCells(
     }
   }
 
+  // Portrait skin handling: pale skin albedo sits closer to White in
+  // colour distance than to any flesh tone, so faces bleach. Brick-mosaic
+  // portraits solve this with a dedicated flesh ramp — any skin-like
+  // cluster (warm hue, moderate saturation, mid-to-high luma) quantises
+  // against the catalogue's flesh tones only.
+  const FLESH_RAMP = ['#f2e0bd', '#ddc48e', '#DD8C59', '#af7446', '#947e5f'];
+  const isSkinCentroid = ([r, g, b]: Rgb): boolean => {
+    if (!(r > g && g >= b - 8)) return false;
+    const spread = r - b;
+    const bright = luma([r, g, b]);
+    return spread > 14 && spread < 120 && bright > 92 && bright < 235;
+  };
+  const nearestOf = (colour: Rgb, ramp: string[]): string => {
+    let best = ramp[0]!;
+    let bestDistance = Infinity;
+    for (const hex of ramp) {
+      const target = hexToRgb(hex);
+      const dr = colour[0] - target[0];
+      const dg = colour[1] - target[1];
+      const db = colour[2] - target[2];
+      const distance = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+      if (distance < bestDistance) {
+        best = hex;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  };
   const catalogHex = centroids.map((centroid) =>
-    quantizeToCatalog(centroid[0], centroid[1], centroid[2]),
+    portrait && isSkinCentroid(centroid)
+      ? nearestOf(centroid, FLESH_RAMP)
+      : quantizeToCatalog(centroid[0], centroid[1], centroid[2]),
   );
   for (let index = 0; index < surfaceCells.length; index++) {
     surfaceCells[index]!.colorHex = catalogHex[smoothed[index]!]!;
