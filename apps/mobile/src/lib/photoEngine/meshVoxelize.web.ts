@@ -988,12 +988,20 @@ function detectAndCarveWheels(
   let minI = Infinity;
   let maxI = -Infinity;
   let maxJ = -Infinity;
+  let minK = Infinity;
+  let maxK = -Infinity;
   for (const cell of cells) {
     minI = Math.min(minI, cell.i);
     maxI = Math.max(maxI, cell.i);
     maxJ = Math.max(maxJ, cell.j);
+    minK = Math.min(minK, cell.k);
+    maxK = Math.max(maxK, cell.k);
   }
   const spanI = maxI - minI + 1;
+  // Vehicles are LONGER than they are tall. An upright subject (a sitting
+  // dog, a bust) whose dark side patches happen to mirror must never grow
+  // wheels — learned the hard way from a golden retriever.
+  if (maxJ + 1 > 0.6 * Math.max(spanI, maxK - minK + 1)) return null;
   const sideBand = Math.max(2, Math.round(spanI * 0.3));
   const luma = (hex: string | undefined): number => {
     if (!hex || hex.length !== 7) return 255;
