@@ -574,9 +574,15 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   const sourceCellByKey = new Map(sourceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
   const sourceCellKeys = new Set(sourceCells.map((cell) => `${cell.i}|${cell.j}|${cell.k}`));
   const originalExteriorKeys = new Set(model.shell.map((cell) => `${cell.i}|${cell.j}|${cell.k}`));
-  const firstSourceLayer = sourceCells.length
-    ? Math.min(...sourceCells.map((cell) => cell.j))
-    : 0;
+  // A plain loop, not Math.min(...spread): spreading 100k+ cells as call
+  // arguments overflows the stack on dense high-resolution builds.
+  let firstSourceLayer = 0;
+  if (sourceCells.length) {
+    firstSourceLayer = Infinity;
+    for (const cell of sourceCells) {
+      if (cell.j < firstSourceLayer) firstSourceLayer = cell.j;
+    }
+  }
   for (const cell of sourceCells) {
     if (consumed.has(`${cell.i}|${cell.j}|${cell.k}`)) continue;
     if (!layers.has(cell.j)) layers.set(cell.j, new Map());

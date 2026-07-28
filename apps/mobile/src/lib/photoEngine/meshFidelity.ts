@@ -280,6 +280,29 @@ export function colorizeMeshCells(
       const db = own[2] - mean[2];
       if (2 * dr * dr + 4 * dg * dg + 3 * db * db > 5200) locked[index] = 1;
     }
+    // A genuine feature (brow, lip, eye) is never one cell alone — it has at
+    // least one neighbour of similar colour. A locked cell with no similar
+    // neighbour is sampling noise wearing a feature's badge: unlock it so the
+    // smoothing reclaims it, or lone wrong-colour studs pepper the build.
+    for (let index = 0; index < surfaceCells.length; index++) {
+      if (!locked[index]) continue;
+      const cell = surfaceCells[index]!;
+      const own = raw[index]!;
+      let supported = false;
+      for (const [di, dj, dk] of NEIGHBOURS) {
+        const neighbour = byCoordRaw.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (neighbour === undefined) continue;
+        const other = raw[neighbour]!;
+        const dr = own[0] - other[0];
+        const dg = own[1] - other[1];
+        const db = own[2] - other[2];
+        if (2 * dr * dr + 4 * dg * dg + 3 * db * db < 5200) {
+          supported = true;
+          break;
+        }
+      }
+      if (!supported) locked[index] = 0;
+    }
     for (let index = 0; index < raw.length; index++) {
       if (!locked[index]) raw[index] = blurred[index]!;
     }
@@ -341,7 +364,9 @@ export function colorizeMeshCells(
   // portraits solve this with a dedicated flesh ramp — any skin-like
   // cluster (warm hue, moderate saturation, mid-to-high luma) quantises
   // against the catalogue's flesh tones only.
-  const FLESH_RAMP = ['#f2e0bd', '#ddc48e', '#DD8C59', '#af7446', '#947e5f'];
+  // Ordered light to dark by luma — the dithered per-cell assignment
+  // bracket-searches this order.
+  const FLESH_RAMP = ['#f2e0bd', '#ddc48e', '#DD8C59', '#947e5f', '#af7446'];
   const isSkinCentroid = ([r, g, b]: Rgb): boolean => {
     if (!(r > g && g >= b - 8)) return false;
     const spread = r - b;
@@ -364,13 +389,64 @@ export function colorizeMeshCells(
     }
     return best;
   };
+  // Hair is the other family scans mangle: one warm material lit from above
+  // quantises into a hard two-tone seam. Like skin, it gets its own ramp.
+  const HAIR_RAMP = ['#af7446', '#a65322', '#692e14'];
+  const isHairCentroid = ([r, g, b]: Rgb): boolean => {
+    if (!(r > g && g >= b)) return false;
+    const bright = luma([r, g, b]);
+    return r - b > 18 && bright < 92 && bright > 28;
+  };
   const catalogHex = centroids.map((centroid) =>
     portrait && isSkinCentroid(centroid)
       ? nearestOf(centroid, FLESH_RAMP)
-      : quantizeToCatalog(centroid[0], centroid[1], centroid[2]),
+      : portrait && isHairCentroid(centroid)
+        ? nearestOf(centroid, HAIR_RAMP)
+        : quantizeToCatalog(centroid[0], centroid[1], centroid[2]),
   );
+
+  // Portrait ramps assign PER CELL with dithering: each cell's own luma picks
+  // its ramp step, and cells near a step boundary alternate by grid parity.
+  // Mosaic portraits have used exactly this for years — a dithered band reads
+  // as a gradient at arm's length, where a hard seam reads as colour blocking.
+  const rampFor = (centroid: Rgb): string[] | null => {
+    if (!portrait) return null;
+    if (isSkinCentroid(centroid)) return FLESH_RAMP;
+    if (isHairCentroid(centroid)) return HAIR_RAMP;
+    return null;
+  };
+  const rampLumas = new Map<string[], number[]>();
+  const rampLuma = (ramp: string[]): number[] => {
+    let lumas = rampLumas.get(ramp);
+    if (!lumas) {
+      lumas = ramp.map((hex) => luma(hexToRgb(hex)));
+      rampLumas.set(ramp, lumas);
+    }
+    return lumas;
+  };
   for (let index = 0; index < surfaceCells.length; index++) {
-    surfaceCells[index]!.colorHex = catalogHex[smoothed[index]!]!;
+    const cell = surfaceCells[index]!;
+    const cluster = smoothed[index]!;
+    const ramp = rampFor(centroids[cluster]!);
+    if (!ramp) {
+      cell.colorHex = catalogHex[cluster]!;
+      continue;
+    }
+    const lumas = rampLuma(ramp);
+    const own = luma(raw[index]!);
+    // Ramps are ordered light to dark; find the bracketing pair.
+    let upper = 0;
+    while (upper < lumas.length - 1 && own < lumas[upper + 1]!) upper++;
+    const lower = Math.min(upper + 1, lumas.length - 1);
+    if (upper === lower) {
+      cell.colorHex = ramp[upper]!;
+      continue;
+    }
+    const span = lumas[upper]! - lumas[lower]!;
+    const t = span > 0 ? (lumas[upper]! - own) / span : 0;
+    cell.colorHex = t > 0.35 && t < 0.65
+      ? ramp[(cell.i + cell.j + cell.k) % 2 === 0 ? upper : lower]!
+      : ramp[t <= 0.5 ? upper : lower]!;
   }
 
   // Interior bricks cannot be seen in the approved preview.  Give them the
