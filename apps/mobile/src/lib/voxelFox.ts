@@ -26,6 +26,12 @@ export interface Voxel {
   zone: VoxelZone;
   /** Explicit colour (photo-derived models); overrides the zone colour. */
   colorHex?: string;
+  /**
+   * The colour this cell would get WITHOUT dither parity. Shape detectors
+   * (wheels) read this so anti-banding jitter can never change what counts
+   * as a dark region.
+   */
+  stableHex?: string;
   /** 'slope' renders as a 45° wedge and packs as a real slope part. */
   shape?: 'slope';
   /**
@@ -47,6 +53,8 @@ export interface VoxelCell {
   k: number;
   zone: VoxelZone;
   colorHex?: string;
+  /** Non-dithered colour choice (see Voxel.stableHex). */
+  stableHex?: string;
   shape?: 'slope';
   facing?: number;
   /** Outward source-mesh surface normal, unit length (see Voxel.surf). */

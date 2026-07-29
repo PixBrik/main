@@ -1012,6 +1012,8 @@ async function voxelizeMeshes(
 function detectAndCarveWheels(
   cells: VoxelCell[],
 ): { anchors: import('../voxelFox').WheelAnchor[]; carved: Set<VoxelCell> } | null {
+  // A fresh run must never show a previous run's diagnostics.
+  (globalThis as unknown as { __wheelStat?: unknown }).__wheelStat = { candidates: 0, circles: [], pairs: 0, pairsDetail: [], axles: [], anchors: 0 };
   if (cells.length < 300) return null;
   let minI = Infinity;
   let maxI = -Infinity;
@@ -1041,7 +1043,9 @@ function detectAndCarveWheels(
   };
   const isWheelish = (cell: VoxelCell): 1 | -1 | 0 => {
     if (cell.j > maxJ * 0.55) return 0;
-    if (luma(cell.colorHex) > 80) return 0;
+    // Judge darkness on the stable (pre-dither) colour: anti-banding parity
+    // must never decide what counts as a tire.
+    if (luma(cell.stableHex ?? cell.colorHex) > 80) return 0;
     if (cell.i <= minI + sideBand - 1) return -1;
     if (cell.i >= maxI - sideBand + 1) return 1;
     return 0;
@@ -1055,109 +1059,84 @@ function detectAndCarveWheels(
     if (side !== 0) candidates.set(key(cell.i, cell.j, cell.k), { cell, side });
   }
   if (candidates.size < 16) return null;
-  const seen = new Set<string>();
-  interface Component { cells: VoxelCell[]; side: 1 | -1; sumJ: number; sumK: number }
-  const components: Component[] = [];
-  for (const [startKey, start] of candidates) {
-    if (seen.has(startKey)) continue;
-    const queue = [startKey];
-    seen.add(startKey);
-    const component: Component = { cells: [], side: start.side, sumJ: 0, sumK: 0 };
-    while (queue.length) {
-      const current = queue.pop()!;
-      const entry = candidates.get(current)!;
-      component.cells.push(entry.cell);
-      component.sumJ += entry.cell.j;
-      component.sumK += entry.cell.k;
-      const { i, j, k } = entry.cell;
-      for (const [di, dj, dk] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const) {
-        const neighbourKey = key(i + di, j + dj, k + dk);
-        const neighbour = candidates.get(neighbourKey);
-        if (!neighbour || seen.has(neighbourKey) || neighbour.side !== entry.side) continue;
-        seen.add(neighbourKey);
-        queue.push(neighbourKey);
-      }
-    }
-    if (component.cells.length >= 8) components.push(component);
-  }
-  // eslint-disable-next-line no-console -- dev diagnostics for wheel tuning
-  console.debug('[wheels] candidates', candidates.size, 'components', JSON.stringify(components.map((component) => ({
-    extentJ: Math.max(...component.cells.map((cell) => cell.j)) - Math.min(...component.cells.map((cell) => cell.j)) + 1,
-    extentK: Math.max(...component.cells.map((cell) => cell.k)) - Math.min(...component.cells.map((cell) => cell.k)) + 1,
-    meanJ: Math.round((component.sumJ / component.cells.length) * 10) / 10,
-    meanK: Math.round((component.sumK / component.cells.length) * 10) / 10,
-    side: component.side,
-    size: component.cells.length,
-  }))));
+  const spanK = maxK - minK + 1;
 
-  interface WheelSpot { side: 1 | -1; j: number; k: number; radius: number; cells: VoxelCell[] }
-  const spots: WheelSpot[] = [];
-  const addSpot = (cellsOf: VoxelCell[], side: 1 | -1): void => {
-    if (cellsOf.length < 8) return;
-    const js = cellsOf.map((cell) => cell.j);
-    const ks = cellsOf.map((cell) => cell.k);
-    const extentJ = Math.max(...js) - Math.min(...js) + 1;
-    const extentK = Math.max(...ks) - Math.min(...ks) + 1;
-    // A wheel patch is roughly as tall as it is long; skirts and shadows are
-    // long and shallow, spoilers tall and thin.
-    if (extentJ / extentK < 0.45 || extentJ / extentK > 2.2) return;
-    if (extentK > spanI) return;
-    let sumJ = 0;
-    let sumK = 0;
-    for (const cell of cellsOf) {
-      sumJ += cell.j;
-      sumK += cell.k;
-    }
-    spots.push({
-      cells: cellsOf,
-      j: sumJ / cellsOf.length,
-      k: sumK / cellsOf.length,
-      radius: Math.max(extentJ, extentK) / 2,
-      side,
-    });
+  // Drain-proof diagnostics: console reads are lossy in the dev harness, so
+  // mirror every decision into a global the harness can query after a run.
+  const wheelStat = {
+    candidates: candidates.size,
+    circles: [] as Array<{ side: number; j: number; k: number; r: number; cov: number }>,
+    pairs: 0,
+    pairsDetail: [] as Array<{ aK: number; bK: number; score: number; minted: boolean }>,
+    axles: [] as number[],
+    anchors: 0,
   };
-  for (const component of components) {
-    const js = component.cells.map((cell) => cell.j);
-    const ks = component.cells.map((cell) => cell.k);
-    const extentJ = Math.max(...js) - Math.min(...js) + 1;
-    const minK = Math.min(...ks);
-    const extentK = Math.max(...ks) - minK + 1;
-    if (extentK <= extentJ * 2.4) {
-      addSpot(component.cells, component.side);
-      continue;
-    }
-    // A dark sill can weld both wheels into one long band. Split it at the
-    // valleys of its per-k cell profile — wheels are the humps.
-    const profile = new Array<number>(extentK).fill(0);
-    for (const cell of component.cells) profile[cell.k - minK]!++;
-    const peak = Math.max(...profile);
-    const cut = Math.max(1, peak * 0.4);
-    const byOffset: VoxelCell[][] = Array.from({ length: extentK }, () => []);
-    for (const cell of component.cells) byOffset[cell.k - minK]!.push(cell);
-    let segment: VoxelCell[] = [];
-    const flush = () => {
-      if (segment.length) addSpot(segment, component.side);
-      segment = [];
-    };
-    for (let offset = 0; offset < extentK; offset++) {
-      if (profile[offset]! < cut) {
-        flush();
-        continue;
+  (globalThis as unknown as { __wheelStat?: typeof wheelStat }).__wheelStat = wheelStat;
+
+  // Wheels are filled dark DISCS whose bottoms touch the ground line, so fit
+  // circle templates directly on each side's (j,k) dark mask and score by
+  // fill coverage. Component splitting is hopeless here: sills, shadows and
+  // trim weld everything into shapes no valley cut reliably divides.
+  const filled = new Map<1 | -1, Set<number>>([[1, new Set()], [-1, new Set()]]);
+  const gridKey = (j: number, k: number) => j * 4096 + (k - minK);
+  for (const { cell, side } of candidates.values()) filled.get(side)!.add(gridKey(cell.j, cell.k));
+  const coverageAt = (side: 1 | -1, cj: number, ck: number, r: number): number => {
+    const mask = filled.get(side)!;
+    let hit = 0;
+    let lattice = 0;
+    for (let j = Math.max(0, Math.ceil(cj - r)); j <= Math.floor(cj + r); j++) {
+      for (let k = Math.ceil(ck - r); k <= Math.floor(ck + r); k++) {
+        const dj = j - cj;
+        const dk = k - ck;
+        if (dj * dj + dk * dk > r * r) continue;
+        lattice += 1;
+        if (mask.has(gridKey(j, k))) hit += 1;
       }
-      segment.push(...byOffset[offset]!);
     }
-    flush();
+    return lattice ? hit / lattice : 0;
+  };
+  interface WheelCircle { side: 1 | -1; j: number; k: number; r: number; coverage: number; score: number }
+  // No real wheel is bigger than ~a fifth of the vehicle's length.
+  const maxR = Math.max(2.5, spanK * 0.1);
+  const circlesBySide = new Map<1 | -1, WheelCircle[]>([[1, []], [-1, []]]);
+  for (const side of [1, -1] as const) {
+    const found: WheelCircle[] = [];
+    for (let r = 2; r <= maxR; r += 0.5) {
+      // A wheel touches the ground: its centre sits about one radius up.
+      for (let cj = Math.max(1, Math.floor(r - 2)); cj <= Math.ceil(r + 2); cj++) {
+        for (let ck = minK + Math.floor(r); ck <= maxK - Math.floor(r); ck++) {
+          const coverage = coverageAt(side, cj, ck, r);
+          if (coverage < 0.6) continue;
+          found.push({ side, j: cj, k: ck, r, coverage, score: coverage * r * r });
+        }
+      }
+    }
+    // Non-max suppression: keep only the strongest circle of each pile.
+    found.sort((a, b) => b.score - a.score);
+    const kept: WheelCircle[] = [];
+    for (const circle of found) {
+      const clash = kept.some((other) => {
+        const dj = other.j - circle.j;
+        const dk = other.k - circle.k;
+        return Math.sqrt(dj * dj + dk * dk) < (other.r + circle.r) * 0.8;
+      });
+      if (!clash) kept.push(circle);
+      if (kept.length >= 4) break;
+    }
+    circlesBySide.set(side, kept);
+    for (const circle of kept) {
+      wheelStat.circles.push({ side, j: circle.j, k: circle.k, r: circle.r, cov: Math.round(circle.coverage * 100) / 100 });
+    }
   }
-  // Wheels come in mirrored left/right pairs. Real sides also carry clutter
-  // (light strips, dark trim), so instead of demanding a clean count, match
-  // each left spot to its nearest right counterpart and keep the two
-  // strongest pairs — genuine wheels are the biggest mirrored dark discs.
-  const left = spots.filter((spot) => spot.side === -1);
-  const right = spots.filter((spot) => spot.side === 1);
-  const pairs: Array<{ a: WheelSpot; b: WheelSpot; size: number }> = [];
-  const taken = new Set<WheelSpot>();
-  for (const a of [...left].sort((x, y) => y.cells.length - x.cells.length)) {
-    let best: WheelSpot | null = null;
+  // Wheels come in mirrored left/right pairs; intakes and trim rarely mirror
+  // at the same spot. Pair each circle with the other side's counterpart.
+  const left = circlesBySide.get(-1)!;
+  const right = circlesBySide.get(1)!;
+  const pairs: Array<{ a: WheelCircle; b: WheelCircle; size: number; minted: boolean }> = [];
+  const taken = new Set<WheelCircle>();
+  const pairedLeft = new Set<WheelCircle>();
+  for (const a of left) {
+    let best: WheelCircle | null = null;
     let bestDistance = Infinity;
     for (const b of right) {
       if (taken.has(b)) continue;
@@ -1170,21 +1149,68 @@ function detectAndCarveWheels(
     }
     if (best) {
       taken.add(best);
-      pairs.push({ a, b: best, size: a.cells.length + best.cells.length });
+      pairedLeft.add(a);
+      pairs.push({ a, b: best, size: a.score + best.score, minted: false });
     }
   }
+  // Wheels mirror, but the masks often don't: one side's wheel can hide in
+  // shadow or blend into lighter trim. A confident circle on one side
+  // therefore probes the OTHER side's mask at the mirrored position with a
+  // lower bar and mints its partner there.
+  const mintMirror = (circle: WheelCircle): void => {
+    const otherSide = circle.side === 1 ? -1 : 1;
+    const coverage = coverageAt(otherSide, circle.j, circle.k, circle.r);
+    if (coverage < 0.45) return;
+    const mirrored: WheelCircle = { ...circle, side: otherSide, coverage, score: coverage * circle.r * circle.r };
+    // Mirrored partners carry the clean side's score twice: the probed mask
+    // was never audited as a disc of its own, so it must not add weight.
+    pairs.push({ a: circle, b: mirrored, size: 2 * circle.score, minted: true });
+  };
+  for (const circle of left) {
+    if (!pairedLeft.has(circle)) mintMirror(circle);
+  }
+  for (const circle of right) {
+    if (!taken.has(circle)) mintMirror(circle);
+  }
+  wheelStat.pairs = pairs.length;
+  wheelStat.pairsDetail = pairs.map((pair) => ({
+    aK: Math.round(pair.a.k * 10) / 10,
+    bK: Math.round(pair.b.k * 10) / 10,
+    score: Math.round(pair.size * 10) / 10,
+    minted: pair.minted,
+  }));
   if (pairs.length < 2) return null;
   pairs.sort((x, y) => y.size - x.size);
-  const [front, rear] = [pairs[0]!, pairs[1]!];
-  // Front and rear axles must be genuinely apart, or we grabbed one wheel
-  // twice through its neighbouring trim.
-  if (Math.abs(front.a.k - rear.a.k) < 5) return null;
+  const front = pairs[0]!;
+  // The second axle is the strongest pair a real wheelbase away — front and
+  // rear wheels sit at least a third of the vehicle apart. Anything closer is
+  // the same wheel re-found through its neighbouring trim, or door clutter.
+  const minAxleGap = Math.max(5, Math.round(spanK * 0.35));
+  let rear: typeof front | null = null;
+  for (const pair of pairs.slice(1)) {
+    if (Math.abs(front.a.k - pair.a.k) >= minAxleGap) {
+      rear = pair;
+      break;
+    }
+  }
+  if (!rear) return null;
+  wheelStat.axles = [Math.round(front.a.k), Math.round(rear.a.k)];
 
   const carved = new Set<VoxelCell>();
   const anchors: import('../voxelFox').WheelAnchor[] = [];
   const cellAt = new Map(cells.map((cell) => [key(cell.i, cell.j, cell.k), cell]));
   for (const spot of [front.a, front.b, rear.a, rear.b]) {
-    for (const cell of spot.cells) carved.add(cell);
+    // The carve is every dark cell inside the fitted disc (any depth): that
+    // empties the wheel well so the real wheel part can live there.
+    const circleCells: VoxelCell[] = [];
+    for (const { cell, side } of candidates.values()) {
+      if (side !== spot.side) continue;
+      const dj = cell.j - spot.j;
+      const dk = cell.k - spot.k;
+      if (dj * dj + dk * dk <= (spot.r + 0.5) * (spot.r + 0.5)) circleCells.push(cell);
+    }
+    if (circleCells.length < 4) return null;
+    for (const cell of circleCells) carved.add(cell);
     const j = Math.max(0, Math.round(spot.j));
     const k = Math.round(spot.k);
     // The anchor is the outermost surviving BODY cell near the wheel centre.
@@ -1208,11 +1234,13 @@ function detectAndCarveWheels(
     // The anchor records the carve's OUTERMOST column: the wheel mounts with
     // its outer face flush there, like the source's wheels. The body scan
     // above only proves there is structure nearby to bolt the axle into.
-    const outerI = spot.side === 1
-      ? Math.max(...spot.cells.map((cell) => cell.i))
-      : Math.min(...spot.cells.map((cell) => cell.i));
-    anchors.push({ i: outerI, j, k, radiusCells: spot.radius, side: spot.side });
+    let outerI = spot.side === 1 ? -Infinity : Infinity;
+    for (const cell of circleCells) {
+      outerI = spot.side === 1 ? Math.max(outerI, cell.i) : Math.min(outerI, cell.i);
+    }
+    anchors.push({ i: outerI, j, k, radiusCells: spot.r, side: spot.side });
   }
+  wheelStat.anchors = anchors.length;
   return { anchors, carved };
 }
 

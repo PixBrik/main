@@ -2018,10 +2018,18 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   let accessoryLines: BomLine[] | undefined;
   let accessoryTotalEur: number | undefined;
   if (anchors?.length) {
-    // Two real wheel sizes: 43.2mm ZR tires fill large carved arches (≈5
-    // studs), 24mm tires suit small ones. Sized per anchor from the carve.
+    // Four real tire sizes ladder up to the carve radius (studs): 24×14 for
+    // small builds, 43.2 ZR for ≈5-stud arches, 68.7 R for ≈8-stud arches,
+    // and the 94.8 R balloon for the ≈12-stud wells a 64-stud car carves.
+    // A tire half the size of its well is what made every car read as a toy.
+    const tierFor = (radius: number): { tirePart: string; wheelPart: string } => {
+      if (radius >= 5.2) return { tirePart: '54120', wheelPart: '56908' };
+      if (radius >= 3.5) return { tirePart: '61480', wheelPart: '56145' };
+      if (radius >= 1.5) return { tirePart: '44309', wheelPart: '56145' };
+      return { tirePart: '24341', wheelPart: '55982' };
+    };
     accessories = anchors.map((anchor) => {
-      const big = (anchor.radiusCells ?? 2) >= 1.5;
+      const tier = tierFor(anchor.radiusCells ?? 2);
       return {
         axlePart: '4519',
         holderPart: '3700',
@@ -2029,13 +2037,15 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         j: anchor.j,
         k: anchor.k,
         side: anchor.side,
-        tirePart: big ? '44309' : '24341',
-        wheelPart: big ? '56145' : '55982',
+        tirePart: tier.tirePart,
+        wheelPart: tier.wheelPart,
       };
     });
     const count = anchors.length;
-    const bigCount = accessories.filter((accessory) => accessory.tirePart === '44309').length;
-    const smallCount = count - bigCount;
+    const tireCount = (part: string) =>
+      accessories!.filter((accessory) => accessory.tirePart === part).length;
+    const wheelCount = (part: string) =>
+      accessories!.filter((accessory) => accessory.wheelPart === part).length;
     const catalogueBlack = COLORS.find((color) => color.id === 11) ?? COLORS[0]!;
     const wheelGrey = COLORS.find((color) => color.id === 71) ?? catalogueBlack;
     const accessoryLine = (
@@ -2062,21 +2072,35 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       unitPriceEur,
       w: 1,
     });
+    // The 4-stud moulded arch only suits tires up to the 43.2 ZR; bigger
+    // wells get brick-built rims instead (the renderer skips the arch too).
+    const archCount = tireCount('24341') + tireCount('44309');
     accessoryLines = [
       accessoryLine('3700', 'Technic Brick 1 x 2 with Hole', catalogueBlack, 'GDS-623-011', 0.08, count),
-      accessoryLine('98282', 'Mudguard 4 x 2 1/2 with Round Arch', catalogueBlack, 'GDS-1319-011', 0.12, count),
-      accessoryLine('4519', 'Technic Axle 3L', catalogueBlack, 'GDS-579-011', 0.05, count),
-      ...(bigCount
-        ? [
-            accessoryLine('56145', 'Wheel 30.4mm D. x 20mm', wheelGrey, 'GDS-1231-071', 0.38, bigCount),
-            accessoryLine('44309', 'Tire 43.2 x 22 ZR', catalogueBlack, 'GDS-1234-080', 0.77, bigCount),
-          ]
+      ...(archCount
+        ? [accessoryLine('98282', 'Mudguard 4 x 2 1/2 with Round Arch', catalogueBlack, 'GDS-1319-011', 0.12, archCount)]
         : []),
-      ...(smallCount
-        ? [
-            accessoryLine('55982', 'Wheel 18mm D. x 14mm', wheelGrey, 'GDS-1158-071', 0.14, smallCount),
-            accessoryLine('24341', 'Tire 24 x 14 Shallow Tread', catalogueBlack, 'GDS-2218-090', 0.22, smallCount),
-          ]
+      accessoryLine('4519', 'Technic Axle 3L', catalogueBlack, 'GDS-579-011', 0.05, count),
+      ...(wheelCount('56908')
+        ? [accessoryLine('56908', 'Wheel 43.2mm D. x 26mm Racing', wheelGrey, 'GDS-1229-071', 0.59, wheelCount('56908'))]
+        : []),
+      ...(wheelCount('56145')
+        ? [accessoryLine('56145', 'Wheel 30.4mm D. x 20mm', wheelGrey, 'GDS-1231-071', 0.38, wheelCount('56145'))]
+        : []),
+      ...(wheelCount('55982')
+        ? [accessoryLine('55982', 'Wheel 18mm D. x 14mm', wheelGrey, 'GDS-1158-071', 0.14, wheelCount('55982'))]
+        : []),
+      ...(tireCount('54120')
+        ? [accessoryLine('54120', 'Tire 94.8 x 44 R Balloon', catalogueBlack, 'GDS-1511-080', 3.08, tireCount('54120'))]
+        : []),
+      ...(tireCount('61480')
+        ? [accessoryLine('61480', 'Tire 68.7 x 34 R', catalogueBlack, 'GDS-1573-080', 1.51, tireCount('61480'))]
+        : []),
+      ...(tireCount('44309')
+        ? [accessoryLine('44309', 'Tire 43.2 x 22 ZR', catalogueBlack, 'GDS-1234-080', 0.77, tireCount('44309'))]
+        : []),
+      ...(tireCount('24341')
+        ? [accessoryLine('24341', 'Tire 24 x 14 Shallow Tread', catalogueBlack, 'GDS-2218-090', 0.22, tireCount('24341'))]
         : []),
     ];
     accessoryTotalEur = Number(accessoryLines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2));

@@ -356,7 +356,24 @@ export async function renderLDrawTurntable(
       const tireMaterial = new THREE.MeshStandardMaterial({ color: '#1B1D1E', metalness: 0, roughness: 0.85 });
       materials.push(wheelMaterial, tireMaterial);
       const mudguardPrepared = await loadPart('98282', ldrawBase);
-      const mudguardMaterial = new THREE.MeshStandardMaterial({ color: '#1B1D1E', metalness: 0, roughness: 0.4, side: THREE.DoubleSide });
+      // Body-colour arches, the Speed-Champions way: dominant placement
+      // colour, which also makes them verifiable against the black tires.
+      const colourVotes = new Map<string, number>();
+      for (const placement of placements) {
+        const hex = colorHexById[String(placement.colorId)] ?? fallbackHex;
+        colourVotes.set(hex, (colourVotes.get(hex) ?? 0) + 1);
+      }
+      let bodyHex = fallbackHex;
+      let bodyVotes = 0;
+      for (const [hex, votes] of colourVotes) {
+        if (votes > bodyVotes) {
+          bodyHex = hex;
+          bodyVotes = votes;
+        }
+      }
+      // TEMP TRIAGE: loud yellow so a mis-seated arch is unmissable. Revert to
+      // bodyHex once the seat is verified.
+      const mudguardMaterial = new THREE.MeshStandardMaterial({ color: bodyHex, metalness: 0, roughness: 0.4, side: THREE.DoubleSide });
       materials.push(mudguardMaterial);
       for (const accessory of options.accessories) {
         const wheelPrepared = await loadPart(accessory.wheelPart, ldrawBase);
@@ -365,10 +382,12 @@ export async function renderLDrawTurntable(
         // its outer sidewall flush to that face, like the source's wheels.
         // Tire width comes from the part's own geometry (native axis = z).
         let tireHalf = 18;
+        let tireRadius = 27;
         if (tirePrepared) {
           tirePrepared.geometry.computeBoundingBox();
           const box = tirePrepared.geometry.boundingBox!;
           tireHalf = (box.max.z - box.min.z) / 2;
+          tireRadius = (box.max.y - box.min.y) / 2;
         }
         const outerFace = (accessory.i + (accessory.side > 0 ? 1 : 0)) * LDU_PER_STUD;
         const centreX = outerFace - accessory.side * tireHalf;
@@ -398,7 +417,18 @@ export async function renderLDrawTurntable(
         // Mudguard: quarter-turned so its 4-stud length runs along the car,
         // seated by its ROTATED bounding box — outer lip 2 LDU proud of the
         // body side, legs reaching just past the axle, centred on the wheel.
-        if (mudguardPrepared) {
+        // Placement triage: record in a global the console can't drop.
+        const archGlobal = globalThis as unknown as {
+          __archStat?: { count: number; prepared: boolean; seats: unknown[] };
+        };
+        const archStat = archGlobal.__archStat
+          ?? (archGlobal.__archStat = { count: 0, prepared: !!mudguardPrepared, seats: [] });
+        archStat.count += 1;
+        archStat.prepared = !!mudguardPrepared;
+        // The 4-stud moulded arch only reads right over tires it can span;
+        // the XL tiers (61480/54120) get brick-built rims from the body.
+        const archSuitsTire = accessory.tirePart === '24341' || accessory.tirePart === '44309';
+        if (mudguardPrepared && archSuitsTire) {
           const sign = accessory.side > 0 ? 1 : -1;
           const archYaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
           const arch = new THREE.Mesh(mudguardPrepared.geometry, mudguardMaterial);
@@ -411,9 +441,19 @@ export async function renderLDrawTurntable(
             .applyMatrix4(new THREE.Matrix4().makeRotationY(archYaw));
           arch.position.set(
             outerFace + sign * 2 - (sign > 0 ? rotated.max.x : rotated.min.x),
-            centreY + 16 - rotated.max.y,
+            // Crown 4 LDU clear of the tire top so the arch hugs the wheel
+            // instead of drowning inside it (y-down: smaller y is higher).
+            centreY - tireRadius - 4 - rotated.min.y,
             centreZ - (rotated.max.z + rotated.min.z) / 2,
           );
+          archStat.seats.push({
+            side: accessory.side,
+            x: arch.position.x,
+            y: arch.position.y,
+            z: arch.position.z,
+            rot: { minX: rotated.min.x, maxX: rotated.max.x, minY: rotated.min.y, maxY: rotated.max.y, minZ: rotated.min.z, maxZ: rotated.max.z },
+            wheel: { centreX, centreY, centreZ, outerFace },
+          });
           build.add(arch);
         }
       }
