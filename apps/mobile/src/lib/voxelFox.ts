@@ -28,6 +28,13 @@ export interface Voxel {
   colorHex?: string;
   /** 'slope' renders as a 45° wedge and packs as a real slope part. */
   shape?: 'slope';
+  /**
+   * Outward source-mesh surface normal sampled at this cell, unit length.
+   * Lets the packer choose curved parts by real surface tilt. Optional and
+   * lossy through order snapshots — a re-pack without it just falls back to
+   * pattern-based sculpting.
+   */
+  surf?: readonly [number, number, number];
   /** Descent direction of a slope — index into FACE_DIRECTIONS (1..4). */
   facing?: number;
   /** Which of the five renderable faces are exposed, indexed like FACE_DIRECTIONS. */
@@ -42,6 +49,8 @@ export interface VoxelCell {
   colorHex?: string;
   shape?: 'slope';
   facing?: number;
+  /** Outward source-mesh surface normal, unit length (see Voxel.surf). */
+  surf?: readonly [number, number, number];
   cx: number;
   cy: number;
   cz: number;

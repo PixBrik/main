@@ -1410,6 +1410,80 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     const sculptByPart = new Map(SCULPT_PARTS.map((part) => [part.part, part]));
     const occupied = (i: number, j: number, k: number) => sourceCellByKey.has(`${i}|${j}|${k}`);
     const horizontal = [1, 2, 3, 4] as const;
+
+    /**
+     * Faced parts (slopes, curves, inverted) render with an explicit yaw, and
+     * LDraw mould orientations vary wildly — several are even modelled
+     * upside-down — so only parts whose native orientation has been visually
+     * calibrated may carry a facing. Rotation-free 'round' parts need no
+     * calibration. Grow this set via the part-gallery check, and the indexed
+     * catalogue flows into builds automatically.
+     */
+    const CALIBRATED_FACED = new Set([
+      '15068', '24201', '3660', '3665', '32803', '37352', '50950', '54200', '61678',
+    ]);
+
+    /** Best indexed part for a role: kind + footprint + colour availability. */
+    const sculptPick = (
+      kind: CatalogSculptPart['kind'],
+      w: number,
+      l: number,
+      colorId: number,
+      opts: { maxHeight?: number } = {},
+    ): CatalogSculptPart | undefined => {
+      let best: CatalogSculptPart | undefined;
+      let bestScore = -1;
+      for (const part of SCULPT_PARTS) {
+        if (part.kind !== kind) continue;
+        if (!((part.w === w && part.l === l) || (part.w === l && part.l === w))) continue;
+        if (kind !== 'round' && !CALIBRATED_FACED.has(part.part)) continue;
+        const height = part.heightBricks ?? 1;
+        if (opts.maxHeight !== undefined && height > opts.maxHeight) continue;
+        if (!part.elements[String(colorId)]) continue;
+        // Curved profiles beat straight cuts for organic work; fuller height
+        // beats caps when both fit the slot.
+        const score = (/curved/i.test(part.name) ? 2 : 0) + height;
+        if (score > bestScore) {
+          best = part;
+          bestScore = score;
+        }
+      }
+      return best;
+    };
+
+    /**
+     * Real surface tilt at a placement, from the sampled source-mesh normals:
+     * returns the descent facing (1..4) when the surface leans consistently
+     * 14°–58° off vertical-up across the footprint, else null. This is what
+     * makes curved parts land on genuinely curved surfaces — bonnets, skulls,
+     * haunches — instead of only where a stair-step pattern happens to form.
+     */
+    const tiltFacing = (i0: number, j0: number, k0: number, spanI: number, spanK: number): number | null => {
+      let sx = 0;
+      let sy = 0;
+      let sz = 0;
+      let count = 0;
+      for (let di = 0; di < spanI; di++) {
+        for (let dk = 0; dk < spanK; dk++) {
+          const cell = sourceCellByKey.get(`${i0 + di}|${j0}|${k0 + dk}`);
+          const surf = cell?.surf;
+          if (!surf) continue;
+          sx += surf[0];
+          sy += surf[1];
+          sz += surf[2];
+          count++;
+        }
+      }
+      if (count === 0) return null;
+      const length = Math.hypot(sx, sy, sz);
+      if (length < count * 0.6) return null; // normals disagree — not one surface
+      const ny = sy / length;
+      if (ny < 0.55 || ny > 0.97) return null; // near-vertical wall or flat top
+      const hx = sx / length;
+      const hz = sz / length;
+      if (Math.abs(hx) < Math.abs(hz)) return hz > 0 ? 1 : 2;
+      return hx > 0 ? 3 : 4;
+    };
     const swap = (placement: BrickPlacement, target: CatalogSculptPart | undefined, facing?: number): void => {
       if (!target || !target.elements[String(placement.colorId)]) return;
       const oldKey = `${placement.part}|${placement.colorId}`;
@@ -1452,7 +1526,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           && !occupied(crestI, j + 1, crestK)
           && !occupied(backI, j + 1, backK)
         ) {
-          swap(placement, sculptByPart.get('37352'), placement.facing);
+          swap(placement, sculptPick('slopeCurved', 1, 2, placement.colorId), placement.facing);
         }
         continue;
       }
@@ -1483,6 +1557,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
               match = face;
             }
           }
+          // No step pattern? The measured surface tilt is the better witness.
+          if (match === null) match = tiltFacing(i, j, k, 1, 1);
           if (match !== null) {
             // A step edge whose surface CONTINUES behind it is genuine
             // bodywork (bonnet tread, brow line) and deserves its cap even
@@ -1534,8 +1610,27 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           }
           match = face;
         }
-        if (match !== null) swap(placement, sculptByPart.get('15068'), match);
+        if (match === null) match = tiltFacing(i, j, k, 2, 2);
+        if (match !== null) swap(placement, sculptPick('slopeCurved', 2, 2, placement.colorId, { maxHeight: 1 }), match);
         continue;
+      }
+
+      // 1×2 bricks on a measurably tilted top surface, leaning ALONG their
+      // long axis, become the full-height curved slope — its curve descends
+      // along its length, which is exactly this geometry.
+      if (placement.part === '3004' && placement.shape === 'brick'
+        && !occupied(i, j + 1, k)
+        && !occupied(i + placement.spanI - 1, j + 1, k + placement.spanK - 1)) {
+        const tilt = tiltFacing(i, j, k, placement.spanI, placement.spanK);
+        const alongI = placement.spanI === 2 && (tilt === 3 || tilt === 4);
+        const alongK = placement.spanK === 2 && (tilt === 1 || tilt === 2);
+        if (tilt !== null && (alongI || alongK)) {
+          const curved = sculptPick('slopeCurved', 1, 2, placement.colorId);
+          if (curved?.elements[String(placement.colorId)]) {
+            swap(placement, curved, tilt);
+            continue;
+          }
+        }
       }
 
       // 1×2 bricks whose front stud floats over air while the back stands on
@@ -1560,7 +1655,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           }
         }
         if (match !== null) {
-          const curved = sculptByPart.get('24201');
+          const curved = sculptPick('slopeInverted', 1, 2, placement.colorId);
           if (curved?.elements[String(placement.colorId)]) swap(placement, curved, match);
           else swap(placement, sculptByPart.get('3665'), match);
         }
@@ -1588,7 +1683,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           match = face;
         }
         if (match !== null) {
-          const curved = sculptByPart.get('32803');
+          const curved = sculptPick('slopeInverted', 2, 2, placement.colorId);
           if (curved?.elements[String(placement.colorId)]) swap(placement, curved, match);
           else swap(placement, sculptByPart.get('3660'), match);
         }
@@ -1601,7 +1696,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         ? [`${i}|${j}|${k - 1}`, `${i}|${j}|${k + 1}`]
         : [`${i - 1}|${j}|${k}`, `${i + 1}|${j}|${k}`];
       const hasMate = ridge.some((mateKey) => cheeseCandidates.get(mateKey)?.facing === candidate.facing);
-      if (hasMate || candidate.lone) swap(candidate.placement, sculptByPart.get('54200'), candidate.facing);
+      if (hasMate || candidate.lone) swap(candidate.placement, sculptPick('slopeCurved', 1, 1, candidate.placement.colorId) ?? sculptByPart.get('54200'), candidate.facing);
     }
   }
 

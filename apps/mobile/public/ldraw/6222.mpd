@@ -1,0 +1,2585 @@
+
+0 LDraw.org Configuration File
+0 Name: startText.ldr
+0 Author: LDraw.org
+0 !LDRAW_ORG Configuration UPDATE 2017-12-15
+
+0 // LDraw Solid Colours
+0                              // LEGOID  26 - Black
+0 !COLOUR Black                                                 CODE   0   VALUE #05131D   EDGE #595959
+0                              // LEGOID  23 - Bright Blue
+0 !COLOUR Blue                                                  CODE   1   VALUE #0055BF   EDGE #333333
+0                              // LEGOID  28 - Dark Green
+0 !COLOUR Green                                                 CODE   2   VALUE #257A3E   EDGE #333333
+0                              // LEGOID 107 - Bright Bluish Green
+0 !COLOUR Dark_Turquoise                                        CODE   3   VALUE #00838F   EDGE #333333
+0                              // LEGOID  21 - Bright Red
+0 !COLOUR Red                                                   CODE   4   VALUE #C91A09   EDGE #333333
+0                              // LEGOID 221 - Bright Purple
+0 !COLOUR Dark_Pink                                             CODE   5   VALUE #C870A0   EDGE #333333
+0                              // LEGOID 217 - Brown
+0 !COLOUR Brown                                                 CODE   6   VALUE #583927   EDGE #1E1E1E
+0                              // LEGOID   2 - Grey
+0 !COLOUR Light_Grey                                            CODE   7   VALUE #9BA19D   EDGE #333333
+0                              // LEGOID  27 - Dark Grey
+0 !COLOUR Dark_Grey                                             CODE   8   VALUE #6D6E5C   EDGE #333333
+0                              // LEGOID  45 - Light Blue
+0 !COLOUR Light_Blue                                            CODE   9   VALUE #B4D2E3   EDGE #333333
+0                              // LEGOID  37 - Bright Green
+0 !COLOUR Bright_Green                                          CODE  10   VALUE #4B9F4A   EDGE #333333
+0                              // LEGOID 116 - Medium Bluish Green
+0 !COLOUR Light_Turquoise                                       CODE  11   VALUE #55A5AF   EDGE #333333
+0                              // LEGOID   4 - Brick Red
+0 !COLOUR Salmon                                                CODE  12   VALUE #F2705E   EDGE #333333
+0                              // LEGOID   9 - Light Reddish Violet
+0 !COLOUR Pink                                                  CODE  13   VALUE #FC97AC   EDGE #333333
+0                              // LEGOID  24 - Bright Yellow
+0 !COLOUR Yellow                                                CODE  14   VALUE #F2CD37   EDGE #333333
+0                              // LEGOID   1 - White
+0 !COLOUR White                                                 CODE  15   VALUE #FFFFFF   EDGE #333333
+0                              // LEGOID   6 - Light Green
+0 !COLOUR Light_Green                                           CODE  17   VALUE #C2DAB8   EDGE #333333
+0                              // LEGOID   3 - Light Yellow
+0 !COLOUR Light_Yellow                                          CODE  18   VALUE #FBE696   EDGE #333333
+0                              // LEGOID   5 - Brick Yellow
+0 !COLOUR Tan                                                   CODE  19   VALUE #E4CD9E   EDGE #333333
+0                              // LEGOID  39 - Light Bluish Violet
+0 !COLOUR Light_Violet                                          CODE  20   VALUE #C9CAE2   EDGE #333333
+0                              // LEGOID 104 - Bright Violet
+0 !COLOUR Purple                                                CODE  22   VALUE #81007B   EDGE #333333
+0                              // LEGOID 196 - Dark Royal Blue
+0 !COLOUR Dark_Blue_Violet                                      CODE  23   VALUE #2032B0   EDGE #1E1E1E
+0                              // LEGOID 106 - Bright Orange
+0 !COLOUR Orange                                                CODE  25   VALUE #FE8A18   EDGE #333333
+0                              // LEGOID 124 - Bright Reddish Violet
+0 !COLOUR Magenta                                               CODE  26   VALUE #923978   EDGE #333333
+0                              // LEGOID 119 - Bright Yellowish Green
+0 !COLOUR Lime                                                  CODE  27   VALUE #BBE90B   EDGE #333333
+0                              // LEGOID 138 - Sand Yellow
+0 !COLOUR Dark_Tan                                              CODE  28   VALUE #958A73   EDGE #333333
+0                              // LEGOID 222 - Light Purple
+0 !COLOUR Bright_Pink                                           CODE  29   VALUE #E4ADC8   EDGE #333333
+0                              // LEGOID 324 - Medium Lavender
+0 !COLOUR Medium_Lavender                                       CODE  30   VALUE #AC78BA   EDGE #333333
+0                              // LEGOID 325 - Lavender
+0 !COLOUR Lavender                                              CODE  31   VALUE #E1D5ED   EDGE #333333
+0                              // LEGOID  36 - Light Yellowish Orange
+0 !COLOUR Very_Light_Orange                                     CODE  68   VALUE #F3CF9B   EDGE #333333
+0                              // LEGOID 198 - Bright Reddish Lilac
+0 !COLOUR Bright_Reddish_Lilac                                  CODE  69   VALUE #CD6298   EDGE #333333
+0                              // LEGOID 192 - Reddish Brown
+0 !COLOUR Reddish_Brown                                         CODE  70   VALUE #582A12   EDGE #595959
+0                              // LEGOID 194 - Medium Stone Grey
+0 !COLOUR Light_Bluish_Grey                                     CODE  71   VALUE #A0A5A9   EDGE #333333
+0                              // LEGOID 199 - Dark Stone Grey
+0 !COLOUR Dark_Bluish_Grey                                      CODE  72   VALUE #6C6E68   EDGE #333333
+0                              // LEGOID 102 - Medium Blue
+0 !COLOUR Medium_Blue                                           CODE  73   VALUE #5C9DD1   EDGE #333333
+0                              // LEGOID  29 - Medium Green
+0 !COLOUR Medium_Green                                          CODE  74   VALUE #73DCA1   EDGE #333333
+0                              // LEGOID 223 - Light Pink
+0 !COLOUR Light_Pink                                            CODE  77   VALUE #FECCCF   EDGE #333333
+0                              // LEGOID 283 - Light Nougat
+0 !COLOUR Light_Flesh                                           CODE  78   VALUE #F6D7B3   EDGE #333333
+0                              // LEGOID  38 - Dark Orange
+0 !COLOUR Medium_Dark_Flesh                                     CODE  84   VALUE #CC702A   EDGE #333333
+0                              // LEGOID 268 - Medium Lilac
+0 !COLOUR Medium_Lilac                                          CODE  85   VALUE #3F3691   EDGE #1E1E1E
+0                              // LEGOID 312 - Medium Nougat
+0 !COLOUR Dark_Flesh                                            CODE  86   VALUE #7C503A   EDGE #333333
+0                              // LEGOID 195 - Medium Royal Blue
+0 !COLOUR Blue_Violet                                           CODE  89   VALUE #4C61DB   EDGE #333333
+0                              // LEGOID  18 - Nougat
+0 !COLOUR Flesh                                                 CODE  92   VALUE #D09168   EDGE #333333
+0                              // LEGOID 100 - Light Red
+0 !COLOUR Light_Salmon                                          CODE 100   VALUE #FEBABD   EDGE #333333
+0                              // LEGOID 110 - Bright Bluish Violet
+0 !COLOUR Violet                                                CODE 110   VALUE #4354A3   EDGE #333333
+0                              // LEGOID 112 - Medium Bluish Violet
+0 !COLOUR Medium_Violet                                         CODE 112   VALUE #6874CA   EDGE #333333
+0                              // LEGOID 115 - Medium Yellowish Green
+0 !COLOUR Medium_Lime                                           CODE 115   VALUE #C7D23C   EDGE #333333
+0                              // LEGOID 118 - Light Bluish Green
+0 !COLOUR Aqua                                                  CODE 118   VALUE #B3D7D1   EDGE #333333
+0                              // LEGOID 120 - Light Yellowish Green
+0 !COLOUR Light_Lime                                            CODE 120   VALUE #D9E4A7   EDGE #333333
+0                              // LEGOID 125 - Light Orange
+0 !COLOUR Light_Orange                                          CODE 125   VALUE #F9BA61   EDGE #333333
+0                              // LEGOID 208 - Light Stone Grey
+0 !COLOUR Very_Light_Bluish_Grey                                CODE 151   VALUE #E6E3E0   EDGE #333333
+0                              // LEGOID 191 - Flame Yellowish Orange
+0 !COLOUR Bright_Light_Orange                                   CODE 191   VALUE #F8BB3D   EDGE #333333
+0                              // LEGOID 212 - Light Royal Blue
+0 !COLOUR Bright_Light_Blue                                     CODE 212   VALUE #86C1E1   EDGE #333333
+0                              // LEGOID 216 - Rust
+0 !COLOUR Rust                                                  CODE 216   VALUE #B31004   EDGE #333333
+0                              // LEGOID 226 - Cool Yellow
+0 !COLOUR Bright_Light_Yellow                                   CODE 226   VALUE #FFF03A   EDGE #333333
+0                              // LEGOID 232 - Dove Blue
+0 !COLOUR Sky_Blue                                              CODE 232   VALUE #56BED6   EDGE #333333
+0                              // LEGOID 140 - Earth Blue
+0 !COLOUR Dark_Blue                                             CODE 272   VALUE #0D325B   EDGE #1E1E1E
+0                              // LEGOID 141 - Earth Green
+0 !COLOUR Dark_Green                                            CODE 288   VALUE #184632   EDGE #595959
+0                              // LEGOID 308 - Dark Brown
+0 !COLOUR Dark_Brown                                            CODE 308   VALUE #352100   EDGE #595959
+0                              // LEGOID  11 - Pastel Blue
+0 !COLOUR Maersk_Blue                                           CODE 313   VALUE #54A9C8   EDGE #333333
+0                              // LEGOID 154 - New Dark Red
+0 !COLOUR Dark_Red                                              CODE 320   VALUE #720E0F   EDGE #333333
+0                              // LEGOID 321 - Dark Azur
+0 !COLOUR Dark_Azure                                            CODE 321   VALUE #1498D7   EDGE #333333
+0                              // LEGOID 322 - Medium Azur
+0 !COLOUR Medium_Azure                                          CODE 322   VALUE #3EC2DD   EDGE #333333
+0                              // LEGOID 323 - Aqua
+0 !COLOUR Light_Aqua                                            CODE 323   VALUE #BDDCD8   EDGE #333333
+0                              // LEGOID 326 - Spring Yellowish Green
+0 !COLOUR Yellowish_Green                                       CODE 326   VALUE #DFEEA5   EDGE #333333
+0                              // LEGOID 330 - Olive Green
+0 !COLOUR Olive_Green                                           CODE 330   VALUE #9B9A5A   EDGE #333333
+0                              // LEGOID 153 - Sand Red
+0 !COLOUR Sand_Red                                              CODE 335   VALUE #D67572   EDGE #333333
+0                              // LEGOID  22 - Medium Reddish Violet
+0 !COLOUR Medium_Dark_Pink                                      CODE 351   VALUE #F785B1   EDGE #333333
+0                              // LEGOID  25 - Earth Orange
+0 !COLOUR Earth_Orange                                          CODE 366   VALUE #FA9C1C   EDGE #333333
+0                              // LEGOID 136 - Sand Violet
+0 !COLOUR Sand_Purple                                           CODE 373   VALUE #845E84   EDGE #333333
+0                              // LEGOID 151 - Sand Green
+0 !COLOUR Sand_Green                                            CODE 378   VALUE #A0BCAC   EDGE #333333
+0                              // LEGOID 135 - Sand Blue
+0 !COLOUR Sand_Blue                                             CODE 379   VALUE #597184   EDGE #333333
+0                              // LEGOID  12 - Light Orange Brown
+0 !COLOUR Fabuland_Brown                                        CODE 450   VALUE #B67B50   EDGE #333333
+0                              // LEGOID 105 - Bright Yellowish Orange
+0 !COLOUR Medium_Orange                                         CODE 462   VALUE #FFA70B   EDGE #333333
+0                              // LEGOID  38 - Dark Orange
+0 !COLOUR Dark_Orange                                           CODE 484   VALUE #A95500   EDGE #333333
+0                              // LEGOID 103 - Light Grey
+0 !COLOUR Very_Light_Grey                                       CODE 503   VALUE #E6E3DA   EDGE #333333
+0                              // LEGOID 218 - Reddish Lilac
+0 !COLOUR Reddish_Lilac                                         CODE 218   VALUE #8E5597   EDGE #333333
+0                              // LEGOID 295 - Flamingo Pink
+0 !COLOUR Flamingo_Pink                                         CODE 295   VALUE #FF94C2   EDGE #333333
+0                              // LEGOID 219 - Lilac
+0 !COLOUR Lilac                                                 CODE 219   VALUE #564E9D   EDGE #333333
+0                              // LEGOID 128 - Dark Nougat
+0 !COLOUR Dark_Nougat                                           CODE 128   VALUE #AD6140   EDGE #333333
+
+
+0 // LDraw Transparent Colours
+0                              // LEGOID  40 - Transparent
+0 !COLOUR Trans_Clear                                           CODE  47   VALUE #FCFCFC   EDGE #C3C3C3   ALPHA 128
+0                              // LEGOID 111 - Transparent Brown
+0 !COLOUR Trans_Black                                           CODE  40   VALUE #635F52   EDGE #171316   ALPHA 128
+0                              // LEGOID  41 - Transparent Red
+0 !COLOUR Trans_Red                                             CODE  36   VALUE #C91A09   EDGE #880000   ALPHA 128
+0                              // LEGOID  47 - Transparent Fluorescent Reddish Orange
+0 !COLOUR Trans_Neon_Orange                                     CODE  38   VALUE #FF800D   EDGE #BD2400   ALPHA 128
+0                              // LEGOID 182 - Trans Bright Orange
+0 !COLOUR Trans_Orange                                          CODE  57   VALUE #F08F1C   EDGE #A45C28   ALPHA 128
+0                              // LEGOID 157 - Transparent Fluorescent Yellow
+0 !COLOUR Trans_Neon_Yellow                                     CODE  54   VALUE #DAB000   EDGE #C3BA3F   ALPHA 128
+0                              // LEGOID  44 - Transparent Yellow
+0 !COLOUR Trans_Yellow                                          CODE  46   VALUE #F5CD2F   EDGE #8E7400   ALPHA 128
+0                              // LEGOID  49 - Transparent Fluorescent Green
+0 !COLOUR Trans_Neon_Green                                      CODE  42   VALUE #C0FF00   EDGE #84C300   ALPHA 128
+0                              // LEGOID 311 / 227 - Transparent Bright Green / Transparent Bright Yellowish Green 
+0 !COLOUR Trans_Bright_Green                                    CODE  35   VALUE #56E646   EDGE #9DA86B   ALPHA 128
+0                              // LEGOID  48 - Transparent Green
+0 !COLOUR Trans_Green                                           CODE  34   VALUE #237841   EDGE #1E6239   ALPHA 128
+0                              // LEGOID  43 - Transparent Blue
+0 !COLOUR Trans_Dark_Blue                                       CODE  33   VALUE #0020A0   EDGE #000064   ALPHA 128
+0                              // LEGOID 143 - Transparent Fluorescent Blue
+0 !COLOUR Trans_Medium_Blue                                     CODE  41   VALUE #559AB7   EDGE #196973   ALPHA 128
+0                              // LEGOID  42 - Transparent Light Blue
+0 !COLOUR Trans_Light_Blue                                      CODE  43   VALUE #AEE9EF   EDGE #72B3B0   ALPHA 128
+0                              // LEGOID 229 - Transparent Light Bluish Green
+0 !COLOUR Trans_Very_Light_Blue                                 CODE  39   VALUE #C1DFF0   EDGE #85A3B4   ALPHA 128
+0                              // LEGOID 236 - Transparent Bright Reddish Lilac
+0 !COLOUR Trans_Bright_Reddish_Lilac                            CODE  44   VALUE #96709F   EDGE #5A3463   ALPHA 128
+0                              // LEGOID 126 - Transparent Bright Bluish Violet
+0 !COLOUR Trans_Purple                                          CODE  52   VALUE #A5A5CB   EDGE #280025   ALPHA 128
+0                              // LEGOID 113 - Transparent Medium Reddish Violet
+0 !COLOUR Trans_Dark_Pink                                       CODE  37   VALUE #DF6695   EDGE #A32A59   ALPHA 128
+0                              // LEGOID 230 - Transparent Bright Pink
+0 !COLOUR Trans_Pink                                            CODE  45   VALUE #FC97AC   EDGE #A8718C   ALPHA 128
+0                              // LEGOID 285 - Transparent Light Green 
+0 !COLOUR Trans_Light_Green                                     CODE  285  VALUE #7DC291   EDGE #52805F   ALPHA 128
+0                              // LEGOID 234 - Transparent Fire Yellow
+0 !COLOUR Trans_Fire_Yellow                                     CODE  234  VALUE #FBE890   EDGE #BAAB6A   ALPHA 128
+0                              // LEGOID 293 - Transparent Light Royal Blue
+0 !COLOUR Trans_Light_Blue_Violet                               CODE  293  VALUE #6BABE4   EDGE #4D7BA3   ALPHA 128
+0                              // LEGOID 231 - Transparent Flame Yellowish Orange
+0 !COLOUR Trans_Bright_Light_Orange                             CODE  231  VALUE #FCB76D   EDGE #BD8951   ALPHA 128
+0                              // LEGOID 284 - Transparent Reddish Lilac
+0 !COLOUR Trans_Reddish_Lilac                                   CODE  284  VALUE #C281A5   EDGE #82566E   ALPHA 128
+
+
+0 // LDraw Chrome Colours
+0                              // LEGOID 299 - Warm Gold Drum Lacq
+0 !COLOUR Chrome_Gold                                           CODE 334   VALUE #BBA53D   EDGE #BBB23D                               CHROME
+0                              // LEGOID 298 - Cool Silver Drum Lacq
+0 !COLOUR Chrome_Silver                                         CODE 383   VALUE #E0E0E0   EDGE #A4A4A4                               CHROME
+0                              // LEGOID 187 - Metallic Earth Orange
+0 !COLOUR Chrome_Antique_Brass                                  CODE  60   VALUE #645A4C   EDGE #281E10                               CHROME
+0 !COLOUR Chrome_Black                                          CODE  64   VALUE #1B2A34   EDGE #595959                               CHROME
+0                              // LEGOID 185 - Metallic Bright Blue
+0 !COLOUR Chrome_Blue                                           CODE  61   VALUE #6C96BF   EDGE #202A68                               CHROME
+0                              // LEGOID 147 - Metallic Dark Green
+0 !COLOUR Chrome_Green                                          CODE  62   VALUE #3CB371   EDGE #007735                               CHROME
+0 !COLOUR Chrome_Pink                                           CODE  63   VALUE #AA4D8E   EDGE #6E1152                               CHROME
+
+
+0 // LDraw Pearl Colours
+0                              // LEGOID 183 - Metallic White
+0 !COLOUR Pearl_White                                           CODE 183   VALUE #F2F3F2   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 150 - Metallic Light Grey
+0 !COLOUR Pearl_Very_Light_Grey                                 CODE 150   VALUE #BBBDBC   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 179 / 296 / 131 / 315 - Silver Flip-flop / Cool Silver / Silver / Silver Metallic
+0 !COLOUR Pearl_Light_Grey                                      CODE 135   VALUE #9CA3A8   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 131 - Silver
+0 !COLOUR Flat_Silver                                           CODE 179   VALUE #898788   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 148 - Metallic Dark Grey
+0 !COLOUR Pearl_Dark_Grey                                       CODE 148   VALUE #575857   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 145 - Sand Blue Metallic
+0 !COLOUR Metal_Blue                                            CODE 137   VALUE #5677BA   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 127 - Gold
+0 !COLOUR Pearl_Light_Gold                                      CODE 142   VALUE #DCBE61   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 297 - Warm Gold
+0 !COLOUR Pearl_Gold                                            CODE 297   VALUE #CC9C2B   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 147 - Metallic Sand Yellow
+0 !COLOUR Flat_Dark_Gold                                        CODE 178   VALUE #B4883E   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 139 - Copper
+0 !COLOUR Copper                                                CODE 134   VALUE #964A27   EDGE #333333                               PEARLESCENT
+0                              // LEGOID 189 - Reddish Gold
+0 !COLOUR Reddish_Gold                                          CODE 189   VALUE #AC8247   EDGE #333333                               PEARLESCENT
+
+
+0 // LDraw Metallic Colours
+0                              // LEGOID 315 - Silver Metallic
+0 !COLOUR Metallic_Silver                                       CODE  80   VALUE #A5A9B4   EDGE #333333                               METAL
+0                              // LEGOID 200 - Lemon Metallic
+0 !COLOUR Metallic_Green                                        CODE  81   VALUE #899B5F   EDGE #333333                               METAL
+0                              // LEGOID 310 / 335  Metalized Gold / Gold Ink
+0 !COLOUR Metallic_Gold                                         CODE  82   VALUE #DBAC34   EDGE #333333                               METAL
+0                              // LEGOID 149 - Metallic Black
+0 !COLOUR Metallic_Black                                        CODE  83   VALUE #1A2831   EDGE #333333                               METAL
+0                              // LEGOID 309 / 336 - Metalized Silver / Silver Ink
+0 !COLOUR Metallic_Dark_Grey                                    CODE  87   VALUE #6D6E5C   EDGE #333333                               METAL
+0                              // LEGOID 300 / 334 - Copper Drum Lacq / Copper Ink
+0 !COLOUR Metallic_Copper                                       CODE 300   VALUE #C27F53   EDGE #333333                               METAL
+0                              // LEGOID 184 - Metallic Bright Red
+0 !COLOUR Metallic_Bright_Red                                   CODE 184   VALUE #D60026   EDGE #333333                               METAL
+0                              // LEGOID 186 - Metallic Dark Green
+0 !COLOUR Metallic_Dark_Green                                   CODE 186   VALUE #008E3C   EDGE #333333                               METAL
+
+
+0 // LDraw Milky Colours
+0                              // LEGOID  20 - Nature
+0 !COLOUR Milky_White                                           CODE  79   VALUE #FFFFFF   EDGE #C3C3C3   ALPHA 240
+0                              // LEGOID 294 - Phosphorescent Green
+0 !COLOUR Glow_In_Dark_Opaque                                   CODE  21   VALUE #E0FFB0   EDGE #A4C374   ALPHA 240   LUMINANCE 15
+0                              // LEGOID  50 - Phosphorescent White
+0 !COLOUR Glow_In_Dark_Trans                                    CODE 294   VALUE #BDC6AD   EDGE #818A71   ALPHA 240   LUMINANCE 15
+0                              // LEGOID 329 - White Glow
+0 !COLOUR Glow_In_Dark_White                                    CODE 329   VALUE #F5F3D7   EDGE #B5B49F   ALPHA 240   LUMINANCE 15
+
+
+0 // LDraw Glitter Colours
+0                              // LEGOID 114 - Tr. Medium Reddish-Violet w. Glitter 2%
+0 !COLOUR Glitter_Trans_Dark_Pink                               CODE 114   VALUE #DF6695   EDGE #9A2A66   ALPHA 128                   MATERIAL GLITTER VALUE #923978 FRACTION 0.17 VFRACTION 0.2 SIZE 1
+0                              // LEGOID 117 - Transparent Glitter
+0 !COLOUR Glitter_Trans_Clear                                   CODE 117   VALUE #FFFFFF   EDGE #C3C3C3   ALPHA 128                   MATERIAL GLITTER VALUE #FFFFFF FRACTION 0.08 VFRACTION 0.1 SIZE 1
+0                              // LEGOID 129 - Tr. Bright Bluish Violet w. Glitter 2%
+0 !COLOUR Glitter_Trans_Purple                                  CODE 129   VALUE #640061   EDGE #280025   ALPHA 128                   MATERIAL GLITTER VALUE #8C00FF FRACTION 0.3 VFRACTION 0.4 SIZE 1
+0                              // LEGOID 302  Tr. Light Blue with Glitter 2%
+0 !COLOUR Glitter_Trans_Light_Blue                              CODE 302   VALUE #AEE9EF   EDGE #72B3B0   ALPHA 128                   MATERIAL GLITTER VALUE #923978 FRACTION 0.17 VFRACTION 0.2 SIZE 1
+0                              // LEGOID 339  Tr Fluorescent Green with Glitter 2%
+0 !COLOUR Glitter_Trans_Neon_Green                              CODE 339   VALUE #C0FF00   EDGE #84C300   ALPHA 128                   MATERIAL GLITTER VALUE #923978 FRACTION 0.17 VFRACTION 0.2 SIZE 1 
+
+
+0 // LDraw Speckle Colours
+0 !COLOUR Speckle_Black_Silver                                  CODE 132   VALUE #000000   EDGE #898788                               MATERIAL SPECKLE VALUE #898788 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+0                              // LEGOID 132 - Black Glitter
+0 !COLOUR Speckle_Black_Gold                                    CODE 133   VALUE #000000   EDGE #DBAC34                               MATERIAL SPECKLE VALUE #DBAC34 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+0 !COLOUR Speckle_Black_Copper                                  CODE  75   VALUE #000000   EDGE #AB6038                               MATERIAL SPECKLE VALUE #AB6038 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+0 !COLOUR Speckle_Dark_Bluish_Grey_Silver                       CODE  76   VALUE #635F61   EDGE #898788                               MATERIAL SPECKLE VALUE #898788 FRACTION 0.4 MINSIZE 1 MAXSIZE 3
+
+
+0 // LDraw Rubber Colours
+0 !COLOUR Rubber_Yellow                                         CODE  65   VALUE #F5CD2F   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Trans_Yellow                                   CODE  66   VALUE #CAB000   EDGE #8E7400   ALPHA 128                   RUBBER
+0 !COLOUR Rubber_Trans_Clear                                    CODE  67   VALUE #FFFFFF   EDGE #C3C3C3   ALPHA 128                   RUBBER
+0 !COLOUR Rubber_Black                                          CODE 256   VALUE #212121   EDGE #595959                               RUBBER
+0 !COLOUR Rubber_Blue                                           CODE 273   VALUE #0033B2   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Red                                            CODE 324   VALUE #C40026   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Orange                                         CODE 350   VALUE #D06610   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Light_Grey                                     CODE 375   VALUE #C1C2C1   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Dark_Blue                                      CODE 406   VALUE #001D68   EDGE #595959                               RUBBER
+0 !COLOUR Rubber_Purple                                         CODE 449   VALUE #81007B   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Lime                                           CODE 490   VALUE #D7F000   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Light_Bluish_Grey                              CODE 496   VALUE #A3A2A4   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_Flat_Silver                                    CODE 504   VALUE #898788   EDGE #333333                               RUBBER
+0 !COLOUR Rubber_White                                          CODE 511   VALUE #FAFAFA   EDGE #333333                               RUBBER
+
+
+0 // LDraw Internal Common Material Colours
+0 !COLOUR Main_Colour                                           CODE  16   VALUE #FFFF80   EDGE #333333
+0 !COLOUR Edge_Colour                                           CODE  24   VALUE #7F7F7F   EDGE #333333
+0                              // LEGOID 109 - Black IR
+0 !COLOUR Trans_Black_IR_Lens                                   CODE  32   VALUE #000000   EDGE #333333   ALPHA 210
+0 !COLOUR Magnet                                                CODE 493   VALUE #656761   EDGE #595959                               METAL
+0 !COLOUR Electric_Contact_Alloy                                CODE 494   VALUE #D0D0D0   EDGE #333333                               METAL
+0 !COLOUR Electric_Contact_Copper                               CODE 495   VALUE #AE7A59   EDGE #333333                               METAL
+
+
+
+
+1 15 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 1.000000 6222.dat
+0 FILE 6222.dat
+0 Brick  4 x  4 Round with Holes
+0 Name: 6222.dat
+0 Author: Steve Bliss [sbliss]
+0 !LDRAW_ORG Part UPDATE 2015-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !KEYWORDS cylinder, technic, peghole, launch command, space port, star wars, y-wing
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2007-07-16 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2014-11-21 [roland] Auto-corrected with libfix version of LDCad 1.4
+0 !HISTORY 2015-01-29 [Philo] BFCed with Windz, some improvements
+0 !HISTORY 2015-10-11 [PTadmin] Official Update 2015-01
+
+1 16 0 20 0 1 0 0 0 -1 0 0 0 1 stud4a.dat
+1 16 0 4 0 8 0 0 0 1 0 0 0 8 4-4edge.dat
+1 16 0 4 0 8 0 0 0 16 0 0 0 8 4-4cyli.dat
+1 16 0 20 0 1 0 0 0 1 0 0 0 1 axlehol3.dat
+1 16 0 0 0 1 0 0 0 20 0 0 0 1 axlehole.dat
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 axlehol2.dat
+2 24 23.197 24 31.683 15.307 24 36.955
+2 24 15.757 24 24.243 23.197 24 31.683
+1 16 20 24 20 -4.243 0 -4.243 0 1 0 4.243 0 -4.243 2-4edge.dat
+2 24 24.243 24 15.757 31.683 24 23.197
+2 24 31.683 24 23.197 36.9545 24 15.3073
+2 24 23.197 24 31.683 23.197 20 31.683
+2 24 31.683 20 23.197 31.683 24 23.197
+2 24 21.783 20 30.269 21.783 4 30.269
+2 24 30.269 20 21.783 30.269 4 21.783
+2 24 30.269 4 21.783 26.8698 4 26.8698
+2 24 26.8698 4 26.8698 21.783 4 30.269
+1 16 20 24 20 -5.657 0 -5.657 0 1 0 5.657 0 -5.657 2-4edge.dat
+2 24 30.269 4 21.783 24.243 4 15.757
+1 16 20 4 20 -4.243 0 -4.243 0 1 0 4.243 0 -4.243 2-4edge.dat
+2 24 21.783 4 30.269 15.757 4 24.243
+1 16 20 4 20 -5.657 0 -5.657 0 1 0 5.657 0 -5.657 2-4edge.dat
+0 BFC INVERTNEXT
+1 16 20 24 20 -4.243 0 -4.243 0 -20 0 4.243 0 -4.243 2-4cyli.dat
+1 16 20 24 20 -5.657 0 -5.657 0 -20 0 5.657 0 -5.657 2-4cyli.dat
+1 16 20 24 20 -1.414 0 -1.414 0 -1 0 1.414 0 -1.414 2-4ring3.dat
+1 16 0 2 0 36.955 0 -15.307 0 16 0 15.307 0 36.955 1-8cyli.dat
+4 16 23.197 24 31.683 20.088 24 31.402 14.542 24 35.107 15.307 24 36.955
+4 16 15.757 24 24.243 14.343 24 25.657 20.088 24 31.402 23.197 24 31.683
+4 16 24.243 24 15.757 31.683 24 23.197 31.402 24 20.088 25.657 24 14.343
+4 16 31.683 24 23.197 36.9545 24 15.3073 35.1068 24 14.5415 31.402 24 20.088
+4 16 15.757 24 24.243 23.197 24 31.683 23.197 20 31.683 21.783 20 30.269
+4 16 15.757 24 24.243 21.783 20 30.269 21.783 4 30.269 15.757 4 24.243
+4 16 24.243 24 15.757 30.269 20 21.783 31.683 20 23.197 31.683 24 23.197
+4 16 24.243 24 15.757 24.243 4 15.757 30.269 4 21.783 30.269 20 21.783
+4 16 26.87 20 26.87 26.8698 4 26.8698 21.783 4 30.269 21.783 20 30.269
+4 16 26.87 20 26.87 30.269 20 21.783 30.269 4 21.783 26.8698 4 26.8698
+1 16 29.27667 20 25.0337 0.70735 0 1.6995 0 -1 0 0.7074 0 -2.5435 rect3.dat
+1 16 25.03368 20 29.2767 -0.70735 0 -2.54385 0 -1 0 -0.7074 0 1.6991 rect3.dat
+1 16 17.2155 14 28.5295 0 1 2.8725 -10 0 0 0 0 2.8725 rect3.dat
+1 16 28.5295 14 17.2155 0 -1 2.8725 10 0 0 0 0 2.8725 rect3.dat
+1 16 33.25475 14 17.31502 1.8524 1 0 0 0 -10 -2.77325 0 0 rect2p.dat
+1 16 17.31515 14 33.2548 2.773 0 0.0003 0 0 -10 -1.8525 1 0.0006 rect2p.dat
+4 16 23.197 24 31.683 15.307 24 36.955 15.3073 20 36.9545 23.197 20 31.683
+4 16 31.683 20 23.197 36.955 20 15.307 36.9545 24 15.3073 31.683 24 23.197
+2 24 31.683 24 -23.197 36.955 24 -15.307
+2 24 24.243 24 -15.757 31.683 24 -23.197
+1 16 20 24 -20 4.243 0 -4.243 0 1 0 4.243 0 4.243 2-4edge.dat
+2 24 15.757 24 -24.243 23.197 24 -31.683
+2 24 23.197 24 -31.683 15.3073 24 -36.9545
+2 24 31.683 24 -23.197 31.683 20 -23.197
+2 24 23.197 20 -31.683 23.197 24 -31.683
+2 24 30.269 20 -21.783 30.269 4 -21.783
+2 24 21.783 20 -30.269 21.783 4 -30.269
+2 24 21.783 4 -30.269 26.8698 4 -26.8698
+2 24 26.8698 4 -26.8698 30.269 4 -21.783
+1 16 20 24 -20 5.657 0 -5.657 0 1 0 5.657 0 5.657 2-4edge.dat
+2 24 21.783 4 -30.269 15.757 4 -24.243
+1 16 20 4 -20 4.243 0 -4.243 0 1 0 4.243 0 4.243 2-4edge.dat
+2 24 30.269 4 -21.783 24.243 4 -15.757
+1 16 20 4 -20 5.657 0 -5.657 0 1 0 5.657 0 5.657 2-4edge.dat
+0 BFC INVERTNEXT
+1 16 20 24 -20 4.243 0 -4.243 0 -20 0 4.243 0 4.243 2-4cyli.dat
+1 16 20 24 -20 5.657 0 -5.657 0 -20 0 5.657 0 5.657 2-4cyli.dat
+1 16 20 24 -20 1.414 0 -1.414 0 -1 0 1.414 0 1.414 2-4ring3.dat
+4 16 31.683 24 -23.197 31.402 24 -20.088 35.107 24 -14.542 36.955 24 -15.307
+4 16 24.243 24 -15.757 25.657 24 -14.343 31.402 24 -20.088 31.683 24 -23.197
+4 16 15.757 24 -24.243 23.197 24 -31.683 20.088 24 -31.402 14.343 24 -25.657
+4 16 23.197 24 -31.683 15.3073 24 -36.9545 14.5415 24 -35.1068 20.088 24 -31.402
+4 16 24.243 24 -15.757 31.683 24 -23.197 31.683 20 -23.197 30.269 20 -21.783
+4 16 24.243 24 -15.757 30.269 20 -21.783 30.269 4 -21.783 24.243 4 -15.757
+4 16 15.757 24 -24.243 21.783 20 -30.269 23.197 20 -31.683 23.197 24 -31.683
+4 16 15.757 24 -24.243 15.757 4 -24.243 21.783 4 -30.269 21.783 20 -30.269
+4 16 26.87 20 -26.87 26.8698 4 -26.8698 30.269 4 -21.783 30.269 20 -21.783
+4 16 26.87 20 -26.87 21.783 20 -30.269 21.783 4 -30.269 26.8698 4 -26.8698
+1 16 25.0337 20 -29.27667 0.7074 0 -2.5435 0 -1 0 -0.70735 0 -1.6995 rect3.dat
+1 16 29.2767 20 -25.03368 -0.7074 0 1.6991 0 -1 0 0.70735 0 2.54385 rect3.dat
+1 16 28.5295 14 -17.2155 0 -1 2.8725 -10 0 0 0 0 -2.8725 rect3.dat
+1 16 17.2155 14 -28.5295 0 1 2.8725 10 0 0 0 0 -2.8725 rect3.dat
+1 16 17.31502 14 -33.25475 -2.77325 0 0 0 0 -10 -1.8524 -1 0 rect2p.dat
+1 16 33.2548 14 -17.31515 -1.8525 1 0.0006 0 0 -10 -2.773 0 -0.0003 rect2p.dat
+4 16 31.683 24 -23.197 36.955 24 -15.307 36.9545 20 -15.3073 31.683 20 -23.197
+4 16 23.197 20 -31.683 15.307 20 -36.955 15.3073 24 -36.9545 23.197 24 -31.683
+2 24 -23.197 24 -31.683 -15.307 24 -36.955
+2 24 -15.757 24 -24.243 -23.197 24 -31.683
+1 16 -20 24 -20 4.243 0 4.243 0 1 0 -4.243 0 4.243 2-4edge.dat
+2 24 -24.243 24 -15.757 -31.683 24 -23.197
+2 24 -31.683 24 -23.197 -36.9545 24 -15.3073
+2 24 -23.197 24 -31.683 -23.197 20 -31.683
+2 24 -31.683 20 -23.197 -31.683 24 -23.197
+2 24 -21.783 20 -30.269 -21.783 4 -30.269
+2 24 -30.269 20 -21.783 -30.269 4 -21.783
+2 24 -30.269 4 -21.783 -26.8698 4 -26.8698
+2 24 -26.8698 4 -26.8698 -21.783 4 -30.269
+1 16 -20 24 -20 5.657 0 5.657 0 1 0 -5.657 0 5.657 2-4edge.dat
+2 24 -30.269 4 -21.783 -24.243 4 -15.757
+1 16 -20 4 -20 4.243 0 4.243 0 1 0 -4.243 0 4.243 2-4edge.dat
+2 24 -21.783 4 -30.269 -15.757 4 -24.243
+1 16 -20 4 -20 5.657 0 5.657 0 1 0 -5.657 0 5.657 2-4edge.dat
+0 BFC INVERTNEXT
+1 16 -20 24 -20 4.243 0 4.243 0 -20 0 -4.243 0 4.243 2-4cyli.dat
+1 16 -20 24 -20 5.657 0 5.657 0 -20 0 -5.657 0 5.657 2-4cyli.dat
+1 16 -20 24 -20 1.414 0 1.414 0 -1 0 -1.414 0 1.414 2-4ring3.dat
+4 16 -23.197 24 -31.683 -20.088 24 -31.402 -14.542 24 -35.107 -15.307 24 -36.955
+4 16 -15.757 24 -24.243 -14.343 24 -25.657 -20.088 24 -31.402 -23.197 24 -31.683
+4 16 -24.243 24 -15.757 -31.683 24 -23.197 -31.402 24 -20.088 -25.657 24 -14.343
+4 16 -31.683 24 -23.197 -36.9545 24 -15.3073 -35.1068 24 -14.5415 -31.402 24 -20.088
+4 16 -15.757 24 -24.243 -23.197 24 -31.683 -23.197 20 -31.683 -21.783 20 -30.269
+4 16 -15.757 24 -24.243 -21.783 20 -30.269 -21.783 4 -30.269 -15.757 4 -24.243
+4 16 -24.243 24 -15.757 -30.269 20 -21.783 -31.683 20 -23.197 -31.683 24 -23.197
+4 16 -24.243 24 -15.757 -24.243 4 -15.757 -30.269 4 -21.783 -30.269 20 -21.783
+4 16 -26.87 20 -26.87 -26.8698 4 -26.8698 -21.783 4 -30.269 -21.783 20 -30.269
+4 16 -26.87 20 -26.87 -30.269 20 -21.783 -30.269 4 -21.783 -26.8698 4 -26.8698
+1 16 -29.27667 20 -25.0337 -0.70735 0 -1.6995 0 -1 0 -0.7074 0 2.5435 rect3.dat
+1 16 -25.03368 20 -29.2767 0.70735 0 2.54385 0 -1 0 0.7074 0 -1.6991 rect3.dat
+1 16 -17.2155 14 -28.5295 0 -1 -2.8725 -10 0 0 0 0 -2.8725 rect3.dat
+1 16 -28.5295 14 -17.2155 0 1 -2.8725 10 0 0 0 0 -2.8725 rect3.dat
+1 16 -33.25475 14 -17.31502 -1.8524 -1 0 0 0 -10 2.77325 0 0 rect2p.dat
+1 16 -17.31515 14 -33.2548 -2.773 0 -0.0003 0 0 -10 1.8525 -1 -0.0006 rect2p.dat
+4 16 -23.197 24 -31.683 -15.307 24 -36.955 -15.3073 20 -36.9545 -23.197 20 -31.683
+4 16 -31.683 20 -23.197 -36.955 20 -15.307 -36.9545 24 -15.3073 -31.683 24 -23.197
+2 24 -31.683 24 23.197 -36.955 24 15.307
+2 24 -24.243 24 15.757 -31.683 24 23.197
+1 16 -20 24 20 -4.243 0 4.243 0 1 0 -4.243 0 -4.243 2-4edge.dat
+2 24 -15.757 24 24.243 -23.197 24 31.683
+2 24 -23.197 24 31.683 -15.3073 24 36.9545
+2 24 -31.683 24 23.197 -31.683 20 23.197
+2 24 -23.197 20 31.683 -23.197 24 31.683
+2 24 -30.269 20 21.783 -30.269 4 21.783
+2 24 -21.783 20 30.269 -21.783 4 30.269
+2 24 -21.783 4 30.269 -26.8698 4 26.8698
+2 24 -26.8698 4 26.8698 -30.269 4 21.783
+1 16 -20 24 20 -5.657 0 5.657 0 1 0 -5.657 0 -5.657 2-4edge.dat
+2 24 -21.783 4 30.269 -15.757 4 24.243
+1 16 -20 4 20 -4.243 0 4.243 0 1 0 -4.243 0 -4.243 2-4edge.dat
+2 24 -30.269 4 21.783 -24.243 4 15.757
+1 16 -20 4 20 -5.657 0 5.657 0 1 0 -5.657 0 -5.657 2-4edge.dat
+0 BFC INVERTNEXT
+1 16 -20 24 20 -4.243 0 4.243 0 -20 0 -4.243 0 -4.243 2-4cyli.dat
+1 16 -20 24 20 -5.657 0 5.657 0 -20 0 -5.657 0 -5.657 2-4cyli.dat
+1 16 -20 24 20 -1.414 0 1.414 0 -1 0 -1.414 0 -1.414 2-4ring3.dat
+4 16 -31.683 24 23.197 -31.402 24 20.088 -35.107 24 14.542 -36.955 24 15.307
+4 16 -24.243 24 15.757 -25.657 24 14.343 -31.402 24 20.088 -31.683 24 23.197
+4 16 -15.757 24 24.243 -23.197 24 31.683 -20.088 24 31.402 -14.343 24 25.657
+4 16 -23.197 24 31.683 -15.3073 24 36.9545 -14.5415 24 35.1068 -20.088 24 31.402
+4 16 -24.243 24 15.757 -31.683 24 23.197 -31.683 20 23.197 -30.269 20 21.783
+4 16 -24.243 24 15.757 -30.269 20 21.783 -30.269 4 21.783 -24.243 4 15.757
+4 16 -15.757 24 24.243 -21.783 20 30.269 -23.197 20 31.683 -23.197 24 31.683
+4 16 -15.757 24 24.243 -15.757 4 24.243 -21.783 4 30.269 -21.783 20 30.269
+4 16 -26.87 20 26.87 -26.8698 4 26.8698 -30.269 4 21.783 -30.269 20 21.783
+4 16 -26.87 20 26.87 -21.783 20 30.269 -21.783 4 30.269 -26.8698 4 26.8698
+1 16 -25.0337 20 29.27667 -0.7074 0 2.5435 0 -1 0 0.70735 0 1.6995 rect3.dat
+1 16 -29.2767 20 25.03368 0.7074 0 -1.6991 0 -1 0 -0.70735 0 -2.54385 rect3.dat
+1 16 -28.5295 14 17.2155 0 1 -2.8725 -10 0 0 0 0 2.8725 rect3.dat
+1 16 -17.2155 14 28.5295 0 -1 -2.8725 10 0 0 0 0 2.8725 rect3.dat
+1 16 -17.31502 14 33.25475 2.77325 0 0 0 0 -10 1.8524 1 0 rect2p.dat
+1 16 -33.2548 14 17.31515 1.8525 -1 -0.0006 0 0 -10 2.773 0 0.0003 rect2p.dat
+4 16 -31.683 24 23.197 -36.955 24 15.307 -36.9545 20 15.3073 -31.683 20 23.197
+4 16 -23.197 20 31.683 -15.307 20 36.955 -15.3073 24 36.9545 -23.197 24 31.683
+1 16 0 24 0 -15.307 0 36.955 0 1 0 -36.955 0 -15.307 1-8edge.dat
+1 16 0 24 0 -14.542 0 35.107 0 1 0 -35.107 0 -14.542 1-8edge.dat
+2 24 5.6568 15.6568 -22 3.0616 17.3912 -22
+2 24 3.0616 17.3912 -22 0 18 -22
+2 24 0 18 -22 -3.0616 17.3912 -22
+2 24 -3.0616 17.3912 -22 -5.6568 15.6568 -22
+1 16 0 10 -22 6 0 0 0 0 6 0 -1 0 4-4edge.dat
+2 24 8 4 -22 -8 4 -22
+2 24 14.5426 4 -35.1082 10 4 -36.011
+2 24 8 4 -34.011 10 4 -36.011
+2 24 10 4 -36.011 10 10 -36.011
+1 16 0 10 -38 10 0 0 0 0 10 1.989 1 0 1-4edge.dat
+1 16 0 10 -38 0 0 -10 10 0 0 0 1 1.989 1-4edge.dat
+2 24 -10 10 -36.011 -10 4 -36.011
+2 24 -8 4 -34.011 -10 4 -36.011
+2 24 -14.5426 4 -35.1082 -10 4 -36.011
+1 16 0 10 -36 8 0.2413 0 0 0 8 1.989 -0.9705 0 1-4edge.dat
+1 16 0 10 -36 0 -0.2413 -8 8 0 0 0 -0.9705 1.989 1-4edge.dat
+1 16 0 10 -38 -8 0 0 0 0 8 0 1 0 4-4edge.dat
+1 16 0 10 -38 -6 0 0 0 0 6 0 1 0 4-4edge.dat
+2 24 -8 10 -38.408 -7.3912 13.0616 -38.5292
+2 24 -7.3912 13.0616 -38.5292 -5.6568 15.6568 -38.8743
+2 24 -5.6568 15.6568 -38.8743 -3.0616 17.3912 -39.3907
+2 24 -3.0616 17.3912 -39.3907 0 18 -40
+2 24 0 18 -40 3.0616 17.3912 -39.3907
+2 24 3.0616 17.3912 -39.3907 5.6568 15.6568 -38.8743
+2 24 5.6568 15.6568 -38.8743 7.3912 13.0616 -38.5292
+2 24 7.3912 13.0616 -38.5292 8 10 -38.408
+2 24 8 10 -38.408 7.3912 6.9384 -38.5292
+2 24 7.3912 6.9384 -38.5292 5.6568 4.3432 -38.8743
+2 24 5.6568 4.3432 -38.8743 3.0616 2.6088 -39.3907
+2 24 3.0616 2.6088 -39.3907 0 2 -40
+2 24 0 2 -40 -3.0616 2.6088 -39.3907
+2 24 -3.0616 2.6088 -39.3907 -5.6568 4.3432 -38.8743
+2 24 -5.6568 4.3432 -38.8743 -7.3912 6.9384 -38.5292
+2 24 -7.3912 6.9384 -38.5292 -8 10 -38.408
+0 BFC INVERTNEXT
+1 16 0 10 -22 6 0 0 0 0 6 0 -16 0 4-4cyli.dat
+1 16 0 10 -22 8 0 0 0 0 8 0 -12.011 0 2-4cyli.dat
+1 16 0 10 -34.011 8 0 0 0 0 8 0 -1.989 0 1-4cyls.dat
+1 16 0 10 -34.011 -8 0 0 0 0 8 0 -1.989 0 1-4cyls.dat
+0 BFC INVERTNEXT
+1 16 0 20 0 -14.542 0 35.107 0 4 0 -35.107 0 -14.542 1-8cyli.dat
+4 16 -15.307 24 -36.955 -14.542 24 -35.107 0.0001 24 -38.0006 0.0005 24 -40.0007
+4 16 0.0005 24 -40.0007 0.0001 24 -38.0006 14.5415 24 -35.1068 15.3073 24 -36.9545
+1 16 0 10 -22 2 0 0 0 0 2 0 -1 0 2-4ring3.dat
+1 16 0 10 -22 6 0 0 0 0 -6 0 -1 0 2-4ndis.dat
+1 16 -7 7 -22 -1 0 0 0 0 -3 0 -1 0 rect1.dat
+1 16 7 7 -22 1 0 0 0 0 3 0 -1 0 rect1.dat
+4 16 8 4 -34.011 10 4 -36.011 10 10 -36.011 8 10 -34.011
+4 16 8 10 -34.011 10 10 -36.011 9.239 13.827 -36.1624 7.3912 13.0616 -34.1624
+3 16 7.3912 13.0616 -34.1624 9.239 13.827 -36.1624 5.6568 15.6568 -34.5936
+3 16 9.239 13.827 -36.1624 7.071 17.071 -36.5936 5.6568 15.6568 -34.5936
+5 24 9.239 13.827 -36.1624 5.6568 15.6568 -34.5936 7.3912 13.0616 -34.1624 7.071 17.071 -36.5936
+3 16 5.6568 15.6568 -34.5936 7.071 17.071 -36.5936 3.0616 17.3912 -35.2388
+3 16 7.071 17.071 -36.5936 3.827 19.239 -37.2388 3.0616 17.3912 -35.2388
+5 24 7.071 17.071 -36.5936 3.0616 17.3912 -35.2388 5.6568 15.6568 -34.5936 3.827 19.239 -37.2388
+3 16 3.0616 17.3912 -35.2388 3.827 19.239 -37.2388 0 18 -36
+4 16 0 18 -36 3.827 19.239 -37.2388 0 20 -38 -3.827 19.239 -37.2388
+5 24 3.827 19.239 -37.2388 0 18 -36 3.0616 17.3912 -35.2388 0 20 -38
+3 16 0 18 -36 -3.827 19.239 -37.2388 -3.0616 17.3912 -35.2388
+3 16 -3.0616 17.3912 -35.2388 -3.827 19.239 -37.2388 -7.071 17.071 -36.5936
+3 16 -3.0616 17.3912 -35.2388 -7.071 17.071 -36.5936 -5.6568 15.6568 -34.5936
+5 24 -3.0616 17.3912 -35.2388 -7.071 17.071 -36.5936 -3.827 19.239 -37.2388 -5.6568 15.6568 -34.5936
+3 16 -5.6568 15.6568 -34.5936 -7.071 17.071 -36.5936 -9.239 13.827 -36.1624
+3 16 -5.6568 15.6568 -34.5936 -9.239 13.827 -36.1624 -7.3912 13.0616 -34.1624
+5 24 -5.6568 15.6568 -34.5936 -9.239 13.827 -36.1624 -7.071 17.071 -36.5936 -7.3912 13.0616 -34.1624
+4 16 -7.3912 13.0616 -34.1624 -9.239 13.827 -36.1624 -10 10 -36.011 -8 10 -34.011
+4 16 -8 4 -34.011 -8 10 -34.011 -10 10 -36.011 -10 4 -36.011
+1 16 8 7 -28.0055 0 -1 0 -3 0 0 0 0 -6.0055 rect2a.dat
+1 16 -8 7 -28.0055 0 1 0 0 0 -3 -6.0055 0 0 rect2a.dat
+1 16 0 10 -38 2 0 0 0 0 2 0 1 0 4-4ring3.dat
+3 16 0 20 -38 -14.542 20 -35.107 -3.827 19.239 -37.2388
+3 16 -3.827 19.239 -37.2388 -14.542 20 -35.107 -7.071 17.071 -36.5936
+3 16 -7.071 17.071 -36.5936 -14.542 20 -35.107 -9.239 13.827 -36.1624
+3 16 -9.239 13.827 -36.1624 -14.542 20 -35.107 -10 10 -36.011
+4 16 -10 10 -36.011 -14.542 20 -35.107 -14.5426 4 -35.1082 -10 4 -36.011
+3 16 0 20 -38 3.827 19.239 -37.2388 14.5415 20 -35.1068
+3 16 3.827 19.239 -37.2388 7.071 17.071 -36.5936 14.5415 20 -35.1068
+3 16 7.071 17.071 -36.5936 9.239 13.827 -36.1624 14.5415 20 -35.1068
+3 16 9.239 13.827 -36.1624 10 10 -36.011 14.5415 20 -35.1068
+4 16 10 10 -36.011 10 4 -36.011 14.5426 4 -35.1082 14.5415 20 -35.1068
+4 16 -8 10 -38.408 -7.3912 13.0616 -38.5292 -7.3912 13.0616 -38 -8 10 -38
+4 16 -7.3912 13.0616 -38.5292 -5.6568 15.6568 -38.8743 -5.6568 15.6568 -38 -7.3912 13.0616 -38
+4 16 -5.6568 15.6568 -38.8743 -3.0616 17.3912 -39.3907 -3.0616 17.3912 -38 -5.6568 15.6568 -38
+4 16 -3.0616 17.3912 -39.3907 0 18 -40 0 18 -38 -3.0616 17.3912 -38
+4 16 0 18 -40 3.0616 17.3912 -39.3907 3.0616 17.3912 -38 0 18 -38
+4 16 3.0616 17.3912 -39.3907 5.6568 15.6568 -38.8743 5.6568 15.6568 -38 3.0616 17.3912 -38
+4 16 5.6568 15.6568 -38.8743 7.3912 13.0616 -38.5292 7.3912 13.0616 -38 5.6568 15.6568 -38
+4 16 7.3912 13.0616 -38.5292 8 10 -38.408 8 10 -38 7.3912 13.0616 -38
+4 16 8 10 -38.408 7.3912 6.9384 -38.5292 7.3912 6.9384 -38 8 10 -38
+4 16 7.3912 6.9384 -38.5292 5.6568 4.3432 -38.8743 5.6568 4.3432 -38 7.3912 6.9384 -38
+4 16 5.6568 4.3432 -38.8743 3.0616 2.6088 -39.3907 3.0616 2.6088 -38 5.6568 4.3432 -38
+4 16 3.0616 2.6088 -39.3907 0 2 -40 0 2 -38 3.0616 2.6088 -38
+4 16 0 2 -40 -3.0616 2.6088 -39.3907 -3.0616 2.6088 -38 0 2 -38
+4 16 -3.0616 2.6088 -39.3907 -5.6568 4.3432 -38.8743 -5.6568 4.3432 -38 -3.0616 2.6088 -38
+4 16 -5.6568 4.3432 -38.8743 -7.3912 6.9384 -38.5292 -7.3912 6.9384 -38 -5.6568 4.3432 -38
+4 16 -7.3912 6.9384 -38.5292 -8 10 -38.408 -8 10 -38 -7.3912 6.9384 -38
+4 16 8 2 -38.408 8 18 -38.408 15.3073 18 -36.9545 15.3073 2 -36.9545
+1 16 0 10 -40 0 0 8 8 0 0 0 1 1.592 2-4ndis.dat
+1 16 0 10 -40 0 0 -8 8 0 0 0 1 1.592 2-4ndis.dat
+4 16 -8 2 -38.408 -15.307 2 -36.955 -15.307 18 -36.955 -8 18 -38.408
+1 16 0 24 0 -36.955 0 -15.307 0 1 0 15.307 0 -36.955 1-8edge.dat
+1 16 0 24 0 -35.107 0 -14.542 0 1 0 14.542 0 -35.107 1-8edge.dat
+2 24 -22 15.6568 -5.6568 -22 17.3912 -3.0616
+2 24 -22 17.3912 -3.0616 -22 18 0
+2 24 -22 18 0 -22 17.3912 3.0616
+2 24 -22 17.3912 3.0616 -22 15.6568 5.6568
+1 16 -22 10 0 0 -1 0 0 0 6 -6 0 0 4-4edge.dat
+2 24 -22 4 -8 -22 4 8
+2 24 -35.1082 4 -14.5426 -36.011 4 -10
+2 24 -34.011 4 -8 -36.011 4 -10
+2 24 -36.011 4 -10 -36.011 10 -10
+1 16 -38 10 0 1.989 1 0 0 0 10 -10 0 0 1-4edge.dat
+1 16 -38 10 0 0 1 1.989 10 0 0 0 0 10 1-4edge.dat
+2 24 -36.011 10 10 -36.011 4 10
+2 24 -34.011 4 8 -36.011 4 10
+2 24 -35.1082 4 14.5426 -36.011 4 10
+1 16 -36 10 0 1.989 -0.9705 0 0 0 8 -8 -0.2413 0 1-4edge.dat
+1 16 -36 10 0 0 -0.9705 1.989 8 0 0 0 0.2413 8 1-4edge.dat
+1 16 -38 10 0 0 1 0 0 0 8 8 0 0 4-4edge.dat
+1 16 -38 10 0 0 1 0 0 0 6 6 0 0 4-4edge.dat
+2 24 -38.408 10 8 -38.5292 13.0616 7.3912
+2 24 -38.5292 13.0616 7.3912 -38.8743 15.6568 5.6568
+2 24 -38.8743 15.6568 5.6568 -39.3907 17.3912 3.0616
+2 24 -39.3907 17.3912 3.0616 -40 18 0
+2 24 -40 18 0 -39.3907 17.3912 -3.0616
+2 24 -39.3907 17.3912 -3.0616 -38.8743 15.6568 -5.6568
+2 24 -38.8743 15.6568 -5.6568 -38.5292 13.0616 -7.3912
+2 24 -38.5292 13.0616 -7.3912 -38.408 10 -8
+2 24 -38.408 10 -8 -38.5292 6.9384 -7.3912
+2 24 -38.5292 6.9384 -7.3912 -38.8743 4.3432 -5.6568
+2 24 -38.8743 4.3432 -5.6568 -39.3907 2.6088 -3.0616
+2 24 -39.3907 2.6088 -3.0616 -40 2 0
+2 24 -40 2 0 -39.3907 2.6088 3.0616
+2 24 -39.3907 2.6088 3.0616 -38.8743 4.3432 5.6568
+2 24 -38.8743 4.3432 5.6568 -38.5292 6.9384 7.3912
+2 24 -38.5292 6.9384 7.3912 -38.408 10 8
+0 BFC INVERTNEXT
+1 16 -22 10 0 0 -16 0 0 0 6 -6 0 0 4-4cyli.dat
+1 16 -22 10 0 0 -12.011 0 0 0 8 -8 0 0 2-4cyli.dat
+1 16 -34.011 10 0 0 -1.989 0 0 0 8 -8 0 0 1-4cyls.dat
+1 16 -34.011 10 0 0 -1.989 0 0 0 8 8 0 0 1-4cyls.dat
+0 BFC INVERTNEXT
+1 16 0 20 0 -35.107 0 -14.542 0 4 0 14.542 0 -35.107 1-8cyli.dat
+4 16 -36.955 24 15.307 -35.107 24 14.542 -38.0006 24 -0.0001 -40.0007 24 -0.0005
+4 16 -40.0007 24 -0.0005 -38.0006 24 -0.0001 -35.1068 24 -14.5415 -36.9545 24 -15.3073
+1 16 -22 10 0 0 -1 0 0 0 2 -2 0 0 2-4ring3.dat
+1 16 -22 10 0 0 -1 0 0 0 -6 -6 0 0 2-4ndis.dat
+1 16 -22 7 7 0 -1 0 0 0 -3 1 0 0 rect1.dat
+1 16 -22 7 -7 0 -1 0 0 0 3 -1 0 0 rect1.dat
+4 16 -34.011 4 -8 -36.011 4 -10 -36.011 10 -10 -34.011 10 -8
+4 16 -34.011 10 -8 -36.011 10 -10 -36.1624 13.827 -9.239 -34.1624 13.0616 -7.3912
+3 16 -34.1624 13.0616 -7.3912 -36.1624 13.827 -9.239 -34.5936 15.6568 -5.6568
+3 16 -36.1624 13.827 -9.239 -36.5936 17.071 -7.071 -34.5936 15.6568 -5.6568
+5 24 -36.1624 13.827 -9.239 -34.5936 15.6568 -5.6568 -34.1624 13.0616 -7.3912 -36.5936 17.071 -7.071
+3 16 -34.5936 15.6568 -5.6568 -36.5936 17.071 -7.071 -35.2388 17.3912 -3.0616
+3 16 -36.5936 17.071 -7.071 -37.2388 19.239 -3.827 -35.2388 17.3912 -3.0616
+5 24 -36.5936 17.071 -7.071 -35.2388 17.3912 -3.0616 -34.5936 15.6568 -5.6568 -37.2388 19.239 -3.827
+3 16 -35.2388 17.3912 -3.0616 -37.2388 19.239 -3.827 -36 18 0
+4 16 -36 18 0 -37.2388 19.239 -3.827 -38 20 0 -37.2388 19.239 3.827
+5 24 -37.2388 19.239 -3.827 -36 18 0 -35.2388 17.3912 -3.0616 -38 20 0
+3 16 -36 18 0 -37.2388 19.239 3.827 -35.2388 17.3912 3.0616
+3 16 -35.2388 17.3912 3.0616 -37.2388 19.239 3.827 -36.5936 17.071 7.071
+3 16 -35.2388 17.3912 3.0616 -36.5936 17.071 7.071 -34.5936 15.6568 5.6568
+5 24 -35.2388 17.3912 3.0616 -36.5936 17.071 7.071 -37.2388 19.239 3.827 -34.5936 15.6568 5.6568
+3 16 -34.5936 15.6568 5.6568 -36.5936 17.071 7.071 -36.1624 13.827 9.239
+3 16 -34.5936 15.6568 5.6568 -36.1624 13.827 9.239 -34.1624 13.0616 7.3912
+5 24 -34.5936 15.6568 5.6568 -36.1624 13.827 9.239 -36.5936 17.071 7.071 -34.1624 13.0616 7.3912
+4 16 -34.1624 13.0616 7.3912 -36.1624 13.827 9.239 -36.011 10 10 -34.011 10 8
+4 16 -34.011 4 8 -34.011 10 8 -36.011 10 10 -36.011 4 10
+1 16 -28.0055 7 -8 0 0 -6.0055 -3 0 0 0 1 0 rect2a.dat
+1 16 -28.0055 7 8 -6.0055 0 0 0 0 -3 0 -1 0 rect2a.dat
+1 16 -38 10 0 0 1 0 0 0 2 -2 0 0 4-4ring3.dat
+3 16 -38 20 0 -35.107 20 14.542 -37.2388 19.239 3.827
+3 16 -37.2388 19.239 3.827 -35.107 20 14.542 -36.5936 17.071 7.071
+3 16 -36.5936 17.071 7.071 -35.107 20 14.542 -36.1624 13.827 9.239
+3 16 -36.1624 13.827 9.239 -35.107 20 14.542 -36.011 10 10
+4 16 -36.011 10 10 -35.107 20 14.542 -35.1082 4 14.5426 -36.011 4 10
+3 16 -38 20 0 -37.2388 19.239 -3.827 -35.1068 20 -14.5415
+3 16 -37.2388 19.239 -3.827 -36.5936 17.071 -7.071 -35.1068 20 -14.5415
+3 16 -36.5936 17.071 -7.071 -36.1624 13.827 -9.239 -35.1068 20 -14.5415
+3 16 -36.1624 13.827 -9.239 -36.011 10 -10 -35.1068 20 -14.5415
+4 16 -36.011 10 -10 -36.011 4 -10 -35.1082 4 -14.5426 -35.1068 20 -14.5415
+4 16 -38.408 10 8 -38.5292 13.0616 7.3912 -38 13.0616 7.3912 -38 10 8
+4 16 -38.5292 13.0616 7.3912 -38.8743 15.6568 5.6568 -38 15.6568 5.6568 -38 13.0616 7.3912
+4 16 -38.8743 15.6568 5.6568 -39.3907 17.3912 3.0616 -38 17.3912 3.0616 -38 15.6568 5.6568
+4 16 -39.3907 17.3912 3.0616 -40 18 0 -38 18 0 -38 17.3912 3.0616
+4 16 -40 18 0 -39.3907 17.3912 -3.0616 -38 17.3912 -3.0616 -38 18 0
+4 16 -39.3907 17.3912 -3.0616 -38.8743 15.6568 -5.6568 -38 15.6568 -5.6568 -38 17.3912 -3.0616
+4 16 -38.8743 15.6568 -5.6568 -38.5292 13.0616 -7.3912 -38 13.0616 -7.3912 -38 15.6568 -5.6568
+4 16 -38.5292 13.0616 -7.3912 -38.408 10 -8 -38 10 -8 -38 13.0616 -7.3912
+4 16 -38.408 10 -8 -38.5292 6.9384 -7.3912 -38 6.9384 -7.3912 -38 10 -8
+4 16 -38.5292 6.9384 -7.3912 -38.8743 4.3432 -5.6568 -38 4.3432 -5.6568 -38 6.9384 -7.3912
+4 16 -38.8743 4.3432 -5.6568 -39.3907 2.6088 -3.0616 -38 2.6088 -3.0616 -38 4.3432 -5.6568
+4 16 -39.3907 2.6088 -3.0616 -40 2 0 -38 2 0 -38 2.6088 -3.0616
+4 16 -40 2 0 -39.3907 2.6088 3.0616 -38 2.6088 3.0616 -38 2 0
+4 16 -39.3907 2.6088 3.0616 -38.8743 4.3432 5.6568 -38 4.3432 5.6568 -38 2.6088 3.0616
+4 16 -38.8743 4.3432 5.6568 -38.5292 6.9384 7.3912 -38 6.9384 7.3912 -38 4.3432 5.6568
+4 16 -38.5292 6.9384 7.3912 -38.408 10 8 -38 10 8 -38 6.9384 7.3912
+4 16 -38.408 2 -8 -38.408 18 -8 -36.9545 18 -15.3073 -36.9545 2 -15.3073
+1 16 -40 10 0 0 1 1.592 8 0 0 0 0 -8 2-4ndis.dat
+1 16 -40 10 0 0 1 1.592 8 0 0 0 0 8 2-4ndis.dat
+4 16 -38.408 2 8 -36.955 2 15.307 -36.955 18 15.307 -38.408 18 8
+1 16 0 24 0 15.307 0 -36.955 0 1 0 36.955 0 15.307 1-8edge.dat
+1 16 0 24 0 14.542 0 -35.107 0 1 0 35.107 0 14.542 1-8edge.dat
+2 24 -5.6568 15.6568 22 -3.0616 17.3912 22
+2 24 -3.0616 17.3912 22 0 18 22
+2 24 0 18 22 3.0616 17.3912 22
+2 24 3.0616 17.3912 22 5.6568 15.6568 22
+1 16 0 10 22 -6 0 0 0 0 6 0 1 0 4-4edge.dat
+2 24 -8 4 22 8 4 22
+2 24 -14.5426 4 35.1082 -10 4 36.011
+2 24 -8 4 34.011 -10 4 36.011
+2 24 -10 4 36.011 -10 10 36.011
+1 16 0 10 38 -10 0 0 0 0 10 -1.989 -1 0 1-4edge.dat
+1 16 0 10 38 0 0 10 10 0 0 0 -1 -1.989 1-4edge.dat
+2 24 10 10 36.011 10 4 36.011
+2 24 8 4 34.011 10 4 36.011
+2 24 14.5426 4 35.1082 10 4 36.011
+1 16 0 10 36 -8 -0.2413 0 0 0 8 -1.989 0.9705 0 1-4edge.dat
+1 16 0 10 36 0 0.2413 8 8 0 0 0 0.9705 -1.989 1-4edge.dat
+1 16 0 10 38 8 0 0 0 0 8 0 -1 0 4-4edge.dat
+1 16 0 10 38 6 0 0 0 0 6 0 -1 0 4-4edge.dat
+2 24 8 10 38.408 7.3912 13.0616 38.5292
+2 24 7.3912 13.0616 38.5292 5.6568 15.6568 38.8743
+2 24 5.6568 15.6568 38.8743 3.0616 17.3912 39.3907
+2 24 3.0616 17.3912 39.3907 0 18 40
+2 24 0 18 40 -3.0616 17.3912 39.3907
+2 24 -3.0616 17.3912 39.3907 -5.6568 15.6568 38.8743
+2 24 -5.6568 15.6568 38.8743 -7.3912 13.0616 38.5292
+2 24 -7.3912 13.0616 38.5292 -8 10 38.408
+2 24 -8 10 38.408 -7.3912 6.9384 38.5292
+2 24 -7.3912 6.9384 38.5292 -5.6568 4.3432 38.8743
+2 24 -5.6568 4.3432 38.8743 -3.0616 2.6088 39.3907
+2 24 -3.0616 2.6088 39.3907 0 2 40
+2 24 0 2 40 3.0616 2.6088 39.3907
+2 24 3.0616 2.6088 39.3907 5.6568 4.3432 38.8743
+2 24 5.6568 4.3432 38.8743 7.3912 6.9384 38.5292
+2 24 7.3912 6.9384 38.5292 8 10 38.408
+0 BFC INVERTNEXT
+1 16 0 10 22 -6 0 0 0 0 6 0 16 0 4-4cyli.dat
+1 16 0 10 22 -8 0 0 0 0 8 0 12.011 0 2-4cyli.dat
+1 16 0 10 34.011 -8 0 0 0 0 8 0 1.989 0 1-4cyls.dat
+1 16 0 10 34.011 8 0 0 0 0 8 0 1.989 0 1-4cyls.dat
+0 BFC INVERTNEXT
+1 16 0 20 0 14.542 0 -35.107 0 4 0 35.107 0 14.542 1-8cyli.dat
+4 16 15.307 24 36.955 14.542 24 35.107 -0.0001 24 38.0006 -0.0005 24 40.0007
+4 16 -0.0005 24 40.0007 -0.0001 24 38.0006 -14.5415 24 35.1068 -15.3073 24 36.9545
+1 16 0 10 22 -2 0 0 0 0 2 0 1 0 2-4ring3.dat
+1 16 0 10 22 -6 0 0 0 0 -6 0 1 0 2-4ndis.dat
+1 16 7 7 22 1 0 0 0 0 -3 0 1 0 rect1.dat
+1 16 -7 7 22 -1 0 0 0 0 3 0 1 0 rect1.dat
+4 16 -8 4 34.011 -10 4 36.011 -10 10 36.011 -8 10 34.011
+4 16 -8 10 34.011 -10 10 36.011 -9.239 13.827 36.1624 -7.3912 13.0616 34.1624
+3 16 -7.3912 13.0616 34.1624 -9.239 13.827 36.1624 -5.6568 15.6568 34.5936
+3 16 -9.239 13.827 36.1624 -7.071 17.071 36.5936 -5.6568 15.6568 34.5936
+5 24 -9.239 13.827 36.1624 -5.6568 15.6568 34.5936 -7.3912 13.0616 34.1624 -7.071 17.071 36.5936
+3 16 -5.6568 15.6568 34.5936 -7.071 17.071 36.5936 -3.0616 17.3912 35.2388
+3 16 -7.071 17.071 36.5936 -3.827 19.239 37.2388 -3.0616 17.3912 35.2388
+5 24 -7.071 17.071 36.5936 -3.0616 17.3912 35.2388 -5.6568 15.6568 34.5936 -3.827 19.239 37.2388
+3 16 -3.0616 17.3912 35.2388 -3.827 19.239 37.2388 0 18 36
+4 16 0 18 36 -3.827 19.239 37.2388 0 20 38 3.827 19.239 37.2388
+5 24 -3.827 19.239 37.2388 0 18 36 -3.0616 17.3912 35.2388 0 20 38
+3 16 0 18 36 3.827 19.239 37.2388 3.0616 17.3912 35.2388
+3 16 3.0616 17.3912 35.2388 3.827 19.239 37.2388 7.071 17.071 36.5936
+3 16 3.0616 17.3912 35.2388 7.071 17.071 36.5936 5.6568 15.6568 34.5936
+5 24 3.0616 17.3912 35.2388 7.071 17.071 36.5936 3.827 19.239 37.2388 5.6568 15.6568 34.5936
+3 16 5.6568 15.6568 34.5936 7.071 17.071 36.5936 9.239 13.827 36.1624
+3 16 5.6568 15.6568 34.5936 9.239 13.827 36.1624 7.3912 13.0616 34.1624
+5 24 5.6568 15.6568 34.5936 9.239 13.827 36.1624 7.071 17.071 36.5936 7.3912 13.0616 34.1624
+4 16 7.3912 13.0616 34.1624 9.239 13.827 36.1624 10 10 36.011 8 10 34.011
+4 16 8 4 34.011 8 10 34.011 10 10 36.011 10 4 36.011
+1 16 -8 7 28.0055 0 1 0 -3 0 0 0 0 6.0055 rect2a.dat
+1 16 8 7 28.0055 0 -1 0 0 0 -3 6.0055 0 0 rect2a.dat
+1 16 0 10 38 -2 0 0 0 0 2 0 -1 0 4-4ring3.dat
+3 16 0 20 38 14.542 20 35.107 3.827 19.239 37.2388
+3 16 3.827 19.239 37.2388 14.542 20 35.107 7.071 17.071 36.5936
+3 16 7.071 17.071 36.5936 14.542 20 35.107 9.239 13.827 36.1624
+3 16 9.239 13.827 36.1624 14.542 20 35.107 10 10 36.011
+4 16 10 10 36.011 14.542 20 35.107 14.5426 4 35.1082 10 4 36.011
+3 16 0 20 38 -3.827 19.239 37.2388 -14.5415 20 35.1068
+3 16 -3.827 19.239 37.2388 -7.071 17.071 36.5936 -14.5415 20 35.1068
+3 16 -7.071 17.071 36.5936 -9.239 13.827 36.1624 -14.5415 20 35.1068
+3 16 -9.239 13.827 36.1624 -10 10 36.011 -14.5415 20 35.1068
+4 16 -10 10 36.011 -10 4 36.011 -14.5426 4 35.1082 -14.5415 20 35.1068
+4 16 8 10 38.408 7.3912 13.0616 38.5292 7.3912 13.0616 38 8 10 38
+4 16 7.3912 13.0616 38.5292 5.6568 15.6568 38.8743 5.6568 15.6568 38 7.3912 13.0616 38
+4 16 5.6568 15.6568 38.8743 3.0616 17.3912 39.3907 3.0616 17.3912 38 5.6568 15.6568 38
+4 16 3.0616 17.3912 39.3907 0 18 40 0 18 38 3.0616 17.3912 38
+4 16 0 18 40 -3.0616 17.3912 39.3907 -3.0616 17.3912 38 0 18 38
+4 16 -3.0616 17.3912 39.3907 -5.6568 15.6568 38.8743 -5.6568 15.6568 38 -3.0616 17.3912 38
+4 16 -5.6568 15.6568 38.8743 -7.3912 13.0616 38.5292 -7.3912 13.0616 38 -5.6568 15.6568 38
+4 16 -7.3912 13.0616 38.5292 -8 10 38.408 -8 10 38 -7.3912 13.0616 38
+4 16 -8 10 38.408 -7.3912 6.9384 38.5292 -7.3912 6.9384 38 -8 10 38
+4 16 -7.3912 6.9384 38.5292 -5.6568 4.3432 38.8743 -5.6568 4.3432 38 -7.3912 6.9384 38
+4 16 -5.6568 4.3432 38.8743 -3.0616 2.6088 39.3907 -3.0616 2.6088 38 -5.6568 4.3432 38
+4 16 -3.0616 2.6088 39.3907 0 2 40 0 2 38 -3.0616 2.6088 38
+4 16 0 2 40 3.0616 2.6088 39.3907 3.0616 2.6088 38 0 2 38
+4 16 3.0616 2.6088 39.3907 5.6568 4.3432 38.8743 5.6568 4.3432 38 3.0616 2.6088 38
+4 16 5.6568 4.3432 38.8743 7.3912 6.9384 38.5292 7.3912 6.9384 38 5.6568 4.3432 38
+4 16 7.3912 6.9384 38.5292 8 10 38.408 8 10 38 7.3912 6.9384 38
+4 16 -8 2 38.408 -8 18 38.408 -15.3073 18 36.9545 -15.3073 2 36.9545
+1 16 0 10 40 0 0 -8 8 0 0 0 -1 -1.592 2-4ndis.dat
+1 16 0 10 40 0 0 8 8 0 0 0 -1 -1.592 2-4ndis.dat
+4 16 8 2 38.408 15.307 2 36.955 15.307 18 36.955 8 18 38.408
+1 16 0 24 0 36.955 0 15.307 0 1 0 -15.307 0 36.955 1-8edge.dat
+1 16 0 24 0 35.107 0 14.542 0 1 0 -14.542 0 35.107 1-8edge.dat
+2 24 22 15.6568 5.6568 22 17.3912 3.0616
+2 24 22 17.3912 3.0616 22 18 0
+2 24 22 18 0 22 17.3912 -3.0616
+2 24 22 17.3912 -3.0616 22 15.6568 -5.6568
+1 16 22 10 0 0 1 0 0 0 6 6 0 0 4-4edge.dat
+2 24 22 4 8 22 4 -8
+2 24 35.1082 4 14.5426 36.011 4 10
+2 24 34.011 4 8 36.011 4 10
+2 24 36.011 4 10 36.011 10 10
+1 16 38 10 0 -1.989 -1 0 0 0 10 10 0 0 1-4edge.dat
+1 16 38 10 0 0 -1 -1.989 10 0 0 0 0 -10 1-4edge.dat
+2 24 36.011 10 -10 36.011 4 -10
+2 24 34.011 4 -8 36.011 4 -10
+2 24 35.1082 4 -14.5426 36.011 4 -10
+1 16 36 10 0 -1.989 0.9705 0 0 0 8 8 0.2413 0 1-4edge.dat
+1 16 36 10 0 0 0.9705 -1.989 8 0 0 0 -0.2413 -8 1-4edge.dat
+1 16 38 10 0 0 -1 0 0 0 8 -8 0 0 4-4edge.dat
+1 16 38 10 0 0 -1 0 0 0 6 -6 0 0 4-4edge.dat
+2 24 38.408 10 -8 38.5292 13.0616 -7.3912
+2 24 38.5292 13.0616 -7.3912 38.8743 15.6568 -5.6568
+2 24 38.8743 15.6568 -5.6568 39.3907 17.3912 -3.0616
+2 24 39.3907 17.3912 -3.0616 40 18 0
+2 24 40 18 0 39.3907 17.3912 3.0616
+2 24 39.3907 17.3912 3.0616 38.8743 15.6568 5.6568
+2 24 38.8743 15.6568 5.6568 38.5292 13.0616 7.3912
+2 24 38.5292 13.0616 7.3912 38.408 10 8
+2 24 38.408 10 8 38.5292 6.9384 7.3912
+2 24 38.5292 6.9384 7.3912 38.8743 4.3432 5.6568
+2 24 38.8743 4.3432 5.6568 39.3907 2.6088 3.0616
+2 24 39.3907 2.6088 3.0616 40 2 0
+2 24 40 2 0 39.3907 2.6088 -3.0616
+2 24 39.3907 2.6088 -3.0616 38.8743 4.3432 -5.6568
+2 24 38.8743 4.3432 -5.6568 38.5292 6.9384 -7.3912
+2 24 38.5292 6.9384 -7.3912 38.408 10 -8
+0 BFC INVERTNEXT
+1 16 22 10 0 0 16 0 0 0 6 6 0 0 4-4cyli.dat
+1 16 22 10 0 0 12.011 0 0 0 8 8 0 0 2-4cyli.dat
+1 16 34.011 10 0 0 1.989 0 0 0 8 8 0 0 1-4cyls.dat
+1 16 34.011 10 0 0 1.989 0 0 0 8 -8 0 0 1-4cyls.dat
+0 BFC INVERTNEXT
+1 16 0 20 0 35.107 0 14.542 0 4 0 -14.542 0 35.107 1-8cyli.dat
+1 16 0 0 0 40 0 0 0 2 0 0 0 40 4-4cyli.dat
+1 16 0 18 0 40 0 0 0 2 0 0 0 40 4-4cyli.dat
+1 16 0 20 0 36.955 0 15.307 0 4 0 -15.307 0 36.955 1-8cyli.dat
+1 16 0 2 0 -15.307 0 -36.955 0 16 0 36.955 0 -15.307 1-8cyli.dat
+1 16 0 20 0 15.307 0 -36.955 0 4 0 36.955 0 15.307 1-8cyli.dat
+1 16 0 2 0 15.307 0 36.955 0 16 0 -36.955 0 15.307 1-8cyli.dat
+1 16 0 20 0 -15.307 0 36.955 0 4 0 -36.955 0 -15.307 1-8cyli.dat
+1 16 0 2 0 -36.955 0 15.307 0 16 0 -15.307 0 -36.955 1-8cyli.dat
+1 16 0 20 0 -36.955 0 -15.307 0 4 0 15.307 0 -36.955 1-8cyli.dat
+4 16 36.955 24 -15.307 35.107 24 -14.542 38.0006 24 0.0001 40.0007 24 0.0005
+4 16 40.0007 24 0.0005 38.0006 24 0.0001 35.1068 24 14.5415 36.9545 24 15.3073
+1 16 22 10 0 0 1 0 0 0 2 2 0 0 2-4ring3.dat
+1 16 22 10 0 0 1 0 0 0 -6 6 0 0 2-4ndis.dat
+1 16 22 7 -7 0 1 0 0 0 -3 -1 0 0 rect1.dat
+1 16 22 7 7 0 1 0 0 0 3 1 0 0 rect1.dat
+4 16 34.011 4 8 36.011 4 10 36.011 10 10 34.011 10 8
+4 16 34.011 10 8 36.011 10 10 36.1624 13.827 9.239 34.1624 13.0616 7.3912
+3 16 34.1624 13.0616 7.3912 36.1624 13.827 9.239 34.5936 15.6568 5.6568
+3 16 36.1624 13.827 9.239 36.5936 17.071 7.071 34.5936 15.6568 5.6568
+5 24 36.1624 13.827 9.239 34.5936 15.6568 5.6568 34.1624 13.0616 7.3912 36.5936 17.071 7.071
+3 16 34.5936 15.6568 5.6568 36.5936 17.071 7.071 35.2388 17.3912 3.0616
+3 16 36.5936 17.071 7.071 37.2388 19.239 3.827 35.2388 17.3912 3.0616
+5 24 36.5936 17.071 7.071 35.2388 17.3912 3.0616 34.5936 15.6568 5.6568 37.2388 19.239 3.827
+3 16 35.2388 17.3912 3.0616 37.2388 19.239 3.827 36 18 0
+4 16 36 18 0 37.2388 19.239 3.827 38 20 0 37.2388 19.239 -3.827
+5 24 37.2388 19.239 3.827 36 18 0 35.2388 17.3912 3.0616 38 20 0
+3 16 36 18 0 37.2388 19.239 -3.827 35.2388 17.3912 -3.0616
+3 16 35.2388 17.3912 -3.0616 37.2388 19.239 -3.827 36.5936 17.071 -7.071
+3 16 35.2388 17.3912 -3.0616 36.5936 17.071 -7.071 34.5936 15.6568 -5.6568
+5 24 35.2388 17.3912 -3.0616 36.5936 17.071 -7.071 37.2388 19.239 -3.827 34.5936 15.6568 -5.6568
+3 16 34.5936 15.6568 -5.6568 36.5936 17.071 -7.071 36.1624 13.827 -9.239
+3 16 34.5936 15.6568 -5.6568 36.1624 13.827 -9.239 34.1624 13.0616 -7.3912
+5 24 34.5936 15.6568 -5.6568 36.1624 13.827 -9.239 36.5936 17.071 -7.071 34.1624 13.0616 -7.3912
+4 16 34.1624 13.0616 -7.3912 36.1624 13.827 -9.239 36.011 10 -10 34.011 10 -8
+4 16 34.011 4 -8 34.011 10 -8 36.011 10 -10 36.011 4 -10
+1 16 28.0055 7 8 0 0 6.0055 -3 0 0 0 -1 0 rect2a.dat
+1 16 28.0055 7 -8 6.0055 0 0 0 0 -3 0 1 0 rect2a.dat
+1 16 38 10 0 0 -1 0 0 0 2 2 0 0 4-4ring3.dat
+3 16 38 20 0 35.107 20 -14.542 37.2388 19.239 -3.827
+3 16 37.2388 19.239 -3.827 35.107 20 -14.542 36.5936 17.071 -7.071
+3 16 36.5936 17.071 -7.071 35.107 20 -14.542 36.1624 13.827 -9.239
+3 16 36.1624 13.827 -9.239 35.107 20 -14.542 36.011 10 -10
+4 16 36.011 10 -10 35.107 20 -14.542 35.1082 4 -14.5426 36.011 4 -10
+3 16 38 20 0 37.2388 19.239 3.827 35.1068 20 14.5415
+3 16 37.2388 19.239 3.827 36.5936 17.071 7.071 35.1068 20 14.5415
+3 16 36.5936 17.071 7.071 36.1624 13.827 9.239 35.1068 20 14.5415
+3 16 36.1624 13.827 9.239 36.011 10 10 35.1068 20 14.5415
+4 16 36.011 10 10 36.011 4 10 35.1082 4 14.5426 35.1068 20 14.5415
+4 16 38.408 10 -8 38.5292 13.0616 -7.3912 38 13.0616 -7.3912 38 10 -8
+4 16 38.5292 13.0616 -7.3912 38.8743 15.6568 -5.6568 38 15.6568 -5.6568 38 13.0616 -7.3912
+4 16 38.8743 15.6568 -5.6568 39.3907 17.3912 -3.0616 38 17.3912 -3.0616 38 15.6568 -5.6568
+4 16 39.3907 17.3912 -3.0616 40 18 0 38 18 0 38 17.3912 -3.0616
+4 16 40 18 0 39.3907 17.3912 3.0616 38 17.3912 3.0616 38 18 0
+4 16 39.3907 17.3912 3.0616 38.8743 15.6568 5.6568 38 15.6568 5.6568 38 17.3912 3.0616
+4 16 38.8743 15.6568 5.6568 38.5292 13.0616 7.3912 38 13.0616 7.3912 38 15.6568 5.6568
+4 16 38.5292 13.0616 7.3912 38.408 10 8 38 10 8 38 13.0616 7.3912
+4 16 38.408 10 8 38.5292 6.9384 7.3912 38 6.9384 7.3912 38 10 8
+4 16 38.5292 6.9384 7.3912 38.8743 4.3432 5.6568 38 4.3432 5.6568 38 6.9384 7.3912
+4 16 38.8743 4.3432 5.6568 39.3907 2.6088 3.0616 38 2.6088 3.0616 38 4.3432 5.6568
+4 16 39.3907 2.6088 3.0616 40 2 0 38 2 0 38 2.6088 3.0616
+4 16 40 2 0 39.3907 2.6088 -3.0616 38 2.6088 -3.0616 38 2 0
+4 16 39.3907 2.6088 -3.0616 38.8743 4.3432 -5.6568 38 4.3432 -5.6568 38 2.6088 -3.0616
+4 16 38.8743 4.3432 -5.6568 38.5292 6.9384 -7.3912 38 6.9384 -7.3912 38 4.3432 -5.6568
+4 16 38.5292 6.9384 -7.3912 38.408 10 -8 38 10 -8 38 6.9384 -7.3912
+4 16 38.408 2 8 38.408 18 8 36.9545 18 15.3073 36.9545 2 15.3073
+1 16 40 10 0 0 -1 -1.592 8 0 0 0 0 8 2-4ndis.dat
+1 16 40 10 0 0 -1 -1.592 8 0 0 0 0 -8 2-4ndis.dat
+4 16 38.408 2 -8 36.955 2 -15.307 36.955 18 -15.307 38.408 18 -8
+1 16 0 0 0 40 0 0 0 1 0 0 0 40 4-4edge.dat
+1 16 0 0 30 1 0 0 0 1 0 0 0 1 stug2-1x2.dat
+1 16 0 0 -30 1 0 0 0 1 0 0 0 1 stug2-1x2.dat
+1 16 0 0 10 1 0 0 0 1 0 0 0 1 stug2-1x4.dat
+1 16 0 0 -10 1 0 0 0 1 0 0 0 1 stug2-1x4.dat
+1 16 0 0 0 4.24264 0 4.24264 0 1 0 -4.24264 0 4.24264 4-4ndis.dat
+4 16 0 0 8.4853 4.2426 0 4.2426 40 0 0 0 0 40
+3 16 4.2426 0 4.2426 8.4853 0 0 40 0 0
+4 16 8.4853 0 0 4.2426 0 -4.2426 0 0 -40 40 0 0
+3 16 4.2426 0 -4.2426 0 0 -8.4853 0 0 -40
+4 16 -8.4853 0 0 -4.2426 0 4.2426 0 0 40 -40 0 0
+3 16 -4.2426 0 4.2426 0 0 8.4853 0 0 40
+4 16 0 0 -8.4853 -4.2426 0 -4.2426 -40 0 0 0 0 -40
+3 16 -4.2426 0 -4.2426 -8.4853 0 0 -40 0 0
+1 16 0 0 0 40 0 0 0 1 0 0 0 40 1-4chrd.dat
+1 16 0 0 0 0 0 -40 0 1 0 40 0 0 1-4chrd.dat
+1 16 0 0 0 0 0 40 0 1 0 -40 0 0 1-4chrd.dat
+1 16 0 0 0 -40 0 0 0 1 0 0 0 -40 1-4chrd.dat
+1 16 0 4 0 5.65685 0 5.65685 0 -1 0 -5.65685 0 5.65685 4-4ndis.dat
+4 16 0 4 38 38 4 0 5.6568 4 5.6568 0 4 11.3137
+3 16 38 4 0 11.3137 4 0 5.6568 4 5.6568
+4 16 -38 4 0 0 4 38 -5.6568 4 5.6568 -11.3137 4 0
+3 16 0 4 38 0 4 11.3137 -5.6568 4 5.6568
+4 16 38 4 0 0 4 -38 5.6568 4 -5.6568 11.3137 4 0
+3 16 0 4 -38 0 4 -11.3137 5.6568 4 -5.6568
+4 16 0 4 -38 -38 4 0 -5.6568 4 -5.6568 0 4 -11.3137
+3 16 -38 4 0 -11.3137 4 0 -5.6568 4 -5.6568
+1 16 0 4 0 38 0 0 0 -1 0 0 0 38 1-4chrd.dat
+1 16 0 4 0 0 0 -38 0 -1 0 38 0 0 1-4chrd.dat
+1 16 0 4 0 0 0 38 0 -1 0 -38 0 0 1-4chrd.dat
+1 16 0 4 0 -38 0 0 0 -1 0 0 0 -38 1-4chrd.dat
+1 16 18 14 6.602 0 -1 0 -10 0 0 0 0 -1 rect.dat
+1 16 18 14 -6.602 0 -1 0 0 0 -10 1 0 0 rect.dat
+1 16 17.851 14 5.573 -0.149 0 0 0 0 10 -0.029 1 0 rect2p.dat
+1 16 17.851 14 -5.573 0.149 0 0 0 0 10 -0.029 -1 0 rect2p.dat
+1 16 17.468 14 7.497 -0.532 0 0 0 0 -10 -0.105 -1 0 rect2p.dat
+1 16 17.468 14 -7.497 0.532 0 0 0 0 -10 -0.105 1 0 rect2p.dat
+4 16 17.704 24 -5.543 18 24 -5.602 18 24 -7.602 16.938 24 -7.391
+4 16 18 24 5.602 17.704 24 5.543 16.938 24 7.391 18 24 7.602
+0 BFC INVERTNEXT
+1 16 20 4 0 -2.2961 0 -5.54328 0 20 0 5.54328 0 -2.2961 3-8cylo.dat
+1 16 20 4 0 -3.06147 0 -7.39104 0 20 0 7.39104 0 -3.06147 3-8cylo.dat
+1 16 20 24 0 -0.76537 0 -1.84776 0 -1 0 1.84776 0 -0.76537 3-8ring3.dat
+1 16 -6.602 14 18 0 0 1 -10 0 0 0 -1 0 rect.dat
+1 16 6.602 14 18 -1 0 0 0 0 -10 0 -1 0 rect.dat
+1 16 -5.573 14 17.851 0.029 -1 0 0 0 10 -0.149 0 0 rect2p.dat
+1 16 5.573 14 17.851 0.029 1 0 0 0 10 0.149 0 0 rect2p.dat
+1 16 -7.497 14 17.468 0.105 1 0 0 0 -10 -0.532 0 0 rect2p.dat
+1 16 7.497 14 17.468 0.105 -1 0 0 0 -10 0.532 0 0 rect2p.dat
+4 16 5.543 24 17.704 5.602 24 18 7.602 24 18 7.391 24 16.938
+4 16 -5.602 24 18 -5.543 24 17.704 -7.391 24 16.938 -7.602 24 18
+0 BFC INVERTNEXT
+1 16 0 4 20 -5.54328 0 2.2961 0 20 0 -2.2961 0 -5.54328 3-8cylo.dat
+1 16 0 4 20 -7.39104 0 3.06147 0 20 0 -3.06147 0 -7.39104 3-8cylo.dat
+1 16 0 24 20 -1.84776 0 0.76537 0 -1 0 -0.76537 0 -1.84776 3-8ring3.dat
+1 16 -18 14 -6.602 0 1 0 -10 0 0 0 0 1 rect.dat
+1 16 -18 14 6.602 0 1 0 0 0 -10 -1 0 0 rect.dat
+1 16 -17.851 14 -5.573 0.149 0 0 0 0 10 0.029 -1 0 rect2p.dat
+1 16 -17.851 14 5.573 -0.149 0 0 0 0 10 0.029 1 0 rect2p.dat
+1 16 -17.468 14 -7.497 0.532 0 0 0 0 -10 0.105 1 0 rect2p.dat
+1 16 -17.468 14 7.497 -0.532 0 0 0 0 -10 0.105 -1 0 rect2p.dat
+4 16 -17.704 24 5.543 -18 24 5.602 -18 24 7.602 -16.938 24 7.391
+4 16 -18 24 -5.602 -17.704 24 -5.543 -16.938 24 -7.391 -18 24 -7.602
+0 BFC INVERTNEXT
+1 16 -20 4 0 2.2961 0 5.54328 0 20 0 -5.54328 0 2.2961 3-8cylo.dat
+1 16 -20 4 0 3.06147 0 7.39104 0 20 0 -7.39104 0 3.06147 3-8cylo.dat
+1 16 -20 24 0 0.76537 0 1.84776 0 -1 0 -1.84776 0 0.76537 3-8ring3.dat
+1 16 6.602 14 -18 0 0 -1 -10 0 0 0 1 0 rect.dat
+1 16 -6.602 14 -18 1 0 0 0 0 -10 0 1 0 rect.dat
+1 16 5.573 14 -17.851 -0.029 1 0 0 0 10 0.149 0 0 rect2p.dat
+1 16 -5.573 14 -17.851 -0.029 -1 0 0 0 10 -0.149 0 0 rect2p.dat
+1 16 7.497 14 -17.468 -0.105 -1 0 0 0 -10 0.532 0 0 rect2p.dat
+1 16 -7.497 14 -17.468 -0.105 1 0 0 0 -10 -0.532 0 0 rect2p.dat
+4 16 -5.543 24 -17.704 -5.602 24 -18 -7.602 24 -18 -7.391 24 -16.938
+4 16 5.602 24 -18 5.543 24 -17.704 7.391 24 -16.938 7.602 24 -18
+0 BFC INVERTNEXT
+1 16 0 4 -20 5.54328 0 -2.2961 0 20 0 2.2961 0 5.54328 3-8cylo.dat
+1 16 0 4 -20 7.39104 0 -3.06147 0 20 0 3.06147 0 7.39104 3-8cylo.dat
+1 16 0 24 -20 1.84776 0 -0.76537 0 -1 0 0.76537 0 1.84776 3-8ring3.dat
+2 24 12 18 0 12.199 18 1
+2 24 7.801 18 1 8 18 0
+2 24 8 18 0 7.801 18 -1
+2 24 12.199 18 -1 12 18 0
+1 16 10 11 -1 -2.199 0 0 0 0 7 0 1 0 rect.dat
+1 16 10 11 1 0 0 -2.199 7 0 0 0 -1 0 rect.dat
+4 16 7.801 18 -1 7.801 18 1 12.199 18 1 12.199 18 -1
+2 24 0 18 12 -1 18 12.199
+2 24 -1 18 7.801 0 18 8
+2 24 0 18 8 1 18 7.801
+2 24 1 18 12.199 0 18 12
+1 16 1 11 10 0 -1 0 0 0 7 -2.199 0 0 rect.dat
+1 16 -1 11 10 0 1 0 7 0 0 0 0 -2.199 rect.dat
+4 16 1 18 7.801 -1 18 7.801 -1 18 12.199 1 18 12.199
+2 24 -12 18 0 -12.199 18 -1
+2 24 -7.801 18 -1 -8 18 0
+2 24 -8 18 0 -7.801 18 1
+2 24 -12.199 18 1 -12 18 0
+1 16 -10 11 1 2.199 0 0 0 0 7 0 -1 0 rect.dat
+1 16 -10 11 -1 0 0 2.199 7 0 0 0 1 0 rect.dat
+4 16 -7.801 18 1 -7.801 18 -1 -12.199 18 -1 -12.199 18 1
+2 24 0 18 -12 1 18 -12.199
+2 24 1 18 -7.801 0 18 -8
+2 24 0 18 -8 -1 18 -7.801
+2 24 -1 18 -12.199 0 18 -12
+1 16 -1 11 -10 0 1 0 0 0 7 2.199 0 0 rect.dat
+1 16 1 11 -10 0 -1 0 7 0 0 0 0 2.199 rect.dat
+4 16 -1 18 -7.801 1 18 -7.801 1 18 -12.199 -1 18 -12.199
+2 24 -22.2962 24 -5.5434 -22 24 -5.602
+2 24 -22 24 -5.602 -22 24 -7.602
+2 24 -23.0616 24 -7.3912 -22 24 -7.602
+2 24 -22.2962 15.7329 -5.5434 -22 15.694 -5.602
+2 24 -23.0616 13.0616 -7.3912 -22 12 -7.602
+2 24 -22 24 -5.602 -22 15.694 -5.602
+2 24 -22 24 -7.602 -22 12 -7.602
+4 16 -22 24 -7.602 -22 24 -5.602 -22 15.694 -5.602 -22 12 -7.602
+4 16 -22.2962 24 -5.5434 -22.2962 18 -5.5434 -22 15.694 -5.602 -22 24 -5.602
+3 16 -22.2962 18 -5.5434 -22.2962 15.7329 -5.5434 -22 15.694 -5.602
+4 16 -23.0616 24 -7.3912 -22 24 -7.602 -22 12 -7.602 -23.0616 18 -7.3912
+3 16 -23.0616 18 -7.3912 -22 12 -7.602 -23.0616 13.0616 -7.3912
+4 16 -22.2962 24 -5.5434 -22 24 -5.602 -22 24 -7.602 -23.0616 24 -7.3912
+0 BFC INVERTNEXT
+1 16 -20 18 0 0 0 -6 0 -2.45378 0 6 0 0 3-16cys2.dat
+0 BFC INVERTNEXT
+1 16 -20 18 0 -2.2961 0 -5.54328 0 6 0 5.54328 0 -2.2961 3-8cyli.dat
+1 16 -20 24 0 -2.2961 0 -5.54328 0 1 0 5.54328 0 -2.2961 3-8edge.dat
+1 16 -20 18 0 -8 0 0 0 -8 0 0 0 -8 3-16cyls.dat
+1 16 -20 18 0 -3.06147 0 -7.39104 0 6 0 7.39104 0 -3.06147 3-8cyli.dat
+1 16 -20 24 0 -3.06147 0 -7.39104 0 1 0 7.39104 0 -3.06147 3-8edge.dat
+1 16 -20 10 0 -8 0 0 8 -1 0 0 0 -8 3-16edge.dat
+2 24 -26 18 0 -25.5434 17.5434 -2.2962
+2 24 -25.0319 17.3912 -3.0616 -24.2426 16.6019 -4.2426
+2 24 -25.5434 17.5434 -2.2962 -25.0319 17.3912 -3.0616
+2 24 -22.2983 15.7335 -5.542 -24.2426 16.6019 -4.2426
+2 24 -22.2962 24 5.5434 -22 24 5.602
+2 24 -22 24 5.602 -22 24 7.602
+2 24 -23.0616 24 7.3912 -22 24 7.602
+2 24 -22.2962 15.7329 5.5434 -22 15.694 5.602
+2 24 -23.0616 13.0616 7.3912 -22 12 7.602
+2 24 -22 24 5.602 -22 15.694 5.602
+2 24 -22 24 7.602 -22 12 7.602
+4 16 -22 12 7.602 -22 15.694 5.602 -22 24 5.602 -22 24 7.602
+4 16 -22 24 5.602 -22 15.694 5.602 -22.2962 18 5.5434 -22.2962 24 5.5434
+3 16 -22 15.694 5.602 -22.2962 15.7329 5.5434 -22.2962 18 5.5434
+4 16 -23.0616 18 7.3912 -22 12 7.602 -22 24 7.602 -23.0616 24 7.3912
+3 16 -23.0616 13.0616 7.3912 -22 12 7.602 -23.0616 18 7.3912
+4 16 -23.0616 24 7.3912 -22 24 7.602 -22 24 5.602 -22.2962 24 5.5434
+0 BFC INVERTNEXT
+1 16 -20 18 0 0 0 -6 0 -2.45378 0 -6 0 0 3-16cys2.dat
+1 16 -20 18 0 -8 0 0 0 -8 0 0 0 8 3-16cyls.dat
+1 16 -20 10 0 -8 0 0 8 -1 0 0 0 8 3-16edge.dat
+2 24 -26 18 0 -25.5434 17.5434 2.2962
+2 24 -25.0319 17.3912 3.0616 -24.2426 16.6019 4.2426
+2 24 -25.5434 17.5434 2.2962 -25.0319 17.3912 3.0616
+2 24 -22.2983 15.7335 5.542 -24.2426 16.6019 4.2426
+1 16 -20 24 0 -0.76537 0 -1.84776 0 -1 0 1.84776 0 -0.76537 3-8ring3.dat
+2 24 -22 10 -8 -22 12 -7.602
+2 24 -22 12 7.602 -22 10 8
+2 24 -5.5434 24 22.2962 -5.602 24 22
+2 24 -5.602 24 22 -7.602 24 22
+2 24 -7.3912 24 23.0616 -7.602 24 22
+2 24 -5.5434 15.7329 22.2962 -5.602 15.694 22
+2 24 -7.3912 13.0616 23.0616 -7.602 12 22
+2 24 -5.602 24 22 -5.602 15.694 22
+2 24 -7.602 24 22 -7.602 12 22
+4 16 -7.602 24 22 -5.602 24 22 -5.602 15.694 22 -7.602 12 22
+4 16 -5.5434 24 22.2962 -5.5434 18 22.2962 -5.602 15.694 22 -5.602 24 22
+3 16 -5.5434 18 22.2962 -5.5434 15.7329 22.2962 -5.602 15.694 22
+4 16 -7.3912 24 23.0616 -7.602 24 22 -7.602 12 22 -7.3912 18 23.0616
+3 16 -7.3912 18 23.0616 -7.602 12 22 -7.3912 13.0616 23.0616
+4 16 -5.5434 24 22.2962 -5.602 24 22 -7.602 24 22 -7.3912 24 23.0616
+0 BFC INVERTNEXT
+1 16 0 18 20 6 0 0 0 -2.45378 0 0 0 6 3-16cys2.dat
+0 BFC INVERTNEXT
+1 16 0 18 20 5.54328 0 -2.2961 0 6 0 2.2961 0 5.54328 3-8cyli.dat
+1 16 0 24 20 5.54328 0 -2.2961 0 1 0 2.2961 0 5.54328 3-8edge.dat
+1 16 0 18 20 0 0 -8 0 -8 0 8 0 0 3-16cyls.dat
+1 16 0 18 20 7.39104 0 -3.06147 0 6 0 3.06147 0 7.39104 3-8cyli.dat
+1 16 0 24 20 7.39104 0 -3.06147 0 1 0 3.06147 0 7.39104 3-8edge.dat
+1 16 0 10 20 0 0 -8 8 -1 0 8 0 0 3-16edge.dat
+2 24 0 18 26 -2.2962 17.5434 25.5434
+2 24 -3.0616 17.3912 25.0319 -4.2426 16.6019 24.2426
+2 24 -2.2962 17.5434 25.5434 -3.0616 17.3912 25.0319
+2 24 -5.542 15.7335 22.2983 -4.2426 16.6019 24.2426
+2 24 5.5434 24 22.2962 5.602 24 22
+2 24 5.602 24 22 7.602 24 22
+2 24 7.3912 24 23.0616 7.602 24 22
+2 24 5.5434 15.7329 22.2962 5.602 15.694 22
+2 24 7.3912 13.0616 23.0616 7.602 12 22
+2 24 5.602 24 22 5.602 15.694 22
+2 24 7.602 24 22 7.602 12 22
+4 16 7.602 12 22 5.602 15.694 22 5.602 24 22 7.602 24 22
+4 16 5.602 24 22 5.602 15.694 22 5.5434 18 22.2962 5.5434 24 22.2962
+3 16 5.602 15.694 22 5.5434 15.7329 22.2962 5.5434 18 22.2962
+4 16 7.3912 18 23.0616 7.602 12 22 7.602 24 22 7.3912 24 23.0616
+3 16 7.3912 13.0616 23.0616 7.602 12 22 7.3912 18 23.0616
+4 16 7.3912 24 23.0616 7.602 24 22 5.602 24 22 5.5434 24 22.2962
+0 BFC INVERTNEXT
+1 16 0 18 20 -6 0 0 0 -2.45378 0 0 0 6 3-16cys2.dat
+1 16 0 18 20 0 0 8 0 -8 0 8 0 0 3-16cyls.dat
+1 16 0 10 20 0 0 8 8 -1 0 8 0 0 3-16edge.dat
+2 24 0 18 26 2.2962 17.5434 25.5434
+2 24 3.0616 17.3912 25.0319 4.2426 16.6019 24.2426
+2 24 2.2962 17.5434 25.5434 3.0616 17.3912 25.0319
+2 24 5.542 15.7335 22.2983 4.2426 16.6019 24.2426
+1 16 0 24 20 1.84776 0 -0.76537 0 -1 0 0.76537 0 1.84776 3-8ring3.dat
+2 24 -8 10 22 -7.602 12 22
+2 24 7.602 12 22 8 10 22
+2 24 22.2962 24 5.5434 22 24 5.602
+2 24 22 24 5.602 22 24 7.602
+2 24 23.0616 24 7.3912 22 24 7.602
+2 24 22.2962 15.7329 5.5434 22 15.694 5.602
+2 24 23.0616 13.0616 7.3912 22 12 7.602
+2 24 22 24 5.602 22 15.694 5.602
+2 24 22 24 7.602 22 12 7.602
+4 16 22 24 7.602 22 24 5.602 22 15.694 5.602 22 12 7.602
+4 16 22.2962 24 5.5434 22.2962 18 5.5434 22 15.694 5.602 22 24 5.602
+3 16 22.2962 18 5.5434 22.2962 15.7329 5.5434 22 15.694 5.602
+4 16 23.0616 24 7.3912 22 24 7.602 22 12 7.602 23.0616 18 7.3912
+3 16 23.0616 18 7.3912 22 12 7.602 23.0616 13.0616 7.3912
+4 16 22.2962 24 5.5434 22 24 5.602 22 24 7.602 23.0616 24 7.3912
+0 BFC INVERTNEXT
+1 16 20 18 0 0 0 6 0 -2.45378 0 -6 0 0 3-16cys2.dat
+0 BFC INVERTNEXT
+1 16 20 18 0 2.2961 0 5.54328 0 6 0 -5.54328 0 2.2961 3-8cyli.dat
+1 16 20 24 0 2.2961 0 5.54328 0 1 0 -5.54328 0 2.2961 3-8edge.dat
+1 16 20 18 0 8 0 0 0 -8 0 0 0 8 3-16cyls.dat
+1 16 20 18 0 3.06147 0 7.39104 0 6 0 -7.39104 0 3.06147 3-8cyli.dat
+1 16 20 24 0 3.06147 0 7.39104 0 1 0 -7.39104 0 3.06147 3-8edge.dat
+1 16 20 10 0 8 0 0 8 -1 0 0 0 8 3-16edge.dat
+2 24 26 18 0 25.5434 17.5434 2.2962
+2 24 25.0319 17.3912 3.0616 24.2426 16.6019 4.2426
+2 24 25.5434 17.5434 2.2962 25.0319 17.3912 3.0616
+2 24 22.2983 15.7335 5.542 24.2426 16.6019 4.2426
+2 24 22.2962 24 -5.5434 22 24 -5.602
+2 24 22 24 -5.602 22 24 -7.602
+2 24 23.0616 24 -7.3912 22 24 -7.602
+2 24 22.2962 15.7329 -5.5434 22 15.694 -5.602
+2 24 23.0616 13.0616 -7.3912 22 12 -7.602
+2 24 22 24 -5.602 22 15.694 -5.602
+2 24 22 24 -7.602 22 12 -7.602
+4 16 22 12 -7.602 22 15.694 -5.602 22 24 -5.602 22 24 -7.602
+4 16 22 24 -5.602 22 15.694 -5.602 22.2962 18 -5.5434 22.2962 24 -5.5434
+3 16 22 15.694 -5.602 22.2962 15.7329 -5.5434 22.2962 18 -5.5434
+4 16 23.0616 18 -7.3912 22 12 -7.602 22 24 -7.602 23.0616 24 -7.3912
+3 16 23.0616 13.0616 -7.3912 22 12 -7.602 23.0616 18 -7.3912
+4 16 23.0616 24 -7.3912 22 24 -7.602 22 24 -5.602 22.2962 24 -5.5434
+0 BFC INVERTNEXT
+1 16 20 18 0 0 0 6 0 -2.45378 0 6 0 0 3-16cys2.dat
+1 16 20 18 0 8 0 0 0 -8 0 0 0 -8 3-16cyls.dat
+1 16 20 10 0 8 0 0 8 -1 0 0 0 -8 3-16edge.dat
+2 24 26 18 0 25.5434 17.5434 -2.2962
+2 24 25.0319 17.3912 -3.0616 24.2426 16.6019 -4.2426
+2 24 25.5434 17.5434 -2.2962 25.0319 17.3912 -3.0616
+2 24 22.2983 15.7335 -5.542 24.2426 16.6019 -4.2426
+1 16 20 24 0 0.76537 0 1.84776 0 -1 0 -1.84776 0 0.76537 3-8ring3.dat
+2 24 22 10 8 22 12 7.602
+2 24 22 12 -7.602 22 10 -8
+2 24 5.5434 24 -22.2962 5.602 24 -22
+2 24 5.602 24 -22 7.602 24 -22
+2 24 7.3912 24 -23.0616 7.602 24 -22
+2 24 5.5434 15.7329 -22.2962 5.602 15.694 -22
+2 24 7.3912 13.0616 -23.0616 7.602 12 -22
+2 24 5.602 24 -22 5.602 15.694 -22
+2 24 7.602 24 -22 7.602 12 -22
+4 16 7.602 24 -22 5.602 24 -22 5.602 15.694 -22 7.602 12 -22
+4 16 5.5434 24 -22.2962 5.5434 18 -22.2962 5.602 15.694 -22 5.602 24 -22
+3 16 5.5434 18 -22.2962 5.5434 15.7329 -22.2962 5.602 15.694 -22
+4 16 7.3912 24 -23.0616 7.602 24 -22 7.602 12 -22 7.3912 18 -23.0616
+3 16 7.3912 18 -23.0616 7.602 12 -22 7.3912 13.0616 -23.0616
+4 16 5.5434 24 -22.2962 5.602 24 -22 7.602 24 -22 7.3912 24 -23.0616
+0 BFC INVERTNEXT
+1 16 0 18 -20 -6 0 0 0 -2.45378 0 0 0 -6 3-16cys2.dat
+0 BFC INVERTNEXT
+1 16 0 18 -20 -5.54328 0 2.2961 0 6 0 -2.2961 0 -5.54328 3-8cyli.dat
+1 16 0 24 -20 -5.54328 0 2.2961 0 1 0 -2.2961 0 -5.54328 3-8edge.dat
+1 16 0 18 -20 0 0 8 0 -8 0 -8 0 0 3-16cyls.dat
+1 16 0 18 -20 -7.39104 0 3.06147 0 6 0 -3.06147 0 -7.39104 3-8cyli.dat
+1 16 0 24 -20 -7.39104 0 3.06147 0 1 0 -3.06147 0 -7.39104 3-8edge.dat
+1 16 0 10 -20 0 0 8 8 -1 0 -8 0 0 3-16edge.dat
+2 24 0 18 -26 2.2962 17.5434 -25.5434
+2 24 3.0616 17.3912 -25.0319 4.2426 16.6019 -24.2426
+2 24 2.2962 17.5434 -25.5434 3.0616 17.3912 -25.0319
+2 24 5.542 15.7335 -22.2983 4.2426 16.6019 -24.2426
+2 24 -5.5434 24 -22.2962 -5.602 24 -22
+2 24 -5.602 24 -22 -7.602 24 -22
+2 24 -7.3912 24 -23.0616 -7.602 24 -22
+2 24 -5.5434 15.7329 -22.2962 -5.602 15.694 -22
+2 24 -7.3912 13.0616 -23.0616 -7.602 12 -22
+2 24 -5.602 24 -22 -5.602 15.694 -22
+2 24 -7.602 24 -22 -7.602 12 -22
+4 16 -7.602 12 -22 -5.602 15.694 -22 -5.602 24 -22 -7.602 24 -22
+4 16 -5.602 24 -22 -5.602 15.694 -22 -5.5434 18 -22.2962 -5.5434 24 -22.2962
+3 16 -5.602 15.694 -22 -5.5434 15.7329 -22.2962 -5.5434 18 -22.2962
+4 16 -7.3912 18 -23.0616 -7.602 12 -22 -7.602 24 -22 -7.3912 24 -23.0616
+3 16 -7.3912 13.0616 -23.0616 -7.602 12 -22 -7.3912 18 -23.0616
+4 16 -7.3912 24 -23.0616 -7.602 24 -22 -5.602 24 -22 -5.5434 24 -22.2962
+0 BFC INVERTNEXT
+1 16 0 18 -20 6 0 0 0 -2.45378 0 0 0 -6 3-16cys2.dat
+1 16 0 18 -20 0 0 -8 0 -8 0 -8 0 0 3-16cyls.dat
+1 16 0 10 -20 0 0 -8 8 -1 0 -8 0 0 3-16edge.dat
+2 24 0 18 -26 -2.2962 17.5434 -25.5434
+2 24 -3.0616 17.3912 -25.0319 -4.2426 16.6019 -24.2426
+2 24 -2.2962 17.5434 -25.5434 -3.0616 17.3912 -25.0319
+2 24 -5.542 15.7335 -22.2983 -4.2426 16.6019 -24.2426
+1 16 0 24 -20 -1.84776 0 0.76537 0 -1 0 -0.76537 0 -1.84776 3-8ring3.dat
+2 24 8 10 -22 7.602 12 -22
+2 24 -7.602 12 -22 -8 10 -22
+5 24 26.87 20 26.87 26.8698 4 26.8698 21.783 4 30.269 30.269 20 21.783
+5 24 15.307 24 36.955 15.3073 20 36.9545 23.197 24 31.683 -0.0005 24 40.0007
+5 24 36.955 20 15.307 36.9545 24 15.3073 31.683 20 23.197 40.0007 20 0.0005
+5 24 26.87 20 -26.87 26.8698 4 -26.8698 30.269 4 -21.783 21.783 20 -30.269
+5 24 36.955 24 -15.307 36.9545 20 -15.3073 31.683 24 -23.197 40.0007 24 0.0005
+5 24 15.307 20 -36.955 15.3073 24 -36.9545 23.197 20 -31.683 0.0005 20 -40.0007
+5 24 -26.87 20 -26.87 -26.8698 4 -26.8698 -21.783 4 -30.269 -30.269 20 -21.783
+5 24 -15.307 24 -36.955 -15.3073 20 -36.9545 -23.197 24 -31.683 0.0005 24 -40.0007
+5 24 -36.955 20 -15.307 -36.9545 24 -15.3073 -31.683 20 -23.197 -40.0007 20 -0.0005
+5 24 -26.87 20 26.87 -26.8698 4 26.8698 -30.269 4 21.783 -21.783 20 30.269
+5 24 -36.955 24 15.307 -36.9545 20 15.3073 -31.683 24 23.197 -40.0007 24 -0.0005
+5 24 -15.307 20 36.955 -15.3073 24 36.9545 -23.197 20 31.683 -0.0005 20 40.0007
+5 24 10 10 -36.011 8 10 -34.011 8 4 -34.011 9.239 13.827 -36.1624
+5 24 9.239 13.827 -36.1624 7.3912 13.0616 -34.1624 8 10 -34.011 7.071 17.071 -36.5936
+5 24 7.071 17.071 -36.5936 5.6568 15.6568 -34.5936 7.3912 13.0616 -34.1624 3.827 19.239 -37.2388
+5 24 3.827 19.239 -37.2388 3.0616 17.3912 -35.2388 5.6568 15.6568 -34.5936 0 20 -38
+5 24 0 18 -36 -3.827 19.239 -37.2388 -3.0616 17.3912 -35.2388 0 20 -38
+5 24 -3.827 19.239 -37.2388 -3.0616 17.3912 -35.2388 0 18 -36 -7.071 17.071 -36.5936
+5 24 -7.071 17.071 -36.5936 -5.6568 15.6568 -34.5936 -3.0616 17.3912 -35.2388 -9.239 13.827 -36.1624
+5 24 -9.239 13.827 -36.1624 -7.3912 13.0616 -34.1624 -5.6568 15.6568 -34.5936 -10 10 -36.011
+5 24 -10 10 -36.011 -8 10 -34.011 -7.3912 13.0616 -34.1624 -8 4 -34.011
+5 24 -7.3912 13.0616 -38.5292 -7.3912 13.0616 -38 -8 10 -38.408 -5.6568 15.6568 -38.8743
+5 24 -8 10 -38 -8 10 -38.408 -7.3912 13.0616 -38.5292 -7.3912 6.9384 -38.5292
+5 24 -5.6568 15.6568 -38.8743 -5.6568 15.6568 -38 -7.3912 13.0616 -38.5292 -3.0616 17.3912 -39.3907
+5 24 -3.0616 17.3912 -39.3907 -3.0616 17.3912 -38 -5.6568 15.6568 -38.8743 0 18 -40
+5 24 0 18 -40 0 18 -38 -3.0616 17.3912 -39.3907 3.0616 17.3912 -39.3907
+5 24 3.0616 17.3912 -39.3907 3.0616 17.3912 -38 0 18 -40 5.6568 15.6568 -38.8743
+5 24 5.6568 15.6568 -38.8743 5.6568 15.6568 -38 3.0616 17.3912 -39.3907 7.3912 13.0616 -38.5292
+5 24 7.3912 13.0616 -38.5292 7.3912 13.0616 -38 5.6568 15.6568 -38.8743 8 10 -38.408
+5 24 8 10 -38.408 8 10 -38 7.3912 13.0616 -38.5292 7.3912 6.9384 -38.5292
+5 24 7.3912 6.9384 -38.5292 7.3912 6.9384 -38 8 10 -38.408 5.6568 4.3432 -38.8743
+5 24 5.6568 4.3432 -38.8743 5.6568 4.3432 -38 7.3912 6.9384 -38.5292 3.0616 2.6088 -39.3907
+5 24 3.0616 2.6088 -39.3907 3.0616 2.6088 -38 5.6568 4.3432 -38.8743 0 2 -40
+5 24 0 2 -40 0 2 -38 3.0616 2.6088 -39.3907 -3.0616 2.6088 -39.3907
+5 24 -3.0616 2.6088 -39.3907 -3.0616 2.6088 -38 0 2 -40 -5.6568 4.3432 -38.8743
+5 24 -5.6568 4.3432 -38.8743 -5.6568 4.3432 -38 -3.0616 2.6088 -39.3907 -7.3912 6.9384 -38.5292
+5 24 -7.3912 6.9384 -38.5292 -7.3912 6.9384 -38 -5.6568 4.3432 -38.8743 -8 10 -38.408
+5 24 15.3073 18 -36.9545 15.3073 2 -36.9545 8 2 -38.408 28.2848 18 -28.2847
+5 24 -15.307 2 -36.955 -15.307 18 -36.955 -8 2 -38.408 -28.2847 2 -28.2848
+5 24 -36.011 10 -10 -34.011 10 -8 -34.011 4 -8 -36.1624 13.827 -9.239
+5 24 -36.1624 13.827 -9.239 -34.1624 13.0616 -7.3912 -34.011 10 -8 -36.5936 17.071 -7.071
+5 24 -36.5936 17.071 -7.071 -34.5936 15.6568 -5.6568 -34.1624 13.0616 -7.3912 -37.2388 19.239 -3.827
+5 24 -37.2388 19.239 -3.827 -35.2388 17.3912 -3.0616 -34.5936 15.6568 -5.6568 -38 20 0
+5 24 -36 18 0 -37.2388 19.239 3.827 -35.2388 17.3912 3.0616 -38 20 0
+5 24 -37.2388 19.239 3.827 -35.2388 17.3912 3.0616 -36 18 0 -36.5936 17.071 7.071
+5 24 -36.5936 17.071 7.071 -34.5936 15.6568 5.6568 -35.2388 17.3912 3.0616 -36.1624 13.827 9.239
+5 24 -36.1624 13.827 9.239 -34.1624 13.0616 7.3912 -34.5936 15.6568 5.6568 -36.011 10 10
+5 24 -36.011 10 10 -34.011 10 8 -34.1624 13.0616 7.3912 -34.011 4 8
+5 24 -38.5292 13.0616 7.3912 -38 13.0616 7.3912 -38.408 10 8 -38.8743 15.6568 5.6568
+5 24 -38 10 8 -38.408 10 8 -38.5292 13.0616 7.3912 -38.5292 6.9384 7.3912
+5 24 -38.8743 15.6568 5.6568 -38 15.6568 5.6568 -38.5292 13.0616 7.3912 -39.3907 17.3912 3.0616
+5 24 -39.3907 17.3912 3.0616 -38 17.3912 3.0616 -38.8743 15.6568 5.6568 -40 18 0
+5 24 -40 18 0 -38 18 0 -39.3907 17.3912 3.0616 -39.3907 17.3912 -3.0616
+5 24 -39.3907 17.3912 -3.0616 -38 17.3912 -3.0616 -40 18 0 -38.8743 15.6568 -5.6568
+5 24 -38.8743 15.6568 -5.6568 -38 15.6568 -5.6568 -39.3907 17.3912 -3.0616 -38.5292 13.0616 -7.3912
+5 24 -38.5292 13.0616 -7.3912 -38 13.0616 -7.3912 -38.8743 15.6568 -5.6568 -38.408 10 -8
+5 24 -38.408 10 -8 -38 10 -8 -38.5292 13.0616 -7.3912 -38.5292 6.9384 -7.3912
+5 24 -38.5292 6.9384 -7.3912 -38 6.9384 -7.3912 -38.408 10 -8 -38.8743 4.3432 -5.6568
+5 24 -38.8743 4.3432 -5.6568 -38 4.3432 -5.6568 -38.5292 6.9384 -7.3912 -39.3907 2.6088 -3.0616
+5 24 -39.3907 2.6088 -3.0616 -38 2.6088 -3.0616 -38.8743 4.3432 -5.6568 -40 2 0
+5 24 -40 2 0 -38 2 0 -39.3907 2.6088 -3.0616 -39.3907 2.6088 3.0616
+5 24 -39.3907 2.6088 3.0616 -38 2.6088 3.0616 -40 2 0 -38.8743 4.3432 5.6568
+5 24 -38.8743 4.3432 5.6568 -38 4.3432 5.6568 -39.3907 2.6088 3.0616 -38.5292 6.9384 7.3912
+5 24 -38.5292 6.9384 7.3912 -38 6.9384 7.3912 -38.8743 4.3432 5.6568 -38.408 10 8
+5 24 -36.9545 18 -15.3073 -36.9545 2 -15.3073 -38.408 2 -8 -28.2847 18 -28.2848
+5 24 -36.955 2 15.307 -36.955 18 15.307 -38.408 2 8 -28.2848 2 28.2847
+5 24 -10 10 36.011 -8 10 34.011 -8 4 34.011 -9.239 13.827 36.1624
+5 24 -9.239 13.827 36.1624 -7.3912 13.0616 34.1624 -8 10 34.011 -7.071 17.071 36.5936
+5 24 -7.071 17.071 36.5936 -5.6568 15.6568 34.5936 -7.3912 13.0616 34.1624 -3.827 19.239 37.2388
+5 24 -3.827 19.239 37.2388 -3.0616 17.3912 35.2388 -5.6568 15.6568 34.5936 0 20 38
+5 24 0 18 36 3.827 19.239 37.2388 3.0616 17.3912 35.2388 0 20 38
+5 24 3.827 19.239 37.2388 3.0616 17.3912 35.2388 0 18 36 7.071 17.071 36.5936
+5 24 7.071 17.071 36.5936 5.6568 15.6568 34.5936 3.0616 17.3912 35.2388 9.239 13.827 36.1624
+5 24 9.239 13.827 36.1624 7.3912 13.0616 34.1624 5.6568 15.6568 34.5936 10 10 36.011
+5 24 10 10 36.011 8 10 34.011 7.3912 13.0616 34.1624 8 4 34.011
+5 24 7.3912 13.0616 38.5292 7.3912 13.0616 38 8 10 38.408 5.6568 15.6568 38.8743
+5 24 8 10 38 8 10 38.408 7.3912 13.0616 38.5292 7.3912 6.9384 38.5292
+5 24 5.6568 15.6568 38.8743 5.6568 15.6568 38 7.3912 13.0616 38.5292 3.0616 17.3912 39.3907
+5 24 3.0616 17.3912 39.3907 3.0616 17.3912 38 5.6568 15.6568 38.8743 0 18 40
+5 24 0 18 40 0 18 38 3.0616 17.3912 39.3907 -3.0616 17.3912 39.3907
+5 24 -3.0616 17.3912 39.3907 -3.0616 17.3912 38 0 18 40 -5.6568 15.6568 38.8743
+5 24 -5.6568 15.6568 38.8743 -5.6568 15.6568 38 -3.0616 17.3912 39.3907 -7.3912 13.0616 38.5292
+5 24 -7.3912 13.0616 38.5292 -7.3912 13.0616 38 -5.6568 15.6568 38.8743 -8 10 38.408
+5 24 -8 10 38.408 -8 10 38 -7.3912 13.0616 38.5292 -7.3912 6.9384 38.5292
+5 24 -7.3912 6.9384 38.5292 -7.3912 6.9384 38 -8 10 38.408 -5.6568 4.3432 38.8743
+5 24 -5.6568 4.3432 38.8743 -5.6568 4.3432 38 -7.3912 6.9384 38.5292 -3.0616 2.6088 39.3907
+5 24 -3.0616 2.6088 39.3907 -3.0616 2.6088 38 -5.6568 4.3432 38.8743 0 2 40
+5 24 0 2 40 0 2 38 -3.0616 2.6088 39.3907 3.0616 2.6088 39.3907
+5 24 3.0616 2.6088 39.3907 3.0616 2.6088 38 0 2 40 5.6568 4.3432 38.8743
+5 24 5.6568 4.3432 38.8743 5.6568 4.3432 38 3.0616 2.6088 39.3907 7.3912 6.9384 38.5292
+5 24 7.3912 6.9384 38.5292 7.3912 6.9384 38 5.6568 4.3432 38.8743 8 10 38.408
+5 24 -15.3073 18 36.9545 -15.3073 2 36.9545 -8 2 38.408 -28.2848 18 28.2847
+5 24 15.307 2 36.955 15.307 18 36.955 8 2 38.408 28.2847 2 28.2848
+5 24 36.011 10 10 34.011 10 8 34.011 4 8 36.1624 13.827 9.239
+5 24 36.1624 13.827 9.239 34.1624 13.0616 7.3912 34.011 10 8 36.5936 17.071 7.071
+5 24 36.5936 17.071 7.071 34.5936 15.6568 5.6568 34.1624 13.0616 7.3912 37.2388 19.239 3.827
+5 24 37.2388 19.239 3.827 35.2388 17.3912 3.0616 34.5936 15.6568 5.6568 38 20 0
+5 24 36 18 0 37.2388 19.239 -3.827 35.2388 17.3912 -3.0616 38 20 0
+5 24 37.2388 19.239 -3.827 35.2388 17.3912 -3.0616 36 18 0 36.5936 17.071 -7.071
+5 24 36.5936 17.071 -7.071 34.5936 15.6568 -5.6568 35.2388 17.3912 -3.0616 36.1624 13.827 -9.239
+5 24 36.1624 13.827 -9.239 34.1624 13.0616 -7.3912 34.5936 15.6568 -5.6568 36.011 10 -10
+5 24 36.011 10 -10 34.011 10 -8 34.1624 13.0616 -7.3912 34.011 4 -8
+5 24 38.5292 13.0616 -7.3912 38 13.0616 -7.3912 38.408 10 -8 38.8743 15.6568 -5.6568
+5 24 38 10 -8 38.408 10 -8 38.5292 13.0616 -7.3912 38.5292 6.9384 -7.3912
+5 24 38.8743 15.6568 -5.6568 38 15.6568 -5.6568 38.5292 13.0616 -7.3912 39.3907 17.3912 -3.0616
+5 24 39.3907 17.3912 -3.0616 38 17.3912 -3.0616 38.8743 15.6568 -5.6568 40 18 0
+5 24 40 18 0 38 18 0 39.3907 17.3912 -3.0616 39.3907 17.3912 3.0616
+5 24 39.3907 17.3912 3.0616 38 17.3912 3.0616 40 18 0 38.8743 15.6568 5.6568
+5 24 38.8743 15.6568 5.6568 38 15.6568 5.6568 39.3907 17.3912 3.0616 38.5292 13.0616 7.3912
+5 24 38.5292 13.0616 7.3912 38 13.0616 7.3912 38.8743 15.6568 5.6568 38.408 10 8
+5 24 38.408 10 8 38 10 8 38.5292 13.0616 7.3912 38.5292 6.9384 7.3912
+5 24 38.5292 6.9384 7.3912 38 6.9384 7.3912 38.408 10 8 38.8743 4.3432 5.6568
+5 24 38.8743 4.3432 5.6568 38 4.3432 5.6568 38.5292 6.9384 7.3912 39.3907 2.6088 3.0616
+5 24 39.3907 2.6088 3.0616 38 2.6088 3.0616 38.8743 4.3432 5.6568 40 2 0
+5 24 40 2 0 38 2 0 39.3907 2.6088 3.0616 39.3907 2.6088 -3.0616
+5 24 39.3907 2.6088 -3.0616 38 2.6088 -3.0616 40 2 0 38.8743 4.3432 -5.6568
+5 24 38.8743 4.3432 -5.6568 38 4.3432 -5.6568 39.3907 2.6088 -3.0616 38.5292 6.9384 -7.3912
+5 24 38.5292 6.9384 -7.3912 38 6.9384 -7.3912 38.8743 4.3432 -5.6568 38.408 10 -8
+5 24 36.9545 18 15.3073 36.9545 2 15.3073 38.408 2 8 28.2847 18 28.2848
+5 24 36.955 2 -15.307 36.955 18 -15.307 38.408 2 -8 28.2848 2 -28.2847
+5 24 -22.2962 24 -5.5434 -22.2962 18 -5.5434 -22 15.694 -5.602 -24.2427 18 -4.2428
+5 24 -23.0616 18 -7.3912 -23.0616 24 -7.3912 -22 24 -7.602 -25.657 18 -5.657
+5 24 -23.0616 13.0616 -7.3912 -23.0616 18 -7.3912 -22 12 -7.602 -25.6568 15.6568 -5.6568
+5 24 -22.2962 18 5.5434 -22.2962 24 5.5434 -22 24 5.602 -24.2428 18 4.2427
+5 24 -23.0616 24 7.3912 -23.0616 18 7.3912 -22 12 7.602 -25.657 24 5.657
+5 24 -23.0616 18 7.3912 -23.0616 13.0616 7.3912 -22 12 7.602 -25.6568 18 5.6568
+5 24 -5.5434 24 22.2962 -5.5434 18 22.2962 -5.602 15.694 22 -4.2428 18 24.2427
+5 24 -7.3912 18 23.0616 -7.3912 24 23.0616 -7.602 24 22 -5.657 18 25.657
+5 24 -7.3912 13.0616 23.0616 -7.3912 18 23.0616 -7.602 12 22 -5.6568 15.6568 25.6568
+5 24 5.5434 18 22.2962 5.5434 24 22.2962 5.602 24 22 4.2427 18 24.2428
+5 24 7.3912 24 23.0616 7.3912 18 23.0616 7.602 12 22 5.657 24 25.657
+5 24 7.3912 18 23.0616 7.3912 13.0616 23.0616 7.602 12 22 5.6568 18 25.6568
+5 24 22.2962 24 5.5434 22.2962 18 5.5434 22 15.694 5.602 24.2427 18 4.2428
+5 24 23.0616 18 7.3912 23.0616 24 7.3912 22 24 7.602 25.657 18 5.657
+5 24 23.0616 13.0616 7.3912 23.0616 18 7.3912 22 12 7.602 25.6568 15.6568 5.6568
+5 24 22.2962 18 -5.5434 22.2962 24 -5.5434 22 24 -5.602 24.2428 18 -4.2427
+5 24 23.0616 24 -7.3912 23.0616 18 -7.3912 22 12 -7.602 25.657 24 -5.657
+5 24 23.0616 18 -7.3912 23.0616 13.0616 -7.3912 22 12 -7.602 25.6568 18 -5.6568
+5 24 5.5434 24 -22.2962 5.5434 18 -22.2962 5.602 15.694 -22 4.2428 18 -24.2427
+5 24 7.3912 18 -23.0616 7.3912 24 -23.0616 7.602 24 -22 5.657 18 -25.657
+5 24 7.3912 13.0616 -23.0616 7.3912 18 -23.0616 7.602 12 -22 5.6568 15.6568 -25.6568
+5 24 -5.5434 18 -22.2962 -5.5434 24 -22.2962 -5.602 24 -22 -4.2427 18 -24.2428
+5 24 -7.3912 24 -23.0616 -7.3912 18 -23.0616 -7.602 12 -22 -5.657 24 -25.657
+5 24 -7.3912 18 -23.0616 -7.3912 13.0616 -23.0616 -7.602 12 -22 -5.6568 18 -25.6568
+
+0 FILE stud4a.dat
+0 Stud Tube Open without Base Edges
+0 Name: stud4a.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Primitive UPDATE 2009-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2002-04-04 [sbliss] Modified for BFC compliance
+0 !HISTORY 2002-04-25 [PTadmin] Official Update 2002-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2009-06-21 [cwdee] Update ring references to 4-4ring
+0 !HISTORY 2009-09-03 [PTadmin] Official Update 2009-02
+
+1 16 0 -4 0 6 0 0 0 1 0 0 0 6 4-4edge.dat
+1 16 0 -4 0 8 0 0 0 1 0 0 0 8 4-4edge.dat
+0 BFC INVERTNEXT
+1 16 0 -4 0 6 0 0 0 4 0 0 0 6 4-4cyli.dat
+1 16 0 -4 0 8 0 0 0 4 0 0 0 8 4-4cyli.dat
+1 16 0 -4 0 2 0 0 0 1 0 0 0 2 4-4ring3.dat
+0
+
+0 FILE 4-4edge.dat
+0 Hi-Res Circle 1.0
+0 Name: 48/4-4edge.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-08-18 [PTadmin] Official Update 2002-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-01-15 [MagFors] BFC'ed, title changed from Edge to Circle
+0 !HISTORY 2012-03-30 [PTadmin] Official Update 2012-01
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 48/1-4edge.dat
+1 16 0 0 0 0 0 -1 0 1 0 1 0 0 48/1-4edge.dat
+1 16 0 0 0 -1 0 0 0 1 0 0 0 -1 48/1-4edge.dat
+1 16 0 0 0 0 0 1 0 1 0 -1 0 0 48/1-4edge.dat
+
+
+0 FILE 4-4cyli.dat
+0 Hi-Res Cylinder 1.0
+0 Name: 48/4-4cyli.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-08-18 [PTadmin] Official Update 2002-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 48/1-4cyli.dat
+1 16 0 0 0 0 0 -1 0 1 0 1 0 0 48/1-4cyli.dat
+1 16 0 0 0 -1 0 0 0 1 0 0 0 -1 48/1-4cyli.dat
+1 16 0 0 0 0 0 1 0 1 0 -1 0 0 48/1-4cyli.dat
+
+0 FILE axlehol3.dat
+0 Hi-Res Technic Axle Hole Tooth Outer Edges
+0 Name: 48/axlehol3.dat
+0 Author: BLStudio
+0 !LDRAW_ORG
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+0 BFC CERTIFY CCW
+2 24 5.644 0 2 5.543 0 2.296
+2 24 5.543 0 2.296 5.196 0 2.9998
+2 24 5.196 0 2.9998 4.76 0 3.6524
+2 24 4.76 0 3.6524 4.2426 0 4.2426
+2 24 4.2426 0 4.2426 3.6524 0 4.7601
+2 24 3.6524 0 4.7601 3 0 5.196
+2 24 3 0 5.196 2.2962 0 5.5434
+2 24 2.2962 0 5.5434 2 0 5.644
+2 24 -2 0 5.644 -2.296 0 5.543
+2 24 -2.296 0 5.543 -2.9998 0 5.196
+2 24 -2.9998 0 5.196 -3.6524 0 4.76
+2 24 -3.6524 0 4.76 -4.2426 0 4.2426
+2 24 -4.2426 0 4.2426 -4.7604 0 3.6528
+2 24 -4.7604 0 3.6528 -5.196 0 3
+2 24 -5.196 0 3 -5.5434 0 2.2962
+2 24 -5.5434 0 2.2962 -5.644 0 2
+2 24 -5.644 0 -2 -5.543 0 -2.296
+2 24 -5.543 0 -2.296 -5.196 0 -2.9998
+2 24 -5.196 0 -2.9998 -4.76 0 -3.6524
+2 24 -4.76 0 -3.6524 -4.2426 0 -4.2426
+2 24 -4.2426 0 -4.2426 -3.6528 0 -4.7604
+2 24 -3.6528 0 -4.7604 -3 0 -5.196
+2 24 -3 0 -5.196 -2.2962 0 -5.5434
+2 24 -2.2962 0 -5.5434 -2 0 -5.644
+2 24 2 0 -5.644 2.296 0 -5.543
+2 24 2.296 0 -5.543 2.9998 0 -5.196
+2 24 2.9998 0 -5.196 3.6524 0 -4.76
+2 24 3.6524 0 -4.76 4.2426 0 -4.2426
+2 24 4.2426 0 -4.2426 4.7604 0 -3.6528
+2 24 4.7604 0 -3.6528 5.196 0 -3
+2 24 5.196 0 -3 5.5434 0 -2.2962
+2 24 5.5434 0 -2.2962 5.644 0 -2
+0
+
+0 FILE axlehole.dat
+0 Hi-Res Technic Axle Hole Closed
+0 Name: 48/axlehole.dat
+0 Author: BLStudio
+0 !LDRAW_ORG
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+0 BFC CERTIFY CCW
+5 24 6 0 0 6 1 0 5.644 0 2 5.644 0 -2
+5 24 0 0 6 0 1 6 2 0 5.644 -2 0 5.644
+5 24 -6 0 0 -6 1 0 -5.644 0 -2 -5.644 0 2
+5 24 0 0 -6 0 1 -6 -2 0 -5.644 2 0 -5.644
+2 24 5.644 0 2 2 0 2
+2 24 2 0 2 2 0 5.644
+2 24 -5.644 0 2 -2 0 2
+2 24 -2 0 2 -2 0 5.644
+2 24 5.644 0 -2 2 0 -2
+2 24 2 0 -2 2 0 -5.644
+2 24 -5.644 0 -2 -2 0 -2
+2 24 -2 0 -2 -2 0 -5.644
+2 24 5.644 1 2 2 1 2
+2 24 2 1 2 2 1 5.644
+2 24 -5.644 1 2 -2 1 2
+2 24 -2 1 2 -2 1 5.644
+2 24 5.644 1 -2 2 1 -2
+2 24 2 1 -2 2 1 -5.644
+2 24 -5.644 1 -2 -2 1 -2
+2 24 -2 1 -2 -2 1 -5.644
+2 24 5.644 0 2 5.644 1 2
+2 24 2 0 2 2 1 2
+2 24 2 0 5.644 2 1 5.644
+2 24 -5.644 0 2 -5.644 1 2
+2 24 -2 0 2 -2 1 2
+2 24 -2 0 5.644 -2 1 5.644
+2 24 5.644 0 -2 5.644 1 -2
+2 24 2 0 -2 2 1 -2
+2 24 2 0 -5.644 2 1 -5.644
+2 24 -5.644 0 -2 -5.644 1 -2
+2 24 -2 0 -2 -2 1 -2
+2 24 -2 0 -5.644 -2 1 -5.644
+4 16 2 0 2 2 1 2 5.644 1 2 5.644 0 2
+4 16 2 0 5.644 2 1 5.644 2 1 2 2 0 2
+4 16 -5.644 1 2 -2 1 2 -2 0 2 -5.644 0 2
+4 16 -2 1 2 -2 1 5.644 -2 0 5.644 -2 0 2
+4 16 5.644 1 -2 2 1 -2 2 0 -2 5.644 0 -2
+4 16 2 1 -2 2 1 -5.644 2 0 -5.644 2 0 -2
+4 16 -2 0 -2 -2 1 -2 -5.644 1 -2 -5.644 0 -2
+4 16 -2 0 -5.644 -2 1 -5.644 -2 1 -2 -2 0 -2
+3 16 2 0 -2 5.543 0 -2.296 5.644 0 -2
+3 16 2 0 -2 2 0 -5.644 2.296 0 -5.543
+3 16 -5.644 0 -2 -5.543 0 -2.296 -2 0 -2
+3 16 -2.296 0 -5.543 -2 0 -5.644 -2 0 -2
+3 16 5.644 0 2 5.543 0 2.296 2 0 2
+3 16 2.296 0 5.543 2 0 5.644 2 0 2
+3 16 -2 0 2 -5.543 0 2.296 -5.644 0 2
+3 16 -2 0 2 -2 0 5.644 -2.296 0 5.543
+3 16 5.644 1 -2 5.543 1 -2.296 2 1 -2
+3 16 2.296 1 -5.543 2 1 -5.644 2 1 -2
+3 16 -2 1 -2 -5.543 1 -2.296 -5.644 1 -2
+3 16 -2 1 -2 -2 1 -5.644 -2.296 1 -5.543
+3 16 2 1 2 5.543 1 2.296 5.644 1 2
+3 16 2 1 2 2 1 5.644 2.296 1 5.543
+3 16 -5.644 1 2 -5.543 1 2.296 -2 1 2
+3 16 -2.296 1 5.543 -2 1 5.644 -2 1 2
+3 16 2 0 -2 2.296 0 -5.543 5.543 0 -2.296
+1 16 0 0 0 5.54328 0 -2.2961 0 1 0 2.2961 0 5.54328 1-8chrd.dat
+3 16 -2 0 -2 -5.543 0 -2.296 -2.296 0 -5.543
+1 16 0 0 0 -2.2961 0 -5.54328 0 1 0 5.54328 0 -2.2961 1-8chrd.dat
+3 16 -2 0 2 -2.296 0 5.543 -5.543 0 2.296
+1 16 0 0 0 -5.54328 0 2.2961 0 1 0 -2.2961 0 -5.54328 1-8chrd.dat
+3 16 2 0 2 5.543 0 2.296 2.296 0 5.543
+1 16 0 0 0 2.2961 0 5.54328 0 1 0 -5.54328 0 2.2961 1-8chrd.dat
+3 16 2 1 2 2.296 1 5.543 5.543 1 2.296
+1 16 0 1 0 5.54328 0 -2.2961 0 -1 0 -2.2961 0 -5.54328 1-8chrd.dat
+3 16 -2 1 2 -5.543 1 2.296 -2.296 1 5.543
+1 16 0 1 0 -2.2961 0 -5.54328 0 -1 0 -5.54328 0 2.2961 1-8chrd.dat
+3 16 -2 1 -2 -2.296 1 -5.543 -5.543 1 -2.296
+1 16 0 1 0 -5.54328 0 2.2961 0 -1 0 2.2961 0 5.54328 1-8chrd.dat
+3 16 2 1 -2 5.543 1 -2.296 2.296 1 -5.543
+1 16 0 1 0 2.2961 0 5.54328 0 -1 0 5.54328 0 -2.2961 1-8chrd.dat
+4 16 5.7954 0 -1.5528 5.7954 1 -1.5528 5.644 1 -2 5.644 0 -2
+4 16 5.9484 0 -0.783 5.9484 1 -0.783 5.7954 1 -1.5528 5.7954 0 -1.5528
+4 16 6 0 0 6 1 0 5.9484 1 -0.783 5.9484 0 -0.783
+4 16 5.9484 0 0.783 5.9484 1 0.783 6 1 0 6 0 0
+4 16 5.7954 0 1.5528 5.7954 1 1.5528 5.9484 1 0.783 5.9484 0 0.783
+4 16 5.644 0 2 5.644 1 2 5.7954 1 1.5528 5.7954 0 1.5528
+4 16 1.5528 0 5.7954 1.5528 1 5.7954 2 1 5.644 2 0 5.644
+4 16 0.783 0 5.9484 0.783 1 5.9484 1.5528 1 5.7954 1.5528 0 5.7954
+4 16 0 0 6 0 1 6 0.783 1 5.9484 0.783 0 5.9484
+4 16 -0.783 0 5.9484 -0.783 1 5.9484 0 1 6 0 0 6
+4 16 -1.5528 0 5.7954 -1.5528 1 5.7954 -0.783 1 5.9484 -0.783 0 5.9484
+4 16 -2 0 5.644 -2 1 5.644 -1.5528 1 5.7954 -1.5528 0 5.7954
+4 16 -5.7954 0 1.5528 -5.7954 1 1.5528 -5.644 1 2 -5.644 0 2
+4 16 -5.9484 0 0.783 -5.9484 1 0.783 -5.7954 1 1.5528 -5.7954 0 1.5528
+4 16 -6 0 0 -6 1 0 -5.9484 1 0.783 -5.9484 0 0.783
+4 16 -5.9484 0 -0.783 -5.9484 1 -0.783 -6 1 0 -6 0 0
+4 16 -5.7954 0 -1.5528 -5.7954 1 -1.5528 -5.9484 1 -0.783 -5.9484 0 -0.783
+4 16 -5.644 0 -2 -5.644 1 -2 -5.7954 1 -1.5528 -5.7954 0 -1.5528
+4 16 -1.5528 0 -5.7954 -1.5528 1 -5.7954 -2 1 -5.644 -2 0 -5.644
+4 16 -0.783 0 -5.9484 -0.783 1 -5.9484 -1.5528 1 -5.7954 -1.5528 0 -5.7954
+4 16 0 0 -6 0 1 -6 -0.783 1 -5.9484 -0.783 0 -5.9484
+4 16 0.783 0 -5.9484 0.783 1 -5.9484 0 1 -6 0 0 -6
+4 16 1.5528 0 -5.7954 1.5528 1 -5.7954 0.783 1 -5.9484 0.783 0 -5.9484
+4 16 2 0 -5.644 2 1 -5.644 1.5528 1 -5.7954 1.5528 0 -5.7954
+0
+
+0 FILE axlehol2.dat
+0 Hi-Res Technic Axle Hole Side Edges
+0 Name: 48/axlehol2.dat
+0 Author: BLStudio
+0 !LDRAW_ORG
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+0 BFC CERTIFY CCW
+2 24 5.644 0 -2 5.7954 0 -1.5528
+2 24 5.7954 0 -1.5528 5.9484 0 -0.783
+2 24 5.9484 0 -0.783 6 0 0
+2 24 6 0 0 5.9484 0 0.783
+2 24 5.9484 0 0.783 5.7954 0 1.5528
+2 24 5.7954 0 1.5528 5.644 0 2
+2 24 2 0 5.644 1.5528 0 5.7954
+2 24 1.5528 0 5.7954 0.783 0 5.9484
+2 24 0.783 0 5.9484 0 0 6
+2 24 0 0 6 -0.783 0 5.9484
+2 24 -0.783 0 5.9484 -1.5528 0 5.7954
+2 24 -1.5528 0 5.7954 -2 0 5.644
+2 24 -5.644 0 2 -5.7954 0 1.5528
+2 24 -5.7954 0 1.5528 -5.9484 0 0.783
+2 24 -5.9484 0 0.783 -6 0 0
+2 24 -6 0 0 -5.9484 0 -0.783
+2 24 -5.9484 0 -0.783 -5.7954 0 -1.5528
+2 24 -5.7954 0 -1.5528 -5.644 0 -2
+2 24 -2 0 -5.644 -1.5528 0 -5.7954
+2 24 -1.5528 0 -5.7954 -0.783 0 -5.9484
+2 24 -0.783 0 -5.9484 0 0 -6
+2 24 0 0 -6 0.783 0 -5.9484
+2 24 0.783 0 -5.9484 1.5528 0 -5.7954
+2 24 1.5528 0 -5.7954 2 0 -5.644
+0
+
+0 FILE 2-4edge.dat
+0 Hi-Res Circle 0.5
+0 Name: 48/2-4edge.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-08-18 [PTadmin] Official Update 2002-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-01-15 [MagFors] BFC'ed, title changed from Edge to Circle
+0 !HISTORY 2012-03-30 [PTadmin] Official Update 2012-01
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 48/1-4edge.dat
+1 16 0 0 0 0 0 -1 0 1 0 1 0 0 48/1-4edge.dat
+
+
+0 FILE 2-4cyli.dat
+0 Hi-Res Cylinder 0.5
+0 Name: 48/2-4cyli.dat
+0 Author: Guy Vivan [guyvivan]
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+4 16 0.9914 0 0.1305 1 0 0 1 1 0 0.9914 1 0.1305
+4 16 0.9659 0 0.2588 0.9914 0 0.1305 0.9914 1 0.1305 0.9659 1 0.2588
+4 16 0.9239 0 0.3827 0.9659 0 0.2588 0.9659 1 0.2588 0.9239 1 0.3827
+4 16 0.866 0 0.5 0.9239 0 0.3827 0.9239 1 0.3827 0.866 1 0.5
+4 16 0.7934 0 0.6088 0.866 0 0.5 0.866 1 0.5 0.7934 1 0.6088
+4 16 0.7071 0 0.7071 0.7934 0 0.6088 0.7934 1 0.6088 0.7071 1 0.7071
+4 16 0.6088 0 0.7934 0.7071 0 0.7071 0.7071 1 0.7071 0.6088 1 0.7934
+4 16 0.5 0 0.866 0.6088 0 0.7934 0.6088 1 0.7934 0.5 1 0.866
+4 16 0.3827 0 0.9239 0.5 0 0.866 0.5 1 0.866 0.3827 1 0.9239
+4 16 0.2588 0 0.9659 0.3827 0 0.9239 0.3827 1 0.9239 0.2588 1 0.9659
+4 16 0.1305 0 0.9914 0.2588 0 0.9659 0.2588 1 0.9659 0.1305 1 0.9914
+4 16 0 0 1 0.1305 0 0.9914 0.1305 1 0.9914 0 1 1
+4 16 -0.1305 0 0.9914 0 0 1 0 1 1 -0.1305 1 0.9914
+4 16 -0.2588 0 0.9659 -0.1305 0 0.9914 -0.1305 1 0.9914 -0.2588 1 0.9659
+4 16 -0.3827 0 0.9239 -0.2588 0 0.9659 -0.2588 1 0.9659 -0.3827 1 0.9239
+4 16 -0.5 0 0.866 -0.3827 0 0.9239 -0.3827 1 0.9239 -0.5 1 0.866
+4 16 -0.6088 0 0.7934 -0.5 0 0.866 -0.5 1 0.866 -0.6088 1 0.7934
+4 16 -0.7071 0 0.7071 -0.6088 0 0.7934 -0.6088 1 0.7934 -0.7071 1 0.7071
+4 16 -0.7934 0 0.6088 -0.7071 0 0.7071 -0.7071 1 0.7071 -0.7934 1 0.6088
+4 16 -0.866 0 0.5 -0.7934 0 0.6088 -0.7934 1 0.6088 -0.866 1 0.5
+4 16 -0.9239 0 0.3827 -0.866 0 0.5 -0.866 1 0.5 -0.9239 1 0.3827
+4 16 -0.9659 0 0.2588 -0.9239 0 0.3827 -0.9239 1 0.3827 -0.9659 1 0.2588
+4 16 -0.9914 0 0.1305 -0.9659 0 0.2588 -0.9659 1 0.2588 -0.9914 1 0.1305
+4 16 -1 0 0 -0.9914 0 0.1305 -0.9914 1 0.1305 -1 1 0
+
+0 conditional lines
+5 24 1 1 0 1 0 0 1 1 -1 0.9914 1 0.1305
+5 24 0.9914 1 0.1305 0.9914 0 0.1305 1 1 0 0.9659 1 0.2588
+5 24 0.9659 1 0.2588 0.9659 0 0.2588 0.9914 1 0.1305 0.9239 1 0.3827
+5 24 0.9239 1 0.3827 0.9239 0 0.3827 0.9659 1 0.2588 0.866 1 0.5
+5 24 0.866 1 0.5 0.866 0 0.5 0.9239 1 0.3827 0.7934 1 0.6088
+5 24 0.7934 1 0.6088 0.7934 0 0.6088 0.866 1 0.5 0.7071 1 0.7071
+5 24 0.7071 1 0.7071 0.7071 0 0.7071 0.7934 1 0.6088 0.6088 1 0.7934
+5 24 0.6088 1 0.7934 0.6088 0 0.7934 0.7071 1 0.7071 0.5 1 0.866
+5 24 0.5 1 0.866 0.5 0 0.866 0.6088 1 0.7934 0.3827 1 0.9239
+5 24 0.3827 1 0.9239 0.3827 0 0.9239 0.5 1 0.866 0.2588 1 0.9659
+5 24 0.2588 1 0.9659 0.2588 0 0.9659 0.3827 1 0.9239 0.1305 1 0.9914
+5 24 0.1305 1 0.9914 0.1305 0 0.9914 0.2588 1 0.9659 0 1 1
+5 24 0 1 1 0 0 1 0.1305 1 0.9914 -0.1305 1 0.9914
+5 24 -0.1305 1 0.9914 -0.1305 0 0.9914 0 1 1 -0.2588 1 0.9659
+5 24 -0.2588 1 0.9659 -0.2588 0 0.9659 -0.1305 1 0.9914 -0.3827 1 0.9239
+5 24 -0.3827 1 0.9239 -0.3827 0 0.9239 -0.2588 1 0.9659 -0.5 1 0.866
+5 24 -0.5 1 0.866 -0.5 0 0.866 -0.3827 1 0.9239 -0.6088 1 0.7934
+5 24 -0.6088 1 0.7934 -0.6088 0 0.7934 -0.5 1 0.866 -0.7071 1 0.7071
+5 24 -0.7071 1 0.7071 -0.7071 0 0.7071 -0.6088 1 0.7934 -0.7934 1 0.6088
+5 24 -0.7934 1 0.6088 -0.7934 0 0.6088 -0.7071 1 0.7071 -0.866 1 0.5
+5 24 -0.866 1 0.5 -0.866 0 0.5 -0.7934 1 0.6088 -0.9239 1 0.3827
+5 24 -0.9239 1 0.3827 -0.9239 0 0.3827 -0.866 1 0.5 -0.9659 1 0.2588
+5 24 -0.9659 1 0.2588 -0.9659 0 0.2588 -0.9239 1 0.3827 -0.9914 1 0.1305
+5 24 -0.9914 1 0.1305 -0.9914 0 0.1305 -0.9659 1 0.2588 -1 1 0
+5 24 -1 1 0 -1 0 0 -0.9914 1 0.1305 -1 1 -1
+
+0 end of file
+0 FILE 2-4ring3.dat
+0 Hi-Res Ring  3 x 0.5
+0 Name: 48/2-4ring3.dat
+0 Author: Paul Easter [pneaster]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2005-12-28 [PTadmin] Official Update 2005-01
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 4 0 0 3.9656 0 0.522 2.9742 0 0.3915 3 0 0
+4 16 3.9656 0 0.522 3.8636 0 1.0352 2.8977 0 0.7764 2.9742 0 0.3915
+4 16 3.8636 0 1.0352 3.6956 0 1.5308 2.7717 0 1.1481 2.8977 0 0.7764
+4 16 3.6956 0 1.5308 3.464 0 2 2.598 0 1.5 2.7717 0 1.1481
+4 16 3.464 0 2 3.1736 0 2.4352 2.3802 0 1.8264 2.598 0 1.5
+4 16 3.1736 0 2.4352 2.8284 0 2.8284 2.1213 0 2.1213 2.3802 0 1.8264
+4 16 2.8284 0 2.8284 2.4352 0 3.1736 1.8264 0 2.3802 2.1213 0 2.1213
+4 16 2.4352 0 3.1736 2 0 3.464 1.5 0 2.598 1.8264 0 2.3802
+4 16 2 0 3.464 1.5308 0 3.6956 1.1481 0 2.7717 1.5 0 2.598
+4 16 1.5308 0 3.6956 1.0352 0 3.8636 0.7764 0 2.8977 1.1481 0 2.7717
+4 16 1.0352 0 3.8636 0.522 0 3.9656 0.3915 0 2.9742 0.7764 0 2.8977
+4 16 0.522 0 3.9656 0 0 4 0 0 3 0.3915 0 2.9742
+4 16 0 0 4 -0.522 0 3.9656 -0.3915 0 2.9742 0 0 3
+4 16 -0.522 0 3.9656 -1.0352 0 3.8636 -0.7764 0 2.8977 -0.3915 0 2.9742
+4 16 -1.0352 0 3.8636 -1.5308 0 3.6956 -1.1481 0 2.7717 -0.7764 0 2.8977
+4 16 -1.5308 0 3.6956 -2 0 3.464 -1.5 0 2.598 -1.1481 0 2.7717
+4 16 -2 0 3.464 -2.4352 0 3.1736 -1.8264 0 2.3802 -1.5 0 2.598
+4 16 -2.4352 0 3.1736 -2.8284 0 2.8284 -2.1213 0 2.1213 -1.8264 0 2.3802
+4 16 -2.8284 0 2.8284 -3.1736 0 2.4352 -2.3802 0 1.8264 -2.1213 0 2.1213
+4 16 -3.1736 0 2.4352 -3.464 0 2 -2.598 0 1.5 -2.3802 0 1.8264
+4 16 -3.464 0 2 -3.6956 0 1.5308 -2.7717 0 1.1481 -2.598 0 1.5
+4 16 -3.6956 0 1.5308 -3.8636 0 1.0352 -2.8977 0 0.7764 -2.7717 0 1.1481
+4 16 -3.8636 0 1.0352 -3.9656 0 0.522 -2.9742 0 0.3915 -2.8977 0 0.7764
+4 16 -3.9656 0 0.522 -4 0 0 -3 0 0 -2.9742 0 0.3915
+
+0 FILE 1-8cyli.dat
+0 Hi-Res Cylinder 0.125
+0 Name: 48/1-8cyli.dat
+0 Author: Steve Bliss [sbliss]
+0 !LDRAW_ORG 48_Primitive UPDATE 2004-04
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2000-05-07 [PTadmin] Official Update 2000-01
+0 !HISTORY 2004-10-12 [sbliss] fixed title, BFC'ed
+0 !HISTORY 2004-11-06 [PTadmin] Official Update 2004-04
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+
+5 24 1 0 0 1 1 0 0.9914 0 0.1305 1 0 -1
+5 24 0.9914 0 0.1305 0.9914 1 0.1305 0.9659 0 0.2588 1 0 0
+5 24 0.9659 0 0.2588 0.9659 1 0.2588 0.9239 0 0.3827 0.9914 0 0.1305
+5 24 0.9239 0 0.3827 0.9239 1 0.3827 0.8660 0 0.5000 0.9659 0 0.2588
+5 24 0.8660 0 0.5000 0.8660 1 0.5000 0.7934 0 0.6088 0.9239 0 0.3827
+5 24 0.7934 0 0.6088 0.7934 1 0.6088 0.7071 0 0.7071 0.8660 0 0.5000
+5 24 0.7071 0 0.7071 0.7071 1 0.7071 0.6088 0 0.7934 0.7934 0 0.6088
+
+4 16 0.9914 1 0.1305 0.9914 0 0.1305 1 0 0 1 1 0
+4 16 0.9659 1 0.2588 0.9659 0 0.2588 0.9914 0 0.1305 0.9914 1 0.1305
+4 16 0.9239 1 0.3827 0.9239 0 0.3827 0.9659 0 0.2588 0.9659 1 0.2588
+4 16 0.8660 1 0.5000 0.8660 0 0.5000 0.9239 0 0.3827 0.9239 1 0.3827
+4 16 0.7934 1 0.6088 0.7934 0 0.6088 0.8660 0 0.5000 0.8660 1 0.5000
+4 16 0.7071 1 0.7071 0.7071 0 0.7071 0.7934 0 0.6088 0.7934 1 0.6088
+0
+
+0 FILE rect3.dat
+0 Rectangle with 3 Edges
+0 Name: rect3.dat
+0 Author: Mark Kennedy [mkennedy]
+0 !LDRAW_ORG Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2003-08-01 [PTadmin] Official Update 2003-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-01-17 [mikeheide] Change winding to CCW
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+2 24 1 0 1 -1 0 1
+2 24 1 0 1 1 0 -1
+2 24 -1 0 1 -1 0 -1
+4 16 -1 0 1 -1 0 -1 1 0 -1 1 0 1
+0 //
+
+0 FILE rect2p.dat
+0 Rectangle with 2 Parallel Edges
+0 Name: rect2p.dat
+0 Author: Donald Sutter [technog]
+0 !LDRAW_ORG Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2003-08-01 [PTadmin] Official Update 2003-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-01-17 [mikeheide] changed winding to CCW
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+2 24 1 0 1 -1 0 1
+2 24 -1 0 -1 1 0 -1
+4 16 -1 0 1 -1 0 -1 1 0 -1 1 0 1
+0
+
+0 FILE 1-8edge.dat
+0 Hi-Res Circle 0.125
+0 Name: 48/1-8edge.dat
+0 Author: [PTadmin]
+0 !LDRAW_ORG 48_Primitive UPDATE 2017-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2000-09-30 [PTadmin] Official Update 2000-02
+0 !HISTORY 2007-10-13 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2017-01-17 [Steffen] added BFC CERTIFY statement
+0 !HISTORY 2017-12-30 [PTadmin] Official Update 2017-01
+
+2 24 1 0 0 0.9914 0 0.1305
+2 24 0.9914 0 0.1305 0.9659 0 0.2588
+2 24 0.9659 0 0.2588 0.9239 0 0.3827
+2 24 0.9239 0 0.3827 0.866 0 0.5
+2 24 0.866 0 0.5 0.7934 0 0.6088
+2 24 0.7934 0 0.6088 0.7071 0 0.7071
+
+0 FILE 1-4edge.dat
+0 Hi-Res Circle 0.25
+0 Name: 48/1-4edge.dat
+0 Author: Manfred Moolhuysen
+0 !LDRAW_ORG 48_Primitive UPDATE 2010-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-03-17 [MagFors] Updated description
+0 !HISTORY 2010-05-21 [mikeheide] BFC'ed and compacted numbers (saved 10% filesize)
+0 !HISTORY 2010-07-05 [PTadmin] Official Update 2010-02
+
+2 24 1 0 0 0.9914 0 0.1305
+2 24 0.9914 0 0.1305 0.9659 0 0.2588
+2 24 0.9659 0 0.2588 0.9239 0 0.3827
+2 24 0.9239 0 0.3827 0.866 0 0.5
+2 24 0.866 0 0.5 0.7934 0 0.6088
+2 24 0.7934 0 0.6088 0.7071 0 0.7071
+2 24 0.7071 0 0.7071 0.6088 0 0.7934
+2 24 0.6088 0 0.7934 0.5 0 0.866
+2 24 0.5 0 0.866 0.3827 0 0.9239
+2 24 0.3827 0 0.9239 0.2588 0 0.9659
+2 24 0.2588 0 0.9659 0.1305 0 0.9914
+2 24 0.1305 0 0.9914 0 0 1
+0 //
+
+0 FILE 1-4cyls.dat
+0 Hi-Res Cylinder Sloped 0.25
+0 Name: 48/1-4cyls.dat
+0 Author: Franklin W. Cain [fwcain]
+0 !LDRAW_ORG 48_Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2006-01-14 [nielsk] Changed to CCW; fixed conditional line; reduced filesize
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+3 16 1 0 0 0.9914 0.0086 0.1305 0.9914 0 0.1305
+4 16 0.9914 0.0086 0.1305 0.9659 0.0341 0.2588 0.9659 0 0.2588 0.9914 0 0.1305
+4 16 0.9659 0.0341 0.2588 0.9239 0.0761 0.3827 0.9239 0 0.3827 0.9659 0 0.2588
+4 16 0.9239 0.0761 0.3827 0.866 0.1340 0.5 0.866 0 0.5 0.9239 0 0.3827
+4 16 0.866 0.1340 0.5 0.7934 0.2066 0.6088 0.7934 0 0.6088 0.866 0 0.5
+4 16 0.7934 0.2066 0.6088 0.7071 0.2929 0.7071 0.7071 0 0.7071 0.7934 0 0.6088
+4 16 0.7071 0.2929 0.7071 0.6088 0.3912 0.7934 0.6088 0 0.7934 0.7071 0 0.7071
+4 16 0.6088 0.3912 0.7934 0.5 0.5 0.866 0.5 0 0.866 0.6088 0 0.7934
+4 16 0.5 0.5 0.866 0.3827 0.6173 0.9239 0.3827 0 0.9239 0.5 0 0.866
+4 16 0.3827 0.6173 0.9239 0.2588 0.7412 0.9659 0.2588 0 0.9659 0.3827 0 0.9239
+4 16 0.2588 0.7412 0.9659 0.1305 0.8695 0.9914 0.1305 0 0.9914 0.2588 0 0.9659
+4 16 0.1305 0.8695 0.9914 0 1 1 0 0 1 0.1305 0 0.9914
+0
+5 24 0.9914 0 0.1305 0.9914 0.0086 0.1305 1 0 0 0.9659 0 0.2588
+5 24 0.9659 0 0.2588 0.9659 0.0341 0.2588 0.9914 0 0.1305 0.9239 0 0.3827
+5 24 0.9239 0 0.3827 0.9239 0.0761 0.3827 0.9659 0 0.2588 0.866 0 0.5
+5 24 0.866 0 0.5 0.866 0.1340 0.5 0.9239 0 0.3827 0.7934 0 0.6088
+5 24 0.7934 0 0.6088 0.7934 0.2066 0.6088 0.866 0 0.5 0.7071 0 0.7071
+5 24 0.7071 0 0.7071 0.7071 0.2929 0.7071 0.7934 0 0.6088 0.6088 0 0.7934
+5 24 0.6088 0 0.7934 0.6088 0.3912 0.7934 0.7071 0 0.7071 0.5 0 0.866
+5 24 0.5 0 0.866 0.5 0.5 0.866 0.6088 0 0.7934 0.3827 0 0.9239
+5 24 0.3827 0 0.9239 0.3827 0.6173 0.9239 0.5 0 0.866 0.2588 0 0.9659
+5 24 0.2588 0 0.9659 0.2588 0.7412 0.9659 0.3827 0 0.9239 0.1305 0 0.9914
+5 24 0.1305 0 0.9914 0.1305 0.8695 0.9914 0.2588 0 0.9659 0 0 1
+5 24 0 0 1 0 1 1 0.1305 0 0.9914 -1 0 1
+0
+
+0 FILE 2-4ndis.dat
+0 Hi-Res Disc Negative 0.5
+0 Name: 48/2-4ndis.dat
+0 Author: Guy Vivan [guyvivan]
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+3 16 1 0 1 0.9914 0 0.1305 1 0 0
+3 16 1 0 1 0.9659 0 0.2588 0.9914 0 0.1305
+3 16 1 0 1 0.9239 0 0.3827 0.9659 0 0.2588
+3 16 1 0 1 0.866 0 0.5 0.9239 0 0.3827
+3 16 1 0 1 0.7934 0 0.6088 0.866 0 0.5
+3 16 1 0 1 0.7071 0 0.7071 0.7934 0 0.6088
+3 16 1 0 1 0.6088 0 0.7934 0.7071 0 0.7071
+3 16 1 0 1 0.5 0 0.866 0.6088 0 0.7934
+3 16 1 0 1 0.3827 0 0.9239 0.5 0 0.866
+3 16 1 0 1 0.2588 0 0.9659 0.3827 0 0.9239
+3 16 1 0 1 0.1305 0 0.9914 0.2588 0 0.9659
+3 16 1 0 1 0 0 1 0.1305 0 0.9914
+3 16 -1 0 1 -0.1305 0 0.9914 0 0 1
+3 16 -1 0 1 -0.2588 0 0.9659 -0.1305 0 0.9914
+3 16 -1 0 1 -0.3827 0 0.9239 -0.2588 0 0.9659
+3 16 -1 0 1 -0.5 0 0.866 -0.3827 0 0.9239
+3 16 -1 0 1 -0.6088 0 0.7934 -0.5 0 0.866
+3 16 -1 0 1 -0.7071 0 0.7071 -0.6088 0 0.7934
+3 16 -1 0 1 -0.7934 0 0.6088 -0.7071 0 0.7071
+3 16 -1 0 1 -0.866 0 0.5 -0.7934 0 0.6088
+3 16 -1 0 1 -0.9239 0 0.3827 -0.866 0 0.5
+3 16 -1 0 1 -0.9659 0 0.2588 -0.9239 0 0.3827
+3 16 -1 0 1 -0.9914 0 0.1305 -0.9659 0 0.2588
+3 16 -1 0 1 -1 0 0 -0.9914 0 0.1305
+
+0 end of file 
+
+
+
+0 FILE rect1.dat
+0 Rectangle with 1 Edge
+0 Name: rect1.dat
+0 Author: Chris Dee [cwdee]
+0 !LDRAW_ORG Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2003-12-19 [PTadmin] Official Update 2003-03
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-01-17 [mikeheide] changed winding to CCW
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+2 24 1 0 -1 1 0 1
+4 16 -1 0 1 -1 0 -1 1 0 -1 1 0 1
+0
+
+0 FILE rect2a.dat
+0 Rectangle with 2 Adjacent Edges
+0 Name: rect2a.dat
+0 Author: Chris Dee [cwdee]
+0 !LDRAW_ORG Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2003-12-19 [PTadmin] Official Update 2003-03
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-01-17 [mikeheide] changed winding to CCW
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+2 24 1 0 1 -1 0 1
+2 24 1 0 -1 1 0 1
+4 16 -1 0 1 -1 0 -1 1 0 -1 1 0 1
+0
+
+0 FILE 4-4ring3.dat
+0 Hi-Res Ring  3 x 1.0
+0 Name: 48/4-4ring3.dat
+0 Author: Mark Kennedy [mkennedy]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2003-12-01 [pneaster] Adjusted values per request.
+0 !HISTORY 2004-04-22 [PTadmin] Official Update 2004-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 4 0 0 3.9656 0 0.522 2.9742 0 0.3915 3 0 0
+4 16 3.9656 0 0.522 3.8636 0 1.0352 2.8977 0 0.7764 2.9742 0 0.3915
+4 16 3.8636 0 1.0352 3.6956 0 1.5308 2.7717 0 1.1481 2.8977 0 0.7764
+4 16 3.6956 0 1.5308 3.464 0 2 2.598 0 1.5 2.7717 0 1.1481
+4 16 3.464 0 2 3.1736 0 2.4352 2.3802 0 1.8264 2.598 0 1.5
+4 16 3.1736 0 2.4352 2.8284 0 2.8284 2.1213 0 2.1213 2.3802 0 1.8264
+4 16 2.8284 0 2.8284 2.4352 0 3.1736 1.8264 0 2.3802 2.1213 0 2.1213
+4 16 2.4352 0 3.1736 2 0 3.464 1.5 0 2.598 1.8264 0 2.3802
+4 16 2 0 3.464 1.5308 0 3.6956 1.1481 0 2.7717 1.5 0 2.598
+4 16 1.5308 0 3.6956 1.0352 0 3.8636 0.7764 0 2.8977 1.1481 0 2.7717
+4 16 1.0352 0 3.8636 0.522 0 3.9656 0.3915 0 2.9742 0.7764 0 2.8977
+4 16 0.522 0 3.9656 0 0 4 0 0 3 0.3915 0 2.9742
+4 16 0 0 4 -0.522 0 3.9656 -0.3915 0 2.9742 0 0 3
+4 16 -0.522 0 3.9656 -1.0352 0 3.8636 -0.7764 0 2.8977 -0.3915 0 2.9742
+4 16 -1.0352 0 3.8636 -1.5308 0 3.6956 -1.1481 0 2.7717 -0.7764 0 2.8977
+4 16 -1.5308 0 3.6956 -2 0 3.464 -1.5 0 2.598 -1.1481 0 2.7717
+4 16 -2 0 3.464 -2.4352 0 3.1736 -1.8264 0 2.3802 -1.5 0 2.598
+4 16 -2.4352 0 3.1736 -2.8284 0 2.8284 -2.1213 0 2.1213 -1.8264 0 2.3802
+4 16 -2.8284 0 2.8284 -3.1736 0 2.4352 -2.3802 0 1.8264 -2.1213 0 2.1213
+4 16 -3.1736 0 2.4352 -3.464 0 2 -2.598 0 1.5 -2.3802 0 1.8264
+4 16 -3.464 0 2 -3.6956 0 1.5308 -2.7717 0 1.1481 -2.598 0 1.5
+4 16 -3.6956 0 1.5308 -3.8636 0 1.0352 -2.8977 0 0.7764 -2.7717 0 1.1481
+4 16 -3.8636 0 1.0352 -3.9656 0 0.522 -2.9742 0 0.3915 -2.8977 0 0.7764
+4 16 -3.9656 0 0.522 -4 0 0 -3 0 0 -2.9742 0 0.3915
+4 16 -4 0 0 -3.9656 0 -0.522 -2.9742 0 -0.3915 -3 0 0
+4 16 -3.9656 0 -0.522 -3.8636 0 -1.0352 -2.8977 0 -0.7764 -2.9742 0 -0.3915
+4 16 -3.8636 0 -1.0352 -3.6956 0 -1.5308 -2.7717 0 -1.1481 -2.8977 0 -0.7764
+4 16 -3.6956 0 -1.5308 -3.464 0 -2 -2.598 0 -1.5 -2.7717 0 -1.1481
+4 16 -3.464 0 -2 -3.1736 0 -2.4352 -2.3802 0 -1.8264 -2.598 0 -1.5
+4 16 -3.1736 0 -2.4352 -2.8284 0 -2.8284 -2.1213 0 -2.1213 -2.3802 0 -1.8264
+4 16 -2.8284 0 -2.8284 -2.4352 0 -3.1736 -1.8264 0 -2.3802 -2.1213 0 -2.1213
+4 16 -2.4352 0 -3.1736 -2 0 -3.464 -1.5 0 -2.598 -1.8264 0 -2.3802
+4 16 -2 0 -3.464 -1.5308 0 -3.6956 -1.1481 0 -2.7717 -1.5 0 -2.598
+4 16 -1.5308 0 -3.6956 -1.0352 0 -3.8636 -0.7764 0 -2.8977 -1.1481 0 -2.7717
+4 16 -1.0352 0 -3.8636 -0.522 0 -3.9656 -0.3915 0 -2.9742 -0.7764 0 -2.8977
+4 16 -0.522 0 -3.9656 0 0 -4 0 0 -3 -0.3915 0 -2.9742
+4 16 0 0 -4 0.522 0 -3.9656 0.3915 0 -2.9742 0 0 -3
+4 16 0.522 0 -3.9656 1.0352 0 -3.8636 0.7764 0 -2.8977 0.3915 0 -2.9742
+4 16 1.0352 0 -3.8636 1.5308 0 -3.6956 1.1481 0 -2.7717 0.7764 0 -2.8977
+4 16 1.5308 0 -3.6956 2 0 -3.464 1.5 0 -2.598 1.1481 0 -2.7717
+4 16 2 0 -3.464 2.4352 0 -3.1736 1.8264 0 -2.3802 1.5 0 -2.598
+4 16 2.4352 0 -3.1736 2.8284 0 -2.8284 2.1213 0 -2.1213 1.8264 0 -2.3802
+4 16 2.8284 0 -2.8284 3.1736 0 -2.4352 2.3802 0 -1.8264 2.1213 0 -2.1213
+4 16 3.1736 0 -2.4352 3.464 0 -2 2.598 0 -1.5 2.3802 0 -1.8264
+4 16 3.464 0 -2 3.6956 0 -1.5308 2.7717 0 -1.1481 2.598 0 -1.5
+4 16 3.6956 0 -1.5308 3.8636 0 -1.0352 2.8977 0 -0.7764 2.7717 0 -1.1481
+4 16 3.8636 0 -1.0352 3.9656 0 -0.522 2.9742 0 -0.3915 2.8977 0 -0.7764
+4 16 3.9656 0 -0.522 4 0 0 3 0 0 2.9742 0 -0.3915
+
+0 FILE stug2-1x2.dat
+0 Stud Open Group  1 x  2
+0 Name: stug2-1x2.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-12-29 [PTadmin] Official Update 2011-02
+
+1 16 -10 0 0 1 0 0 0 1 0 0 0 1 stud2.dat
+1 16  10 0 0 1 0 0 0 1 0 0 0 1 stud2.dat
+
+0 FILE stug2-1x4.dat
+0 Stud Open Group  1 x  4
+0 Name: stug2-1x4.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-12-29 [PTadmin] Official Update 2011-02
+
+1 16 -30 0 0 1 0 0 0 1 0 0 0 1 stud2.dat
+1 16 -10 0 0 1 0 0 0 1 0 0 0 1 stud2.dat
+1 16  10 0 0 1 0 0 0 1 0 0 0 1 stud2.dat
+1 16  30 0 0 1 0 0 0 1 0 0 0 1 stud2.dat
+
+0 FILE 4-4ndis.dat
+0 Hi-Res Disc Negative 1.0
+0 Name: 48/4-4ndis.dat
+0 Author: Franklin W. Cain [fwcain]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2004-04-22 [PTadmin] Official Update 2004-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+3 16 0.9914 0 0.1305 1 0 0 1 0 1
+3 16 0.9659 0 0.2588 0.9914 0 0.1305 1 0 1
+3 16 0.9239 0 0.3827 0.9659 0 0.2588 1 0 1
+3 16 0.866 0 0.5 0.9239 0 0.3827 1 0 1
+3 16 0.7934 0 0.6088 0.866 0 0.5 1 0 1
+3 16 0.7071 0 0.7071 0.7934 0 0.6088 1 0 1
+3 16 0.6088 0 0.7934 0.7071 0 0.7071 1 0 1
+3 16 0.5 0 0.866 0.6088 0 0.7934 1 0 1
+3 16 0.3827 0 0.9239 0.5 0 0.866 1 0 1
+3 16 0.2588 0 0.9659 0.3827 0 0.9239 1 0 1
+3 16 0.1305 0 0.9914 0.2588 0 0.9659 1 0 1
+3 16 0 0 1 0.1305 0 0.9914 1 0 1
+3 16 -0.1305 0 0.9914 0 0 1 -1 0 1
+3 16 -0.2588 0 0.9659 -0.1305 0 0.9914 -1 0 1
+3 16 -0.3827 0 0.9239 -0.2588 0 0.9659 -1 0 1
+3 16 -0.5 0 0.866 -0.3827 0 0.9239 -1 0 1
+3 16 -0.6088 0 0.7934 -0.5 0 0.866 -1 0 1
+3 16 -0.7071 0 0.7071 -0.6088 0 0.7934 -1 0 1
+3 16 -0.7934 0 0.6088 -0.7071 0 0.7071 -1 0 1
+3 16 -0.866 0 0.5 -0.7934 0 0.6088 -1 0 1
+3 16 -0.9239 0 0.3827 -0.866 0 0.5 -1 0 1
+3 16 -0.9659 0 0.2588 -0.9239 0 0.3827 -1 0 1
+3 16 -0.9914 0 0.1305 -0.9659 0 0.2588 -1 0 1
+3 16 -1 0 0 -0.9914 0 0.1305 -1 0 1
+3 16 -0.9914 0 -0.1305 -1 0 0 -1 0 -1
+3 16 -0.9659 0 -0.2588 -0.9914 0 -0.1305 -1 0 -1
+3 16 -0.9239 0 -0.3827 -0.9659 0 -0.2588 -1 0 -1
+3 16 -0.866 0 -0.5 -0.9239 0 -0.3827 -1 0 -1
+3 16 -0.7934 0 -0.6088 -0.866 0 -0.5 -1 0 -1
+3 16 -0.7071 0 -0.7071 -0.7934 0 -0.6088 -1 0 -1
+3 16 -0.6088 0 -0.7934 -0.7071 0 -0.7071 -1 0 -1
+3 16 -0.5 0 -0.866 -0.6088 0 -0.7934 -1 0 -1
+3 16 -0.3827 0 -0.9239 -0.5 0 -0.866 -1 0 -1
+3 16 -0.2588 0 -0.9659 -0.3827 0 -0.9239 -1 0 -1
+3 16 -0.1305 0 -0.9914 -0.2588 0 -0.9659 -1 0 -1
+3 16 0 0 -1 -0.1305 0 -0.9914 -1 0 -1
+3 16 0.1305 0 -0.9914 0 0 -1 1 0 -1
+3 16 0.2588 0 -0.9659 0.1305 0 -0.9914 1 0 -1
+3 16 0.3827 0 -0.9239 0.2588 0 -0.9659 1 0 -1
+3 16 0.5 0 -0.866 0.3827 0 -0.9239 1 0 -1
+3 16 0.6088 0 -0.7934 0.5 0 -0.866 1 0 -1
+3 16 0.7071 0 -0.7071 0.6088 0 -0.7934 1 0 -1
+3 16 0.7934 0 -0.6088 0.7071 0 -0.7071 1 0 -1
+3 16 0.866 0 -0.5 0.7934 0 -0.6088 1 0 -1
+3 16 0.9239 0 -0.3827 0.866 0 -0.5 1 0 -1
+3 16 0.9659 0 -0.2588 0.9239 0 -0.3827 1 0 -1
+3 16 0.9914 0 -0.1305 0.9659 0 -0.2588 1 0 -1
+3 16 1 0 0 0.9914 0 -0.1305 1 0 -1
+
+0 FILE 1-4chrd.dat
+0 Hi-Res Chord 0.25
+0 Name: 48/1-4chrd.dat
+0 Author: Andy Westrate [westrate]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+0 !HISTORY 2012-08-02 [MMR1988] Re-creation with PrimGen2 and Rectifier
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 0.9914 0 0.1305 0.1305 0 0.9914 0 0 1 1 0 0
+4 16 0.9659 0 0.2588 0.2588 0 0.9659 0.1305 0 0.9914 0.9914 0 0.1305
+4 16 0.9239 0 0.3827 0.3827 0 0.9239 0.2588 0 0.9659 0.9659 0 0.2588
+4 16 0.866 0 0.5 0.5 0 0.866 0.3827 0 0.9239 0.9239 0 0.3827
+4 16 0.7934 0 0.6088 0.6088 0 0.7934 0.5 0 0.866 0.866 0 0.5
+3 16 0.7071 0 0.7071 0.6088 0 0.7934 0.7934 0 0.6088 
+
+0 FILE rect.dat
+0 Rectangle
+0 Name: rect.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-04-05 [hafhead] Added BFC statement
+0 !HISTORY 2002-04-25 [PTadmin] Official Update 2002-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-01-17 [mikeheide] changed winding to CCW
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+2 24 1 0 1 -1 0 1
+2 24 -1 0 1 -1 0 -1
+2 24 -1 0 -1 1 0 -1
+2 24 1 0 -1 1 0 1
+4 16 -1 0 1 -1 0 -1 1 0 -1 1 0 1
+0
+
+0 FILE 3-8cylo.dat
+0 Cylinder Open 0.375
+0 Name: 3-8cylo.dat
+0 Author: J.C. Tchang [tchang]
+0 !LDRAW_ORG Primitive UPDATE 2013-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2013-07-21 [PTadmin] Official Update 2013-01
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 3-8edge.dat
+1 16 0 1 0 1 0 0 0 1 0 0 0 1 3-8edge.dat
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 3-8cyli.dat
+
+0 FILE 3-8ring3.dat
+0 !LDRAW_ORG
+0 Hi-Res Ring  3 x 0.375
+0 Name: 48/3-8ring3.dat
+0 Author: BLStudio
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+
+4 16 3 0 0 4 0 0 3.96578 0 0.5221048 2.974335 0 0.3915786 
+4 16 2.974335 0 0.3915786 3.96578 0 0.5221048 3.863703 0 1.035276 2.897778 0 0.7764571 
+4 16 2.897778 0 0.7764571 3.863703 0 1.035276 3.695518 0 1.530734 2.771638 0 1.14805 
+4 16 2.771638 0 1.14805 3.695518 0 1.530734 3.464102 0 2 2.598076 0 1.5 
+4 16 2.598076 0 1.5 3.464102 0 2 3.173413 0 2.435046 2.38006 0 1.826284 
+4 16 2.38006 0 1.826284 3.173413 0 2.435046 2.828427 0 2.828427 2.12132 0 2.12132 
+4 16 2.12132 0 2.12132 2.828427 0 2.828427 2.435045 0 3.173414 1.826284 0 2.38006 
+4 16 1.826284 0 2.38006 2.435045 0 3.173414 2 0 3.464102 1.5 0 2.598076 
+4 16 1.5 0 2.598076 2 0 3.464102 1.530734 0 3.695518 1.14805 0 2.771638 
+4 16 1.14805 0 2.771638 1.530734 0 3.695518 1.035276 0 3.863703 0.7764572 0 2.897778 
+4 16 0.7764572 0 2.897778 1.035276 0 3.863703 0.5221045 0 3.96578 0.3915784 0 2.974335 
+4 16 0.3915784 0 2.974335 0.5221045 0 3.96578 -1.748456E-07 0 4 -1.311342E-07 0 3 
+4 16 -1.311342E-07 0 3 -1.748456E-07 0 4 -0.5221049 0 3.96578 -0.3915786 0 2.974335 
+4 16 -0.3915786 0 2.974335 -0.5221049 0 3.96578 -1.035277 0 3.863703 -0.7764575 0 2.897778 
+4 16 -0.7764575 0 2.897778 -1.035277 0 3.863703 -1.530734 0 3.695518 -1.148051 0 2.771638 
+4 16 -1.148051 0 2.771638 -1.530734 0 3.695518 -2 0 3.464102 -1.5 0 2.598076 
+4 16 -1.5 0 2.598076 -2 0 3.464102 -2.435046 0 3.173413 -1.826284 0 2.38006 
+4 16 -1.826284 0 2.38006 -2.435046 0 3.173413 -2.828427 0 2.828427 -2.12132 0 2.12132 
+0
+
+0 FILE 3-16cys2.dat
+0 Cylinder Sloped 0.1875 Convex
+0 Name: 3-16cys2.dat
+0 Author: Donald Sutter [technog]
+0 !LDRAW_ORG Primitive UPDATE 2010-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2010-04-05 [PTadmin] Official Update 2010-01
+
+3 16 -0.3827 0.3827 0.9239 -0.3827 0 0.9239 0 0 1
+4 16 -0.3827 0.3827 0.9239 -0.7071 0.7071 0.7071 -0.7071 0 0.7071 -0.3827 0 0.9239
+4 16 -0.7071 0.7071 0.7071 -0.9239 0.9239 0.3827 -0.9239 0 0.3827 -0.7071 0 0.7071
+5 24 -0.3827 0 0.9239 -0.3827 0.3827 0.9239 -0.7071 0 0.7071 0 0 1
+5 24 -0.7071 0 0.7071 -0.7071 0.7071 0.7071 -0.9239 0 0.3827 -0.3827 0 0.9239
+5 24 -0.9239 0 0.3827 -0.9239 0.9239 0.3827 -1 0 0 -0.7071 0 0.7071
+0 FILE 3-8cyli.dat
+0 Hi-Res Cylinder 0.375
+0 Name: 48/3-8cyli.dat
+0 Author: Guy Vivan [guyvivan]
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-03
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-12-29 [PTadmin] Official Update 2009-03
+
+4 16 0.9914 0 0.1305 1 0 0 1 1 0 0.9914 1 0.1305
+4 16 0.9659 0 0.2588 0.9914 0 0.1305 0.9914 1 0.1305 0.9659 1 0.2588
+4 16 0.9239 0 0.3827 0.9659 0 0.2588 0.9659 1 0.2588 0.9239 1 0.3827
+4 16 0.866 0 0.5 0.9239 0 0.3827 0.9239 1 0.3827 0.866 1 0.5
+4 16 0.7934 0 0.6088 0.866 0 0.5 0.866 1 0.5 0.7934 1 0.6088
+4 16 0.7071 0 0.7071 0.7934 0 0.6088 0.7934 1 0.6088 0.7071 1 0.7071
+4 16 0.6088 0 0.7934 0.7071 0 0.7071 0.7071 1 0.7071 0.6088 1 0.7934
+4 16 0.5 0 0.866 0.6088 0 0.7934 0.6088 1 0.7934 0.5 1 0.866
+4 16 0.3827 0 0.9239 0.5 0 0.866 0.5 1 0.866 0.3827 1 0.9239
+4 16 0.2588 0 0.9659 0.3827 0 0.9239 0.3827 1 0.9239 0.2588 1 0.9659
+4 16 0.1305 0 0.9914 0.2588 0 0.9659 0.2588 1 0.9659 0.1305 1 0.9914
+4 16 0 0 1 0.1305 0 0.9914 0.1305 1 0.9914 0 1 1
+4 16 -0.1305 0 0.9914 0 0 1 0 1 1 -0.1305 1 0.9914
+4 16 -0.2588 0 0.9659 -0.1305 0 0.9914 -0.1305 1 0.9914 -0.2588 1 0.9659
+4 16 -0.3827 0 0.9239 -0.2588 0 0.9659 -0.2588 1 0.9659 -0.3827 1 0.9239
+4 16 -0.5 0 0.866 -0.3827 0 0.9239 -0.3827 1 0.9239 -0.5 1 0.866
+4 16 -0.6088 0 0.7934 -0.5 0 0.866 -0.5 1 0.866 -0.6088 1 0.7934
+4 16 -0.7071 0 0.7071 -0.6088 0 0.7934 -0.6088 1 0.7934 -0.7071 1 0.7071
+
+0 conditional lines
+5 24 1 1 0 1 0 0 0.9914 1 -0.1305 0.9914 1 0.1305
+5 24 0.9914 1 0.1305 0.9914 0 0.1305 1 1 0 0.9659 1 0.2588
+5 24 0.9659 1 0.2588 0.9659 0 0.2588 0.9914 1 0.1305 0.9239 1 0.3827
+5 24 0.9239 1 0.3827 0.9239 0 0.3827 0.9659 1 0.2588 0.866 1 0.5
+5 24 0.866 1 0.5 0.866 0 0.5 0.9239 1 0.3827 0.7934 1 0.6088
+5 24 0.7934 1 0.6088 0.7934 0 0.6088 0.866 1 0.5 0.7071 1 0.7071
+5 24 0.7071 1 0.7071 0.7071 0 0.7071 0.7934 1 0.6088 0.6088 1 0.7934
+5 24 0.6088 1 0.7934 0.6088 0 0.7934 0.7071 1 0.7071 0.5 1 0.866
+5 24 0.5 1 0.866 0.5 0 0.866 0.6088 1 0.7934 0.3827 1 0.9239
+5 24 0.3827 1 0.9239 0.3827 0 0.9239 0.5 1 0.866 0.2588 1 0.9659
+5 24 0.2588 1 0.9659 0.2588 0 0.9659 0.3827 1 0.9239 0.1305 1 0.9914
+5 24 0.1305 1 0.9914 0.1305 0 0.9914 0.2588 1 0.9659 0 1 1
+5 24 0 1 1 0 0 1 0.1305 1 0.9914 -0.1305 1 0.9914
+5 24 -0.1305 1 0.9914 -0.1305 0 0.9914 0 1 1 -0.2588 1 0.9659
+5 24 -0.2588 1 0.9659 -0.2588 0 0.9659 -0.1305 1 0.9914 -0.3827 1 0.9239
+5 24 -0.3827 1 0.9239 -0.3827 0 0.9239 -0.2588 1 0.9659 -0.5 1 0.866
+5 24 -0.5 1 0.866 -0.5 0 0.866 -0.3827 1 0.9239 -0.6088 1 0.7934
+5 24 -0.6088 1 0.7934 -0.6088 0 0.7934 -0.5 1 0.866 -0.7071 1 0.7071
+5 24 -0.7071 1 0.7071 -0.7071 0 0.7071 -0.6088 1 0.7934 -0.7934 1 0.6088
+
+0 end of file 
+
+
+
+0 FILE 3-8edge.dat
+0 Hi-Res Circle 0.375
+0 Name: 48/3-8edge.dat
+0 Author: Guy Vivan [guyvivan]
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+2 24 1 0 0 0.9914 0 0.1305
+2 24 0.9914 0 0.1305 0.9659 0 0.2588
+2 24 0.9659 0 0.2588 0.9239 0 0.3827
+2 24 0.9239 0 0.3827 0.866 0 0.5
+2 24 0.866 0 0.5 0.7934 0 0.6088
+2 24 0.7934 0 0.6088 0.7071 0 0.7071
+2 24 0.7071 0 0.7071 0.6088 0 0.7934
+2 24 0.6088 0 0.7934 0.5 0 0.866
+2 24 0.5 0 0.866 0.3827 0 0.9239
+2 24 0.3827 0 0.9239 0.2588 0 0.9659
+2 24 0.2588 0 0.9659 0.1305 0 0.9914
+2 24 0.1305 0 0.9914 0 0 1
+2 24 0 0 1 -0.1305 0 0.9914
+2 24 -0.1305 0 0.9914 -0.2588 0 0.9659
+2 24 -0.2588 0 0.9659 -0.3827 0 0.9239
+2 24 -0.3827 0 0.9239 -0.5 0 0.866
+2 24 -0.5 0 0.866 -0.6088 0 0.7934
+2 24 -0.6088 0 0.7934 -0.7071 0 0.7071
+
+0 end of file 
+
+
+
+0 FILE 3-16cyls.dat
+0 !LDRAW_ORG
+0 Hi-Res Cylinder Sloped 0.1875
+0 Name: 48/3-16cyls.dat
+0 Author: BLStudio
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+
+3 16 1 0 0 0.9914449 0.008555114 0.1305262 0.9914449 0 0.1305262 
+5 24 0.9914449 0 0.1305262 0.9914449 0.008555114 0.1305262 1 0 0 0.9659258 0 0.258819 
+4 16 0.9914449 0 0.1305262 0.9914449 0.008555114 0.1305262 0.9659258 0.03407419 0.258819 0.9659258 0 0.258819 
+5 24 0.9659258 0 0.258819 0.9659258 0.03407419 0.258819 0.9914449 0 0.1305262 0.9238795 0 0.3826835 
+4 16 0.9659258 0 0.258819 0.9659258 0.03407419 0.258819 0.9238795 0.0761205 0.3826835 0.9238795 0 0.3826835 
+5 24 0.9238795 0 0.3826835 0.9238795 0.0761205 0.3826835 0.9659258 0 0.258819 0.8660254 0 0.5 
+4 16 0.9238795 0 0.3826835 0.9238795 0.0761205 0.3826835 0.8660254 0.1339746 0.5 0.8660254 0 0.5 
+5 24 0.8660254 0 0.5 0.8660254 0.1339746 0.5 0.9238795 0 0.3826835 0.7933533 0 0.6087614 
+4 16 0.8660254 0 0.5 0.8660254 0.1339746 0.5 0.7933533 0.2066467 0.6087614 0.7933533 0 0.6087614 
+5 24 0.7933533 0 0.6087614 0.7933533 0.2066467 0.6087614 0.8660254 0 0.5 0.7071068 0 0.7071068 
+4 16 0.7933533 0 0.6087614 0.7933533 0.2066467 0.6087614 0.7071068 0.2928932 0.7071068 0.7071068 0 0.7071068 
+5 24 0.7071068 0 0.7071068 0.7071068 0.2928932 0.7071068 0.7933533 0 0.6087614 0.6087614 0 0.7933534 
+4 16 0.7071068 0 0.7071068 0.7071068 0.2928932 0.7071068 0.6087614 0.3912386 0.7933534 0.6087614 0 0.7933534 
+5 24 0.6087614 0 0.7933534 0.6087614 0.3912386 0.7933534 0.7071068 0 0.7071068 0.5 0 0.8660254 
+4 16 0.6087614 0 0.7933534 0.6087614 0.3912386 0.7933534 0.5 0.5 0.8660254 0.5 0 0.8660254 
+5 24 0.5 0 0.8660254 0.5 0.5 0.8660254 0.6087614 0 0.7933534 0.3826834 0 0.9238795 
+4 16 0.5 0 0.8660254 0.5 0.5 0.8660254 0.3826834 0.6173166 0.9238795 0.3826834 0 0.9238795 
+5 24 0.3826834 0 0.9238795 0.3826834 0.6173166 0.9238795 0.5 0 0.8660254 0.2588191 0 0.9659258 
+0
+
+
+0 FILE 3-16edge.dat
+0 Hi-Res Circle 0.1875
+0 Name: 48/3-16edge.dat
+0 Author: Bernd Broich [bbroich]
+0 !LDRAW_ORG 48_Primitive UPDATE 2017-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2004-04-22 [PTadmin] Official Update 2004-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2017-01-17 [Steffen] added BFC CERTIFY statement
+0 !HISTORY 2017-12-30 [PTadmin] Official Update 2017-01
+
+2 24 1 0 0 0.9914 0 0.1305
+2 24 0.9914 0 0.1305 0.9659 0 0.2588
+2 24 0.9659 0 0.2588 0.9239 0 0.3827
+2 24 0.9239 0 0.3827 0.866 0 0.5
+2 24 0.866 0 0.5 0.7934 0 0.6088
+2 24 0.7934 0 0.6088 0.7071 0 0.7071
+2 24 0.7071 0 0.7071 0.6088 0 0.7934
+2 24 0.6088 0 0.7934 0.5 0 0.866
+2 24 0.5 0 0.866 0.3827 0 0.9239
+
+0 FILE 48/1-4edge.dat
+0 Hi-Res Circle 0.25
+0 Name: 48/1-4edge.dat
+0 Author: Manfred Moolhuysen
+0 !LDRAW_ORG 48_Primitive UPDATE 2010-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2010-03-17 [MagFors] Updated description
+0 !HISTORY 2010-05-21 [mikeheide] BFC'ed and compacted numbers (saved 10% filesize)
+0 !HISTORY 2010-07-05 [PTadmin] Official Update 2010-02
+
+2 24 1 0 0 0.9914 0 0.1305
+2 24 0.9914 0 0.1305 0.9659 0 0.2588
+2 24 0.9659 0 0.2588 0.9239 0 0.3827
+2 24 0.9239 0 0.3827 0.866 0 0.5
+2 24 0.866 0 0.5 0.7934 0 0.6088
+2 24 0.7934 0 0.6088 0.7071 0 0.7071
+2 24 0.7071 0 0.7071 0.6088 0 0.7934
+2 24 0.6088 0 0.7934 0.5 0 0.866
+2 24 0.5 0 0.866 0.3827 0 0.9239
+2 24 0.3827 0 0.9239 0.2588 0 0.9659
+2 24 0.2588 0 0.9659 0.1305 0 0.9914
+2 24 0.1305 0 0.9914 0 0 1
+0 //
+
+0 FILE 48/1-4cyli.dat
+0 Hi-Res Cylinder 0.25
+0 Name: 48/1-4cyli.dat
+0 Author: Manfred Moolhuysen
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2002-02-28 [hafhead] Added BFC statement
+0 !HISTORY 2002-04-25 [PTadmin] Official Update 2002-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2008-07-07 [guyvivan] Made BFC'ed CCW (2005-12-06)
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+4 16 0.9914 0 0.1305 1 0 0 1 1 0 0.9914 1 0.1305
+4 16 0.9659 0 0.2588 0.9914 0 0.1305 0.9914 1 0.1305 0.9659 1 0.2588
+4 16 0.9239 0 0.3827 0.9659 0 0.2588 0.9659 1 0.2588 0.9239 1 0.3827
+4 16 0.866 0 0.5 0.9239 0 0.3827 0.9239 1 0.3827 0.866 1 0.5
+4 16 0.7934 0 0.6088 0.866 0 0.5 0.866 1 0.5 0.7934 1 0.6088
+4 16 0.7071 0 0.7071 0.7934 0 0.6088 0.7934 1 0.6088 0.7071 1 0.7071
+4 16 0.6088 0 0.7934 0.7071 0 0.7071 0.7071 1 0.7071 0.6088 1 0.7934
+4 16 0.5 0 0.866 0.6088 0 0.7934 0.6088 1 0.7934 0.5 1 0.866
+4 16 0.3827 0 0.9239 0.5 0 0.866 0.5 1 0.866 0.3827 1 0.9239
+4 16 0.2588 0 0.9659 0.3827 0 0.9239 0.3827 1 0.9239 0.2588 1 0.9659
+4 16 0.1305 0 0.9914 0.2588 0 0.9659 0.2588 1 0.9659 0.1305 1 0.9914
+4 16 0 0 1 0.1305 0 0.9914 0.1305 1 0.9914 0 1 1
+
+0 conditional lines
+5 24 1 1 0 1 0 0 1 1 -1 0.9914 1 0.1305
+5 24 0.9914 1 0.1305 0.9914 0 0.1305 1 1 0 0.9659 1 0.2588
+5 24 0.9659 1 0.2588 0.9659 0 0.2588 0.9914 1 0.1305 0.9239 1 0.3827
+5 24 0.9239 1 0.3827 0.9239 0 0.3827 0.9659 1 0.2588 0.866 1 0.5
+5 24 0.866 1 0.5 0.866 0 0.5 0.9239 1 0.3827 0.7934 1 0.6088
+5 24 0.7934 1 0.6088 0.7934 0 0.6088 0.866 1 0.5 0.7071 1 0.7071
+5 24 0.7071 1 0.7071 0.7071 0 0.7071 0.7934 1 0.6088 0.6088 1 0.7934
+5 24 0.6088 1 0.7934 0.6088 0 0.7934 0.7071 1 0.7071 0.5 1 0.866
+5 24 0.5 1 0.866 0.5 0 0.866 0.6088 1 0.7934 0.3827 1 0.9239
+5 24 0.3827 1 0.9239 0.3827 0 0.9239 0.5 1 0.866 0.2588 1 0.9659
+5 24 0.2588 1 0.9659 0.2588 0 0.9659 0.3827 1 0.9239 0.1305 1 0.9914
+5 24 0.1305 1 0.9914 0.1305 0 0.9914 0.2588 1 0.9659 0 1 1
+5 24 0 1 1 0 0 1 0.1305 1 0.9914 -1 1 1
+
+0 end of file
+0 FILE 1-8chrd.dat
+0 Hi-Res Chord 0.125
+0 Name: 48/1-8chrd.dat
+0 Author: Guy Vivan [guyvivan]
+0 !LDRAW_ORG 48_Primitive UPDATE 2009-01
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+
+4 16 1 0 0 0.9914 0 0.1305 0.7934 0 0.6088 0.7071 0 0.7071
+4 16 0.9914 0 0.1305 0.9659 0 0.2588 0.866 0 0.5 0.7934 0 0.6088
+3 16 0.9659 0 0.2588 0.9239 0 0.3827 0.866 0 0.5
+0
+
+0 FILE stud2.dat
+0 Stud Open
+0 Name: stud2.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Primitive UPDATE 2009-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 1999-07-05 [PTadmin] Official Update 1999-05
+0 !HISTORY 2002-04-04 [sbliss] Modified for BFC compliance
+0 !HISTORY 2002-04-25 [PTadmin] Official Update 2002-02
+0 !HISTORY 2007-06-24 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2009-06-21 [cwdee] Update ring references to 4-4ring
+0 !HISTORY 2009-09-03 [PTadmin] Official Update 2009-02
+
+ 1 16 0 0 0 4 0 0 0 1 0 0 0 4 4-4edge.dat
+ 1 16 0 0 0 6 0 0 0 1 0 0 0 6 4-4edge.dat
+ 1 16 0 -4 0 4 0 0 0 1 0 0 0 4 4-4edge.dat
+ 1 16 0 -4 0 6 0 0 0 1 0 0 0 6 4-4edge.dat
+0 BFC INVERTNEXT
+ 1 16 0 -4 0 4 0 0 0 4 0 0 0 4 4-4cyli.dat
+ 1 16 0 -4 0 6 0 0 0 4 0 0 0 6 4-4cyli.dat
+ 1 16 0 -4 0 2 0 0 0 1 0 0 0 2 4-4ring2.dat
+0
+
+0 FILE 4-4ring2.dat
+0 Hi-Res Ring  2 x 1.0
+0 Name: 48/4-4ring2.dat
+0 Author: Niels Bugge [SirBugge]
+0 !LDRAW_ORG 48_Primitive UPDATE 2012-02
+0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+0 !HISTORY 2012-02-27 [Philo] Changed to CCW
+0 !HISTORY 2012-08-09 [PTadmin] Official Update 2012-02
+
+4 16 3 0 0 2.9742 0 0.3915 1.9828 0 0.261 2 0 0
+4 16 2.9742 0 0.3915 2.8977 0 0.7764 1.9318 0 0.5176 1.9828 0 0.261
+4 16 2.8977 0 0.7764 2.7717 0 1.1481 1.8478 0 0.7654 1.9318 0 0.5176
+4 16 2.7717 0 1.1481 2.598 0 1.5 1.732 0 1 1.8478 0 0.7654
+4 16 2.598 0 1.5 2.3802 0 1.8264 1.5868 0 1.2176 1.732 0 1
+4 16 2.3802 0 1.8264 2.1213 0 2.1213 1.4142 0 1.4142 1.5868 0 1.2176
+4 16 2.1213 0 2.1213 1.8264 0 2.3802 1.2176 0 1.5868 1.4142 0 1.4142
+4 16 1.8264 0 2.3802 1.5 0 2.598 1 0 1.732 1.2176 0 1.5868
+4 16 1.5 0 2.598 1.1481 0 2.7717 0.7654 0 1.8478 1 0 1.732
+4 16 1.1481 0 2.7717 0.7764 0 2.8977 0.5176 0 1.9318 0.7654 0 1.8478
+4 16 0.7764 0 2.8977 0.3915 0 2.9742 0.261 0 1.9828 0.5176 0 1.9318
+4 16 0.3915 0 2.9742 0 0 3 0 0 2 0.261 0 1.9828
+4 16 0 0 3 -0.3915 0 2.9742 -0.261 0 1.9828 0 0 2
+4 16 -0.3915 0 2.9742 -0.7764 0 2.8977 -0.5176 0 1.9318 -0.261 0 1.9828
+4 16 -0.7764 0 2.8977 -1.1481 0 2.7717 -0.7654 0 1.8478 -0.5176 0 1.9318
+4 16 -1.1481 0 2.7717 -1.5 0 2.598 -1 0 1.732 -0.7654 0 1.8478
+4 16 -1.5 0 2.598 -1.8264 0 2.3802 -1.2176 0 1.5868 -1 0 1.732
+4 16 -1.8264 0 2.3802 -2.1213 0 2.1213 -1.4142 0 1.4142 -1.2176 0 1.5868
+4 16 -2.1213 0 2.1213 -2.3802 0 1.8264 -1.5868 0 1.2176 -1.4142 0 1.4142
+4 16 -2.3802 0 1.8264 -2.598 0 1.5 -1.732 0 1 -1.5868 0 1.2176
+4 16 -2.598 0 1.5 -2.7717 0 1.1481 -1.8478 0 0.7654 -1.732 0 1
+4 16 -2.7717 0 1.1481 -2.8977 0 0.7764 -1.9318 0 0.5176 -1.8478 0 0.7654
+4 16 -2.8977 0 0.7764 -2.9742 0 0.3915 -1.9828 0 0.261 -1.9318 0 0.5176
+4 16 -2.9742 0 0.3915 -3 0 0 -2 0 0 -1.9828 0 0.261
+4 16 -3 0 0 -2.9742 0 -0.3915 -1.9828 0 -0.261 -2 0 0
+4 16 -2.9742 0 -0.3915 -2.8977 0 -0.7764 -1.9318 0 -0.5176 -1.9828 0 -0.261
+4 16 -2.8977 0 -0.7764 -2.7717 0 -1.1481 -1.8478 0 -0.7654 -1.9318 0 -0.5176
+4 16 -2.7717 0 -1.1481 -2.598 0 -1.5 -1.732 0 -1 -1.8478 0 -0.7654
+4 16 -2.598 0 -1.5 -2.3802 0 -1.8264 -1.5868 0 -1.2176 -1.732 0 -1
+4 16 -2.3802 0 -1.8264 -2.1213 0 -2.1213 -1.4142 0 -1.4142 -1.5868 0 -1.2176
+4 16 -2.1213 0 -2.1213 -1.8264 0 -2.3802 -1.2176 0 -1.5868 -1.4142 0 -1.4142
+4 16 -1.8264 0 -2.3802 -1.5 0 -2.598 -1 0 -1.732 -1.2176 0 -1.5868
+4 16 -1.5 0 -2.598 -1.1481 0 -2.7717 -0.7654 0 -1.8478 -1 0 -1.732
+4 16 -1.1481 0 -2.7717 -0.7764 0 -2.8977 -0.5176 0 -1.9318 -0.7654 0 -1.8478
+4 16 -0.7764 0 -2.8977 -0.3915 0 -2.9742 -0.261 0 -1.9828 -0.5176 0 -1.9318
+4 16 -0.3915 0 -2.9742 0 0 -3 0 0 -2 -0.261 0 -1.9828
+4 16 0 0 -3 0.3915 0 -2.9742 0.261 0 -1.9828 0 0 -2
+4 16 0.3915 0 -2.9742 0.7764 0 -2.8977 0.5176 0 -1.9318 0.261 0 -1.9828
+4 16 0.7764 0 -2.8977 1.1481 0 -2.7717 0.7654 0 -1.8478 0.5176 0 -1.9318
+4 16 1.1481 0 -2.7717 1.5 0 -2.598 1 0 -1.732 0.7654 0 -1.8478
+4 16 1.5 0 -2.598 1.8264 0 -2.3802 1.2176 0 -1.5868 1 0 -1.732
+4 16 1.8264 0 -2.3802 2.1213 0 -2.1213 1.4142 0 -1.4142 1.2176 0 -1.5868
+4 16 2.1213 0 -2.1213 2.3802 0 -1.8264 1.5868 0 -1.2176 1.4142 0 -1.4142
+4 16 2.3802 0 -1.8264 2.598 0 -1.5 1.732 0 -1 1.5868 0 -1.2176
+4 16 2.598 0 -1.5 2.7717 0 -1.1481 1.8478 0 -0.7654 1.732 0 -1
+4 16 2.7717 0 -1.1481 2.8977 0 -0.7764 1.9318 0 -0.5176 1.8478 0 -0.7654
+4 16 2.8977 0 -0.7764 2.9742 0 -0.3915 1.9828 0 -0.261 1.9318 0 -0.5176
+4 16 2.9742 0 -0.3915 3 0 0 2 0 0 1.9828 0 -0.261
+

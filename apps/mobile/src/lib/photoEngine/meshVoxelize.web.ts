@@ -697,6 +697,7 @@ function pickMedoid(hexes: string[]): string {
 const skinRaycaster = new THREE.Raycaster();
 const skinOrigin = new THREE.Vector3();
 const skinDir = new THREE.Vector3();
+const skinNormal = new THREE.Vector3();
 /** In-face jitter (fractions of a voxel) applied perpendicular to each ray. */
 const SKIN_JITTER: ReadonlyArray<readonly [number, number]> = [
   [0, 0], [0.3, 0.2], [-0.25, -0.3], [0.2, -0.25],
@@ -716,8 +717,12 @@ function skinColor(
   voxel: number,
   voxelHeight: number,
   exposedDirs: ReadonlyArray<readonly [number, number, number]>,
-): string | null {
+): { hex: string; surf: [number, number, number] | null } | null {
   const hexes: string[] = [];
+  let nxSum = 0;
+  let nySum = 0;
+  let nzSum = 0;
+  let normalCount = 0;
   const meshes = prepared.map((prep) => prep.mesh);
   for (const [dx, dy, dz] of exposedDirs) {
     // Perpendicular jitter axes for this direction.
@@ -739,9 +744,26 @@ function skinColor(
       const prep = meshByObject.get(hit.object);
       if (!prep) continue;
       hexes.push(colorAtFacePoint(prep, hit.faceIndex, hit.point));
+      // The hit's surface orientation, outward-facing: this is what lets the
+      // packer choose curved parts by real surface tilt instead of guessing
+      // from stair-step patterns.
+      if (hit.face) {
+        skinNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
+        if (skinNormal.dot(skinDir) > 0) skinNormal.negate();
+        nxSum += skinNormal.x;
+        nySum += skinNormal.y;
+        nzSum += skinNormal.z;
+        normalCount++;
+      }
     }
   }
-  return hexes.length ? pickMedoid(hexes) : null;
+  if (!hexes.length) return null;
+  let surf: [number, number, number] | null = null;
+  if (normalCount) {
+    const length = Math.hypot(nxSum, nySum, nzSum);
+    if (length > 1e-4) surf = [nxSum / length, nySum / length, nzSum / length];
+  }
+  return { hex: pickMedoid(hexes), surf };
 }
 
 type Rgb = [number, number, number];
@@ -927,17 +949,23 @@ async function voxelizeMeshes(
           gridMin.z + (iz + 0.5) * voxel,
         );
         let shellHex: string | null = null;
+        let shellSurf: [number, number, number] | null = null;
         if (state === SHELL && useSkin) {
           exposedDirs.length = 0;
           for (const dir of NEIGHBOURS) {
             if (isOutside(ix + dir[0], iy + dir[1], iz + dir[2])) exposedDirs.push(dir);
           }
           if (exposedDirs.length) {
-            shellHex = skinColor(prepared, meshByObject, centre, voxel, voxelHeight, exposedDirs);
+            const sampled = skinColor(prepared, meshByObject, centre, voxel, voxelHeight, exposedDirs);
+            if (sampled) {
+              shellHex = sampled.hex;
+              shellSurf = sampled.surf;
+            }
           }
         }
         const cell: VoxelCell = {
           colorHex: state === SHELL ? shellHex ?? shellColor(prepared, centre, voxel, voxelHeight) : '#A0A19F',
+          ...(shellSurf ? { surf: shellSurf } : {}),
           cx: (ix - nx / 2 + 0.5) * worldSize,
           cy: (iy + 0.5) * worldLayerHeight,
           cz: (iz - nz / 2 + 0.5) * worldSize,
@@ -1064,22 +1092,61 @@ function detectAndCarveWheels(
 
   interface WheelSpot { side: 1 | -1; j: number; k: number; radius: number; cells: VoxelCell[] }
   const spots: WheelSpot[] = [];
-  for (const component of components) {
-    const js = component.cells.map((cell) => cell.j);
-    const ks = component.cells.map((cell) => cell.k);
+  const addSpot = (cellsOf: VoxelCell[], side: 1 | -1): void => {
+    if (cellsOf.length < 8) return;
+    const js = cellsOf.map((cell) => cell.j);
+    const ks = cellsOf.map((cell) => cell.k);
     const extentJ = Math.max(...js) - Math.min(...js) + 1;
     const extentK = Math.max(...ks) - Math.min(...ks) + 1;
     // A wheel patch is roughly as tall as it is long; skirts and shadows are
     // long and shallow, spoilers tall and thin.
-    if (extentJ / extentK < 0.45 || extentJ / extentK > 2.2) continue;
-    if (extentK > spanI) continue;
+    if (extentJ / extentK < 0.45 || extentJ / extentK > 2.2) return;
+    if (extentK > spanI) return;
+    let sumJ = 0;
+    let sumK = 0;
+    for (const cell of cellsOf) {
+      sumJ += cell.j;
+      sumK += cell.k;
+    }
     spots.push({
-      cells: component.cells,
-      j: component.sumJ / component.cells.length,
-      k: component.sumK / component.cells.length,
+      cells: cellsOf,
+      j: sumJ / cellsOf.length,
+      k: sumK / cellsOf.length,
       radius: Math.max(extentJ, extentK) / 2,
-      side: component.side,
+      side,
     });
+  };
+  for (const component of components) {
+    const js = component.cells.map((cell) => cell.j);
+    const ks = component.cells.map((cell) => cell.k);
+    const extentJ = Math.max(...js) - Math.min(...js) + 1;
+    const minK = Math.min(...ks);
+    const extentK = Math.max(...ks) - minK + 1;
+    if (extentK <= extentJ * 2.4) {
+      addSpot(component.cells, component.side);
+      continue;
+    }
+    // A dark sill can weld both wheels into one long band. Split it at the
+    // valleys of its per-k cell profile — wheels are the humps.
+    const profile = new Array<number>(extentK).fill(0);
+    for (const cell of component.cells) profile[cell.k - minK]!++;
+    const peak = Math.max(...profile);
+    const cut = Math.max(1, peak * 0.4);
+    const byOffset: VoxelCell[][] = Array.from({ length: extentK }, () => []);
+    for (const cell of component.cells) byOffset[cell.k - minK]!.push(cell);
+    let segment: VoxelCell[] = [];
+    const flush = () => {
+      if (segment.length) addSpot(segment, component.side);
+      segment = [];
+    };
+    for (let offset = 0; offset < extentK; offset++) {
+      if (profile[offset]! < cut) {
+        flush();
+        continue;
+      }
+      segment.push(...byOffset[offset]!);
+    }
+    flush();
   }
   // Wheels come in mirrored left/right pairs. Real sides also carry clutter
   // (light strips, dark trim), so instead of demanding a clean count, match
