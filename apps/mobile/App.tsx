@@ -887,6 +887,7 @@ function PixBrikApp() {
         frames?: number;
         height?: number;
         hollow?: boolean;
+        technique?: 'sculpted' | 'mosaic' | 'studless';
         width?: number;
       } = {},
       receiver = 'http://localhost:8095',
@@ -903,7 +904,10 @@ function PixBrikApp() {
         ...(extra.colorStyle ? { colorStyle: extra.colorStyle } : {}),
         studSpans: { balanced: studSpan },
       });
-      const bom = pack(model, '#FF3D17', extra.hollow ? { hollow: true } : {});
+      const bom = pack(model, '#FF3D17', {
+        ...(extra.hollow ? { hollow: true } : {}),
+        ...(extra.technique ? { technique: extra.technique } : {}),
+      });
       const frames = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
         ...(bom.finish?.length ? { finish: bom.finish } : {}),

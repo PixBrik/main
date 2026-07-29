@@ -258,6 +258,17 @@ function stockedColorFor(
   return best ? { color: best, substituted: true } : null;
 }
 
+/**
+ * Rendering technique — how the engine interprets the same voxel model:
+ * - 'sculpted' (default): slopes, curved parts and a studless tile skin on
+ *   flat tops — the realistic display-model formula.
+ * - 'mosaic': rectangular bricks only, the deliberate retro voxel look
+ *   (wheel assemblies still apply — they are accessories, not shaping).
+ * - 'studless': sculpted plus aggressive tiling — flat AND gently tilted
+ *   surfaces get tile skins, minimising visible studs.
+ */
+export type BrickTechnique = 'sculpted' | 'mosaic' | 'studless';
+
 export interface BrickifyOptions {
   /**
    * Hollow build: retain the complete exterior plus a bonded base and an
@@ -267,6 +278,8 @@ export interface BrickifyOptions {
   hollow?: boolean;
   /** Skip the sculpt substitution pass (plain rectangular vocabulary only). */
   noSculpt?: boolean;
+  /** Shaping profile; defaults to 'sculpted'. */
+  technique?: BrickTechnique;
 }
 
 /** Cells that form the visible shell — everything except fully-enclosed interiors. */
@@ -477,6 +490,9 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   };
 
   const sourceCells = options.hollow ? reinforcedHollowCells(model) : model.cells;
+  const technique = options.technique ?? 'sculpted';
+  // Shaping = every pass that swaps rectangles for slopes/curves/tiles.
+  const shaping = technique !== 'mosaic' && !options.noSculpt;
   stamp(`cells ready ${sourceCells.length}`);
 
   // part|color -> quantity
@@ -492,7 +508,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   const consumed = new Set<string>();
 
   // ---- 45° slope runs → real slope parts (3040 family) ----
-  if (SLOPE_PARTS.length) {
+  if (SLOPE_PARTS.length && shaping) {
     const cellIndex = new Map(sourceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
     const runs = new Map<string, Array<{ pos: number; cellKey: string; backKey: string; i: number; k: number }>>();
 
@@ -614,7 +630,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // source-mesh normals) are claimed for curved parts BEFORE the rectangle
   // packer runs — crowns, then curved runs along the descent, then single
   // caps — and rectangles fill only what remains.
-  if (SCULPT_PARTS.length && !options.noSculpt) {
+  if (SCULPT_PARTS.length && shaping) {
     const CURVE_CALIBRATED = new Set(['15068', '37352', '50950', '54200', '61678', '7126', '83473']);
     const curveFor = (kind: 'slopeCurved', w: number, l: number, colorId: number): CatalogSculptPart | undefined => {
       let best: CatalogSculptPart | undefined;
@@ -1578,7 +1594,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // substitution keeps the placement's exact footprint and layer (the
   // assembly plan and hollow audits treat a placement as its stud rectangle),
   // and fires only when the exact part+colour SKU exists in the catalogue.
-  if (SCULPT_PARTS.length && !options.noSculpt) {
+  if (SCULPT_PARTS.length && shaping) {
     const sculptByPart = new Map(SCULPT_PARTS.map((part) => [part.part, part]));
     const occupied = (i: number, j: number, k: number) => sourceCellByKey.has(`${i}|${j}|${k}`);
     const horizontal = [1, 2, 3, 4] as const;
@@ -1933,15 +1949,18 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   let finish: TileFinish[] | undefined;
   let finishLines: BomLine[] | undefined;
   let finishTotalEur: number | undefined;
-  if (TILE_PARTS.length && !options.noSculpt) {
+  if (TILE_PARTS.length && shaping) {
     const tiled = new Set<string>();
     const flatTop = new Map<string, { cell: VoxelCell; colorId: number }>();
+    // Studless mode tiles gently tilted tops too, not just true flats — the
+    // display-model look tolerates a slightly stepped skin over studs.
+    const tileTilt = technique === 'studless' ? 0.72 : 0.94;
     for (const cell of sourceCells) {
       const key = `${cell.i}|${cell.j}|${cell.k}`;
       if (consumed.has(key)) continue; // slopes and curves are already studless
       if (sourceCellByKey.has(`${cell.i}|${cell.j + 1}|${cell.k}`)) continue;
       const surf = cell.surf;
-      if (surf && surf[1] < 0.94) continue; // meaningfully tilted — curve territory
+      if (surf && surf[1] < tileTilt) continue; // meaningfully tilted — curve territory
       flatTop.set(key, { cell, colorId: colorOf(cell) });
     }
     const finishTally = new Map<string, number>();
