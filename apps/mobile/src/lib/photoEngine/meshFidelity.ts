@@ -113,7 +113,7 @@ function weightedQuantileIndex(colors: WeightedColor[], fraction: number): numbe
  * quantiles retain eyes and facial shading without promoting one atlas seam
  * into a whole catalogue colour.
  */
-function naturalCentroids(cells: VoxelCell[]): Rgb[] {
+function naturalCentroids(cells: VoxelCell[], maxK = 10): Rgb[] {
   const histogram = weightedHistogram(cells);
   if (!histogram.length) return [[160, 161, 159]];
 
@@ -125,7 +125,7 @@ function naturalCentroids(cells: VoxelCell[]): Rgb[] {
     seedPool
       .map((entry) => quantizeToCatalog(entry.color[0], entry.color[1], entry.color[2])),
   ).size;
-  const targetK = Math.min(seedPool.length, Math.max(2, Math.min(10, meaningfulCatalogColors + 1)));
+  const targetK = Math.min(seedPool.length, Math.max(2, Math.min(maxK, meaningfulCatalogColors + 1)));
 
   let meanR = 0;
   let meanG = 0;
@@ -314,7 +314,10 @@ export function colorizeMeshCells(
     portraitLocked = locked;
   }
 
-  const centroids = naturalCentroids(surfaceCells);
+  // Portraits carry more distinct materials (skin bands, hair depths, lips,
+  // brows, clothing) than a toy or vase - give the clusterer more room so
+  // features stop being absorbed into their neighbours.
+  const centroids = naturalCentroids(surfaceCells, style === 'portrait' ? 14 : 10);
   const assignments = new Int32Array(surfaceCells.length);
   for (let index = 0; index < surfaceCells.length; index++) {
     assignments[index] = nearestColorIndex(raw[index]!, centroids);
