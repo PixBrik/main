@@ -881,7 +881,13 @@ function PixBrikApp() {
       url: string,
       label: string,
       studSpan = 40,
-      extra: { colorStyle?: 'natural' | 'bw' | 'portrait'; frames?: number; hollow?: boolean } = {},
+      extra: {
+        colorStyle?: 'natural' | 'bw' | 'portrait';
+        frames?: number;
+        height?: number;
+        hollow?: boolean;
+        width?: number;
+      } = {},
       receiver = 'http://localhost:8095',
     ) => {
       const { voxelizeGlbUrlOne } = await import('./src/lib/photoEngine/meshVoxelize');
@@ -901,9 +907,9 @@ function PixBrikApp() {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
         colorHexById,
         frames: extra.frames ?? 24,
-        height: 420,
+        height: extra.height ?? 420,
         ldrawBase: 'http://localhost:8095/ldraw',
-        width: 560,
+        width: extra.width ?? 560,
       });
       for (const [index, png] of frames.entries()) {
         await fetch(receiver, {
@@ -995,13 +1001,14 @@ function PixBrikApp() {
       const { renderLDrawTurntable } = await import('./src/lib/brickRenderLDraw');
       const specs: Array<{ part: string; shape: string; spanI: number; spanK: number; facing?: number }> = [
         { facing: 1, part: '3040', shape: 'slope', spanI: 1, spanK: 2 },
-        { facing: 1, part: '37352', shape: 'slopeCurved', spanI: 1, spanK: 2 },
-        { facing: 1, part: '54200', shape: 'slopeCurved', spanI: 1, spanK: 1 },
-        { facing: 1, part: '15068', shape: 'slopeCurved', spanI: 2, spanK: 2 },
-        { facing: 1, part: '3665', shape: 'slopeInverted', spanI: 1, spanK: 2 },
-        { part: '3062', shape: 'round', spanI: 1, spanK: 1 },
-        { part: '4589', shape: 'round', spanI: 1, spanK: 1 },
-        { part: '30367', shape: 'round', spanI: 2, spanK: 2 },
+        { facing: 1, part: '7126', shape: 'slopeCurved', spanI: 1, spanK: 1 },
+        { facing: 1, part: '83473', shape: 'slopeCurved', spanI: 1, spanK: 2 },
+        { facing: 1, part: '4286', shape: 'slope', spanI: 1, spanK: 3 },
+        { facing: 1, part: '30474', shape: 'slope', spanI: 2, spanK: 3 },
+        { facing: 1, part: '3016', shape: 'slope', spanI: 4, spanK: 3 },
+        { facing: 1, part: '60477', shape: 'slope', spanI: 1, spanK: 4 },
+        { facing: 1, part: '24309', shape: 'slopeCurved', spanI: 2, spanK: 3 },
+        { facing: 1, part: '44126', shape: 'slopeCurved', spanI: 2, spanK: 6 },
       ];
       const colours = ['#C91A09', '#0055BF', '#F2CD37', '#257A3E', '#FF8C00', '#9BA19D', '#81007B', '#05131D'];
       const placements = specs.map((spec, index) => ({

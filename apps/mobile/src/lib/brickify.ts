@@ -591,7 +591,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // packer runs — crowns, then curved runs along the descent, then single
   // caps — and rectangles fill only what remains.
   if (SCULPT_PARTS.length && !options.noSculpt) {
-    const CURVE_CALIBRATED = new Set(['15068', '37352', '50950', '54200', '61678']);
+    const CURVE_CALIBRATED = new Set(['15068', '37352', '50950', '54200', '61678', '7126', '83473']);
     const curveFor = (kind: 'slopeCurved', w: number, l: number, colorId: number): CatalogSculptPart | undefined => {
       let best: CatalogSculptPart | undefined;
       for (const part of SCULPT_PARTS) {
@@ -656,7 +656,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       for (const [ci, ck] of quad) {
         const qKey = keyOf(ci, j, ck);
         const qCell = sourceCellByKey.get(qKey);
-        if (!qCell || !free(qKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(qCell) !== facing) {
+        if (!qCell || !free(qKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(qCell) !== facing || (colorId >= 0 && colorOf(qCell) !== colorId)) {
           ok = false;
           break;
         }
@@ -684,7 +684,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           const ck = k - d.z * step;
           const cKey = keyOf(ci, j, ck);
           const cCell = sourceCellByKey.get(cKey);
-          if (!cCell || !free(cKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(cCell) !== facing) {
+          if (!cCell || !free(cKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(cCell) !== facing || (colorId >= 0 && colorOf(cCell) !== colorId)) {
             ok = false;
             break;
           }
@@ -1568,7 +1568,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
      * catalogue flows into builds automatically.
      */
     const CALIBRATED_FACED = new Set([
-      '15068', '24201', '3660', '3665', '32803', '37352', '50950', '54200', '61678',
+      '15068', '24201', '3016', '30474', '3660', '3665', '32803', '37352', '4286', '50950', '54200', '60477', '61678', '7126', '83473',
     ]);
 
     /** Best indexed part for a role: kind + footprint + colour availability. */
