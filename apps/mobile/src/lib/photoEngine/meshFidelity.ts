@@ -391,7 +391,60 @@ export function colorizeMeshCells(
   };
   // Hair is the other family scans mangle: one warm material lit from above
   // quantises into a hard two-tone seam. Like skin, it gets its own ramp.
+  // This fixed ramp is only the classification SENTINEL — once membership is
+  // known, the actual ramp is rebuilt from the palette around the source's
+  // own hair colour, so auburn stays auburn and black stays black instead of
+  // everything drifting to the same rust orange.
   const HAIR_RAMP = ['#af7446', '#a65322', '#692e14'];
+
+  /**
+   * Pick a light→dark 3-step ramp of catalogue colours hue-matched to `mean`
+   * and luma-anchored to `lumaAnchors` (the family's own p20/p50/p80). Hue
+   * similarity alone cannot separate tan from brown — tan IS lightened brown
+   * — so each step is chosen among hue matches NEAR its anchor's lightness.
+   */
+  const dynamicWarmRamp = (mean: Rgb, lumaAnchors?: [number, number, number]): string[] => {
+    const meanLuma = Math.max(1, luma(mean));
+    const spreadOf = ([r, g, b]: Rgb) => Math.max(r, g, b) - Math.min(r, g, b);
+    const lowSat = spreadOf(mean) / Math.max(1, Math.max(mean[0], mean[1], mean[2])) < 0.14;
+    const scored: Array<{ hex: string; lumaValue: number; score: number }> = [];
+    for (const entry of getPalette()) {
+      const rgb: Rgb = [entry.rgb[0]!, entry.rgb[1]!, entry.rgb[2]!];
+      const entryLuma = luma(rgb);
+      if (entryLuma > 200) continue;
+      const warm = rgb[0] >= rgb[1] - 6 && rgb[1] >= rgb[2] - 14;
+      const grey = spreadOf(rgb) < 40;
+      if (lowSat ? !grey : !warm) continue;
+      // Compare chroma at equal luma so shading differences don't dominate.
+      const scale = meanLuma / Math.max(1, entryLuma);
+      const dr = mean[0] - rgb[0] * scale;
+      const dg = mean[1] - rgb[1] * scale;
+      const db = mean[2] - rgb[2] * scale;
+      scored.push({ hex: entry.hex, lumaValue: entryLuma, score: 2 * dr * dr + 4 * dg * dg + 3 * db * db });
+    }
+    if (scored.length < 3) return HAIR_RAMP;
+    const anchors = lumaAnchors ?? [
+      Math.min(210, meanLuma * 1.35),
+      meanLuma,
+      Math.max(20, meanLuma * 0.55),
+    ];
+    const picks: string[] = [];
+    for (const anchor of anchors) {
+      let best: { hex: string } | null = null;
+      let bestCombined = Infinity;
+      for (const candidate of scored) {
+        const lumaPenalty = ((candidate.lumaValue - anchor) / 28) ** 2;
+        const combined = candidate.score / 4000 + lumaPenalty;
+        if (combined < bestCombined) {
+          bestCombined = combined;
+          best = candidate;
+        }
+      }
+      if (best) picks.push(best.hex);
+    }
+    const unique = [...new Set(picks)];
+    return unique.length >= 2 ? unique : HAIR_RAMP;
+  };
   const isHairCentroid = ([r, g, b]: Rgb): boolean => {
     if (!(r > g && g >= b)) return false;
     const bright = luma([r, g, b]);
@@ -420,9 +473,83 @@ export function colorizeMeshCells(
   // brightly lit source pile every cell into the two lightest steps — washed
   // skin, blotchy fur. Normalised, shadows genuinely reach the dark steps and
   // highlights the light ones, which is what gives a face sculpted depth.
+  // Family ADOPTION: the blur mixes skin and hair along their boundary into
+  // clusters that match neither test and quantise to olive or sand — a green
+  // smudge on every hairline. A non-family cluster whose cells sit mostly
+  // against ONE family's cells joins that family and uses its ramp.
+  const clusterFamily: Array<string[] | null> = centroids.map((centroid) => rampFor(centroid));
+  if (portrait) {
+    const adoption = centroids.map(() => new Map<string[], number>());
+    const byCoordAll = new Map(surfaceCells.map((cell, index) => [coord(cell), index]));
+    for (let index = 0; index < surfaceCells.length; index++) {
+      const cluster = smoothed[index]!;
+      if (clusterFamily[cluster]) continue;
+      const cell = surfaceCells[index]!;
+      for (const [di, dj, dk] of NEIGHBOURS) {
+        const neighbour = byCoordAll.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (neighbour === undefined) continue;
+        const family = clusterFamily[smoothed[neighbour]!];
+        if (family) adoption[cluster]!.set(family, (adoption[cluster]!.get(family) ?? 0) + 1);
+      }
+    }
+    const clusterSizes = centroids.map(() => 0);
+    for (let index = 0; index < surfaceCells.length; index++) clusterSizes[smoothed[index]!]!++;
+    for (let cluster = 0; cluster < centroids.length; cluster++) {
+      if (clusterFamily[cluster] || !clusterSizes[cluster]) continue;
+      let bestFamily: string[] | null = null;
+      let bestCount = 0;
+      for (const [family, count] of adoption[cluster]!) {
+        if (count > bestCount) {
+          bestFamily = family;
+          bestCount = count;
+        }
+      }
+      // Adopt when family contact is substantial relative to the cluster —
+      // a boundary smudge touches its neighbours everywhere; a genuine
+      // separate material (a collar, a backdrop) barely does.
+      if (bestFamily && bestCount >= clusterSizes[cluster]! * 0.75) {
+        clusterFamily[cluster] = bestFamily;
+      }
+    }
+  }
+
+  // With hair membership settled (classification + adoption), rebuild the
+  // hair ramp around the source's actual mean hair colour and remap.
+  if (portrait) {
+    let hairR = 0;
+    let hairG = 0;
+    let hairB = 0;
+    let hairCount = 0;
+    const hairLumas: number[] = [];
+    for (let index = 0; index < surfaceCells.length; index++) {
+      if (clusterFamily[smoothed[index]!] !== HAIR_RAMP) continue;
+      const [r, g, b] = raw[index]!;
+      hairR += r;
+      hairG += g;
+      hairB += b;
+      hairCount++;
+      hairLumas.push(luma(raw[index]!));
+    }
+    if (hairCount > 24) {
+      hairLumas.sort((a, b) => a - b);
+      const percentile = (fraction: number) => hairLumas[Math.floor((hairLumas.length - 1) * fraction)]!;
+      const dynamicHair = dynamicWarmRamp(
+        [hairR / hairCount, hairG / hairCount, hairB / hairCount],
+        [percentile(0.8), percentile(0.5), percentile(0.2)],
+      );
+      if (dynamicHair !== HAIR_RAMP) {
+        for (let cluster = 0; cluster < centroids.length; cluster++) {
+          if (clusterFamily[cluster] !== HAIR_RAMP) continue;
+          clusterFamily[cluster] = dynamicHair;
+          catalogHex[cluster] = nearestOf(centroids[cluster]!, dynamicHair);
+        }
+      }
+    }
+  }
+
   const familyLumas = new Map<string[], number[]>();
   for (let index = 0; index < surfaceCells.length; index++) {
-    const ramp = rampFor(centroids[smoothed[index]!]!);
+    const ramp = clusterFamily[smoothed[index]!];
     if (!ramp) continue;
     let list = familyLumas.get(ramp);
     if (!list) {
@@ -476,13 +603,16 @@ export function colorizeMeshCells(
   for (let index = 0; index < surfaceCells.length; index++) {
     const cell = surfaceCells[index]!;
     const cluster = smoothed[index]!;
-    const ramp = rampFor(centroids[cluster]!);
+    const ramp = clusterFamily[cluster];
     const own = luma(raw[index]!);
     const parity = (cell.i + cell.j + cell.k) % 2 === 0;
     if (ramp) {
       const range = familyRange.get(ramp)!;
       const span = Math.max(1, range.high - range.low);
-      const t = Math.max(0, Math.min(1, (range.high - own) / span));
+      // Skin leans slightly toward its warmer mid-tones: a straight stretch
+      // let lit foreheads and cheeks bleach into the palest step.
+      const bias = ramp === FLESH_RAMP ? 0.08 : 0;
+      const t = Math.max(0, Math.min(1, (range.high - own) / span + bias));
       const position = t * (ramp.length - 1);
       const upper = Math.floor(position);
       const lower = Math.min(upper + 1, ramp.length - 1);
