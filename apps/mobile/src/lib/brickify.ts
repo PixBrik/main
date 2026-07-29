@@ -445,9 +445,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // same reinforced cell set materialised by `hollowBuildModel` above.
   // Stage beacons for performance triage: inert unless explicitly enabled
   // (node: PACK_DEBUG=1; browser: window.__PACK_DEBUG = true).
-  const packDebug =
-    (globalThis as { __PACK_DEBUG?: boolean }).__PACK_DEBUG === true
-    || (typeof process !== 'undefined' && !!process.env?.PACK_DEBUG);
+  const packDebug = (globalThis as { __PACK_DEBUG?: boolean }).__PACK_DEBUG === true;
   const packT0 = packDebug ? Date.now() : 0;
   const stamp = (message: string): void => {
     // eslint-disable-next-line no-console -- opt-in triage output
