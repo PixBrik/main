@@ -415,12 +415,17 @@ export function colorizeMeshCells(
       const warm = rgb[0] >= rgb[1] - 6 && rgb[1] >= rgb[2] - 14;
       const grey = spreadOf(rgb) < 40;
       if (lowSat ? !grey : !warm) continue;
-      // Compare chroma at equal luma so shading differences don't dominate.
+      // Compare chroma at equal luma so shading differences don't dominate,
+      // and penalise saturation mismatch separately — ash-brown hair must not
+      // land on saturated orange just because the hue direction matches.
       const scale = meanLuma / Math.max(1, entryLuma);
       const dr = mean[0] - rgb[0] * scale;
       const dg = mean[1] - rgb[1] * scale;
       const db = mean[2] - rgb[2] * scale;
-      scored.push({ hex: entry.hex, lumaValue: entryLuma, score: 2 * dr * dr + 4 * dg * dg + 3 * db * db });
+      const meanSat = spreadOf(mean) / Math.max(1, Math.max(mean[0], mean[1], mean[2]));
+      const entrySat = spreadOf(rgb) / Math.max(1, Math.max(rgb[0], rgb[1], rgb[2]));
+      const satPenalty = (meanSat - entrySat) ** 2 * 60000;
+      scored.push({ hex: entry.hex, lumaValue: entryLuma, score: 2 * dr * dr + 4 * dg * dg + 3 * db * db + satPenalty });
     }
     if (scored.length < 3) return HAIR_RAMP;
     const anchors = lumaAnchors ?? [

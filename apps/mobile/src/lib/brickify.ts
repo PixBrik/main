@@ -581,9 +581,157 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   stamp(`slopes done, ${placements.length} placements`);
 
+  const sourceCellByKey = new Map(sourceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
+
+  // ---- curvature-first surface pass ----
+  // Substituting curves AFTER greedy rectangle packing can never produce
+  // curved coverage: the packer eats every surface with 2×10s first, leaving
+  // only stray 1×1s to convert. So genuinely tilted surface cells (measured
+  // source-mesh normals) are claimed for curved parts BEFORE the rectangle
+  // packer runs — crowns, then curved runs along the descent, then single
+  // caps — and rectangles fill only what remains.
+  if (SCULPT_PARTS.length && !options.noSculpt) {
+    const CURVE_CALIBRATED = new Set(['15068', '37352', '50950', '54200', '61678']);
+    const curveFor = (kind: 'slopeCurved', w: number, l: number, colorId: number): CatalogSculptPart | undefined => {
+      let best: CatalogSculptPart | undefined;
+      for (const part of SCULPT_PARTS) {
+        if (part.kind !== kind || !CURVE_CALIBRATED.has(part.part)) continue;
+        if (!((part.w === w && part.l === l) || (part.w === l && part.l === w))) continue;
+        if (!part.elements[String(colorId)]) continue;
+        if (!best || (part.heightBricks ?? 1) > (best.heightBricks ?? 1)) best = part;
+      }
+      return best;
+    };
+    const cellTilt = (cell: VoxelCell | undefined): number | null => {
+      const surf = cell?.surf;
+      if (!surf) return null;
+      const ny = surf[1];
+      if (ny < 0.55 || ny > 0.965) return null;
+      return Math.abs(surf[0]) >= Math.abs(surf[2]) ? (surf[0] > 0 ? 3 : 4) : (surf[2] > 0 ? 1 : 2);
+    };
+    const free = (key: string) => !consumed.has(key);
+    const keyOf = (i: number, j: number, k: number) => `${i}|${j}|${k}`;
+    const openAbove = (i: number, j: number, k: number) => !sourceCellByKey.has(keyOf(i, j + 1, k));
+    const supported = (i: number, j: number, k: number) =>
+      j === 0 || sourceCellByKey.has(keyOf(i, j - 1, k));
+    const commitCurve = (
+      part: CatalogSculptPart,
+      colorId: number,
+      i0: number,
+      j0: number,
+      k0: number,
+      spanI: number,
+      spanK: number,
+      facing: number,
+      cellKeys: string[],
+    ) => {
+      for (const cellKey of cellKeys) consumed.add(cellKey);
+      const tallyKey = `${part.part}|${colorId}`;
+      tally.set(tallyKey, (tally.get(tallyKey) ?? 0) + 1);
+      reserveStock(part.part, colorId);
+      placements.push({
+        colorId,
+        facing,
+        i: i0,
+        j: j0,
+        k: k0,
+        part: part.part,
+        shape: part.kind,
+        spanI,
+        spanK,
+      });
+    };
+
+    // Pass 1: 2×2 curved crowns on coherent tilted patches.
+    for (const cell of sourceCells) {
+      const { i, j, k } = cell;
+      const anchorKey = keyOf(i, j, k);
+      if (!free(anchorKey) || !openAbove(i, j, k)) continue;
+      const facing = cellTilt(cell);
+      if (facing === null) continue;
+      const quad = [[i, k], [i + 1, k], [i, k + 1], [i + 1, k + 1]] as const;
+      let ok = true;
+      const keys: string[] = [];
+      let colorId = -1;
+      for (const [ci, ck] of quad) {
+        const qKey = keyOf(ci, j, ck);
+        const qCell = sourceCellByKey.get(qKey);
+        if (!qCell || !free(qKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(qCell) !== facing) {
+          ok = false;
+          break;
+        }
+        keys.push(qKey);
+        if (colorId < 0) colorId = colorOf(qCell);
+      }
+      if (!ok) continue;
+      const part = curveFor('slopeCurved', 2, 2, colorId);
+      if (part) commitCurve(part, colorId, i, j, k, 2, 2, facing, keys);
+    }
+
+    // Pass 2: curved runs 4→3→2 along the descent direction.
+    for (const runLength of [4, 3, 2]) {
+      for (const cell of sourceCells) {
+        const { i, j, k } = cell;
+        if (!free(keyOf(i, j, k)) || !openAbove(i, j, k)) continue;
+        const facing = cellTilt(cell);
+        if (facing === null) continue;
+        const d = FACE_DIRECTIONS[facing]!;
+        const keys: string[] = [];
+        let ok = true;
+        let colorId = -1;
+        for (let step = 0; step < runLength; step++) {
+          const ci = i - d.x * step;
+          const ck = k - d.z * step;
+          const cKey = keyOf(ci, j, ck);
+          const cCell = sourceCellByKey.get(cKey);
+          if (!cCell || !free(cKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(cCell) !== facing) {
+            ok = false;
+            break;
+          }
+          keys.push(cKey);
+          if (colorId < 0) colorId = colorOf(cCell);
+        }
+        if (!ok) continue;
+        const spanI = d.x !== 0 ? runLength : 1;
+        const spanK = d.z !== 0 ? runLength : 1;
+        const part = curveFor('slopeCurved', 1, runLength, colorId);
+        if (!part) continue;
+        commitCurve(
+          part, colorId,
+          Math.min(i, i - d.x * (runLength - 1)), j, Math.min(k, k - d.z * (runLength - 1)),
+          spanI, spanK, facing, keys,
+        );
+      }
+    }
+
+    // Pass 3: lone tilted cells become cheese caps when they have a tilted
+    // or curved neighbour — isolated bumps stay rectangular to avoid stipple.
+    for (const cell of sourceCells) {
+      const { i, j, k } = cell;
+      const cellKey = keyOf(i, j, k);
+      if (!free(cellKey) || !openAbove(i, j, k) || !supported(i, j, k)) continue;
+      const facing = cellTilt(cell);
+      if (facing === null) continue;
+      let hasMate = false;
+      for (const face of [1, 2, 3, 4] as const) {
+        const d = FACE_DIRECTIONS[face]!;
+        const nKey = keyOf(i + d.x, j, k + d.z);
+        const nCell = sourceCellByKey.get(nKey);
+        if ((nCell && cellTilt(nCell) !== null) || consumed.has(nKey)) {
+          hasMate = true;
+          break;
+        }
+      }
+      if (!hasMate) continue;
+      const colorId = colorOf(cell);
+      const part = curveFor('slopeCurved', 1, 1, colorId);
+      if (part) commitCurve(part, colorId, i, j, k, 1, 1, facing, [cellKey]);
+    }
+    stamp(`curvature-first done, ${placements.length} placements`);
+  }
+
   // ---- rectangle packing for everything not consumed by slopes ----
   const layers = new Map<number, Map<string, { cell: VoxelCell; colorId: number }>>();
-  const sourceCellByKey = new Map(sourceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
   const sourceCellKeys = new Set(sourceCells.map((cell) => `${cell.i}|${cell.j}|${cell.k}`));
   const originalExteriorKeys = new Set(model.shell.map((cell) => `${cell.i}|${cell.j}|${cell.k}`));
   // A plain loop, not Math.min(...spread): spreading 100k+ cells as call
