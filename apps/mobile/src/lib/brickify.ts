@@ -443,7 +443,19 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   // Quote, preview, saved order and instructions must all describe the exact
   // same reinforced cell set materialised by `hollowBuildModel` above.
+  // Stage beacons for performance triage: inert unless explicitly enabled
+  // (node: PACK_DEBUG=1; browser: window.__PACK_DEBUG = true).
+  const packDebug =
+    (globalThis as { __PACK_DEBUG?: boolean }).__PACK_DEBUG === true
+    || (typeof process !== 'undefined' && !!process.env?.PACK_DEBUG);
+  const packT0 = packDebug ? Date.now() : 0;
+  const stamp = (message: string): void => {
+    // eslint-disable-next-line no-console -- opt-in triage output
+    if (packDebug) console.log('[pack]', message, `${((Date.now() - packT0) / 1000).toFixed(1)}s`);
+  };
+
   const sourceCells = options.hollow ? reinforcedHollowCells(model) : model.cells;
+  stamp(`cells ready ${sourceCells.length}`);
 
   // part|color -> quantity
   const tally = new Map<string, number>();
@@ -568,6 +580,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       }
     }
   }
+
+  stamp(`slopes done, ${placements.length} placements`);
 
   // ---- rectangle packing for everything not consumed by slopes ----
   const layers = new Map<number, Map<string, { cell: VoxelCell; colorId: number }>>();
@@ -820,6 +834,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   const structuralOneByTwo = BRICKS.find(
     (brick) => brick.studs === 2 && Math.min(brick.w, brick.l) === 1,
   );
+  stamp(`rect packing done, ${placements.length} placements`);
+
   if (structuralOneByOne && structuralOneByTwo && placements.length) {
     const exteriorKeys = originalExteriorKeys;
     const placementCells = (placement: BrickPlacement) => {
@@ -1063,8 +1079,15 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         .sort()
         .join(';');
     const seenStructuralPackings = new Set([packingSignature(placements)]);
-    const maxTiePasses = placements.length;
+    // Each pass costs a full rebuild over every placement, so passes must be
+    // bounded by convergence, not by count: `placements.length` passes on a
+    // 20k-placement hollow build is O(N²) and runs for hours. Ties converge
+    // within a few dozen passes on every real model; the cap only exists so
+    // a pathological merge chain degrades to "some ties left" instead of a
+    // frozen build. The assembly gate still verifies support independently.
+    const maxTiePasses = Math.min(placements.length, 64);
     for (let pass = 0; pass < maxTiePasses; pass++) {
+      if (pass % 4 === 0) stamp(`tie pass ${pass}/${maxTiePasses}`);
       const parent = placements.map((_, index) => index);
       const find = (index: number): number => {
         let root = index;
@@ -1377,6 +1400,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   }
 
+  stamp('structural block done');
+
   // ---- sculpt pass: curved, round and inverted parts on organic edges ----
   // Runs on the finished placement set, before BOM lines are derived from the
   // tally, so quotes, orders, instructions and previews all agree. Every
@@ -1630,6 +1655,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   const lines = [...merged.values()].sort((a, b) => b.quantity - a.quantity);
   const totalParts = lines.reduce((sum, line) => sum + line.quantity, 0);
   const totalEur = Number(lines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2));
+
+  stamp('sculpt done');
 
   // ---- real wheel assemblies for detected vehicles ----
   // Axle 3L through a technic brick, 18mm wheel, 24×14 tire: every SKU and

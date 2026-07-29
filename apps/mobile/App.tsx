@@ -609,12 +609,39 @@ function PixBrikApp() {
       for (const colour of catalogue.colors) colorHexById[String(colour.id)] = colour.rgb;
 
       const t0 = Date.now();
+      // eslint-disable-next-line no-console -- stage beacons for hang triage
+      console.debug('[cmp]', label, 'voxelize:start');
       const model = await voxelizeGlbUrlOne(url, 'balanced', undefined, {
         ...(extra.colorStyle ? { colorStyle: extra.colorStyle } : {}),
         studSpans: { balanced: studSpan },
       });
       const voxelSeconds = Math.round((Date.now() - t0) / 1000);
+      // eslint-disable-next-line no-console
+      console.debug('[cmp]', label, 'voxelize:done', voxelSeconds + 's', model.cells.length, 'cells; pack:start');
+      // Persist the voxel model so packing can be profiled offline in node.
+      try {
+        const payload = JSON.stringify({
+          cells: model.cells,
+          layerHeight: model.layerHeight,
+          size: model.size,
+          wheelAnchors: (model as { wheelAnchors?: unknown }).wheelAnchors ?? null,
+        });
+        const bytes = new TextEncoder().encode(payload);
+        let binary = '';
+        for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+          binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+        }
+        await fetch(receiver, {
+          body: JSON.stringify({ name: `model-${label}`, png: btoa(binary) }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+      } catch {
+        // capture is best-effort
+      }
       const bom = pack(model, '#FF3D17', extra.hollow ? { hollow: true } : {});
+      // eslint-disable-next-line no-console
+      console.debug('[cmp]', label, 'pack:done', bom.totalParts, 'parts', Math.round((Date.now() - t0) / 1000) + 's; render:start');
 
       const post = async (name: string, png: string) => {
         await fetch(receiver, {
