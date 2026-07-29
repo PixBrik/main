@@ -77,6 +77,21 @@ export interface WheelAccessory {
   holderPart: string;
 }
 
+/**
+ * A studless tile capping the top of grid layer `j` (1/3 brick tall, sits on
+ * the studs of the cell below). Kept outside `placements` so the assembly
+ * plan's cell-tiling invariants stay untouched.
+ */
+export interface TileFinish {
+  part: string;
+  colorId: number;
+  i: number;
+  j: number;
+  k: number;
+  spanI: number;
+  spanK: number;
+}
+
 export interface BillOfMaterials {
   lines: BomLine[];
   totalParts: number;
@@ -91,6 +106,10 @@ export interface BillOfMaterials {
   /** Axles, wheels, tires and holder bricks — priced separately from lines. */
   accessoryLines?: BomLine[];
   accessoryTotalEur?: number;
+  /** Studless tile skin over flat top surfaces — the display-model finish. */
+  finish?: TileFinish[];
+  finishLines?: BomLine[];
+  finishTotalEur?: number;
 }
 
 interface CatalogColor {
@@ -157,6 +176,11 @@ interface CatalogSculptPart extends CatalogBrick {
 const SCULPT_PARTS: CatalogSculptPart[] = (
   (catalog as unknown as { sculpt?: CatalogSculptPart[] }).sculpt ?? []
 );
+
+/** Studless tiles for the finishing skin, largest footprint first. */
+const TILE_PARTS: CatalogBrick[] = (
+  (catalog as unknown as { tiles?: CatalogBrick[] }).tiles ?? []
+).slice().sort((a, b) => b.studs - a.studs);
 
 /** Public, read-only geometry guard used by shared-guide validation. */
 export function catalogPartFootprint(part: string): CatalogPartFootprint | null {
@@ -1899,6 +1923,90 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   stamp('sculpt done');
 
+  // ---- tile finishing pass: the studless skin ----
+  // On near-flat surfaces (a bonnet tilts 10°, a dog's back barely more)
+  // slopes cannot help at brick resolution — what reads as "toy" is the
+  // STUDS. Display models tile flat tops smooth; so do we: every flat,
+  // top-exposed cell gets a tile cap, greedily covered largest-tile-first
+  // per colour. Tiles live outside placements/lines (like wheel assemblies)
+  // so plan and audit invariants stay untouched.
+  let finish: TileFinish[] | undefined;
+  let finishLines: BomLine[] | undefined;
+  let finishTotalEur: number | undefined;
+  if (TILE_PARTS.length && !options.noSculpt) {
+    const tiled = new Set<string>();
+    const flatTop = new Map<string, { cell: VoxelCell; colorId: number }>();
+    for (const cell of sourceCells) {
+      const key = `${cell.i}|${cell.j}|${cell.k}`;
+      if (consumed.has(key)) continue; // slopes and curves are already studless
+      if (sourceCellByKey.has(`${cell.i}|${cell.j + 1}|${cell.k}`)) continue;
+      const surf = cell.surf;
+      if (surf && surf[1] < 0.94) continue; // meaningfully tilted — curve territory
+      flatTop.set(key, { cell, colorId: colorOf(cell) });
+    }
+    const finishTally = new Map<string, number>();
+    finish = [];
+    for (const [key, anchor] of flatTop) {
+      if (tiled.has(key)) continue;
+      const { cell, colorId } = anchor;
+      for (const tile of TILE_PARTS) {
+        if (!tile.elements[String(colorId)]) continue;
+        let committed = false;
+        for (const [w, l] of tile.w === tile.l ? [[tile.w, tile.l]] : [[tile.w, tile.l], [tile.l, tile.w]]) {
+          let fits = true;
+          for (let di = 0; di < w! && fits; di++) {
+            for (let dk = 0; dk < l! && fits; dk++) {
+              const probe = `${cell.i + di}|${cell.j}|${cell.k + dk}`;
+              const entry = flatTop.get(probe);
+              if (!entry || tiled.has(probe) || entry.colorId !== colorId) fits = false;
+            }
+          }
+          if (!fits) continue;
+          for (let di = 0; di < w!; di++) {
+            for (let dk = 0; dk < l!; dk++) tiled.add(`${cell.i + di}|${cell.j}|${cell.k + dk}`);
+          }
+          finish.push({ colorId, i: cell.i, j: cell.j, k: cell.k, part: tile.part, spanI: w!, spanK: l! });
+          const tallyKey = `${tile.part}|${colorId}`;
+          finishTally.set(tallyKey, (finishTally.get(tallyKey) ?? 0) + 1);
+          committed = true;
+          break;
+        }
+        if (committed) break;
+      }
+    }
+    if (finish.length) {
+      const tileByPart = new Map(TILE_PARTS.map((tile) => [tile.part, tile]));
+      const colorById = new Map(COLORS.map((color) => [color.id, color]));
+      finishLines = [...finishTally.entries()].map(([key, quantity]) => {
+        const [part, colorIdRaw] = key.split('|') as [string, string];
+        const tile = tileByPart.get(part)!;
+        const color = colorById.get(Number(colorIdRaw))!;
+        const unitPriceEur = tile.prices?.[String(color.id)] ?? tile.basePriceEur;
+        return {
+          colorId: color.id,
+          colorName: color.name,
+          colorRgb: color.rgb,
+          elementId: tile.elements[String(color.id)] ?? null,
+          estimated: false,
+          imageUrl: null,
+          l: tile.l,
+          lineTotalEur: Number((unitPriceEur * quantity).toFixed(2)),
+          part,
+          partName: tile.name,
+          quantity,
+          skuId: null,
+          substituted: false,
+          unitPriceEur,
+          w: tile.w,
+        };
+      });
+      finishTotalEur = Number(finishLines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2));
+      stamp(`finish done, ${finish.length} tiles`);
+    } else {
+      finish = undefined;
+    }
+  }
+
   // ---- real wheel assemblies for detected vehicles ----
   // Axle 3L through a technic brick, 18mm wheel, 24×14 tire: every SKU and
   // price from the GoBricks harvest. Kept out of `lines`/`totalParts` so the
@@ -1913,7 +2021,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     // Two real wheel sizes: 43.2mm ZR tires fill large carved arches (≈5
     // studs), 24mm tires suit small ones. Sized per anchor from the carve.
     accessories = anchors.map((anchor) => {
-      const big = (anchor.radiusCells ?? 2) >= 1.8;
+      const big = (anchor.radiusCells ?? 2) >= 1.5;
       return {
         axlePart: '4519',
         holderPart: '3700',
@@ -1975,6 +2083,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   return {
     ...(accessories ? { accessories, accessoryLines, accessoryTotalEur } : {}),
+    ...(finish ? { finish, finishLines, finishTotalEur } : {}),
     colorCount: new Set(lines.map((line) => line.colorId)).size,
     isEstimate: lines.some((line) => line.estimated),
     lines,

@@ -68,6 +68,16 @@ export interface LDrawRenderOptions {
     wheelPart: string;
     tirePart: string;
   }>;
+  /** Studless tile skin capping flat tops (1/3-brick parts above layer j). */
+  finish?: ReadonlyArray<{
+    part: string;
+    colorId: number | string;
+    i: number;
+    j: number;
+    k: number;
+    spanI: number;
+    spanK: number;
+  }>;
 }
 
 interface PreparedPart {
@@ -288,6 +298,55 @@ export async function renderLDrawTurntable(
       build.add(mesh);
     }
 
+    // Tile skin: each tile's bottom sits on the TOP face of its layer — the
+    // studless finish that makes flat panels read as bodywork, not toy.
+    if (options.finish?.length) {
+      const byTile = new Map<string, NonNullable<LDrawRenderOptions['finish']>[number][]>();
+      for (const tile of options.finish) {
+        const list = byTile.get(tile.part) ?? [];
+        list.push(tile);
+        byTile.set(tile.part, list);
+      }
+      for (const [partId, list] of byTile) {
+        const prepared = await loadPart(partId, ldrawBase);
+        if (!prepared) continue;
+        const material = new THREE.MeshStandardMaterial({
+          envMapIntensity: light ? 1.1 : 0.95,
+          metalness: 0,
+          roughness: 0.28,
+          side: THREE.DoubleSide,
+        });
+        materials.push(material);
+        const mesh = new THREE.InstancedMesh(prepared.geometry, material, list.length);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        for (const [index, tile] of list.entries()) {
+          const needsQuarterTurn =
+            prepared.nativeSpanX !== tile.spanI
+            && prepared.nativeSpanX === tile.spanK
+            && prepared.nativeSpanZ === tile.spanI;
+          const rotation = needsQuarterTurn ? Math.PI / 2 : 0;
+          const cos = Math.cos(rotation);
+          const sin = Math.sin(rotation);
+          const offsetX = prepared.centreX * cos + prepared.centreZ * sin;
+          const offsetZ = -prepared.centreX * sin + prepared.centreZ * cos;
+          position.set(
+            (tile.i + tile.spanI / 2) * LDU_PER_STUD - offsetX,
+            -(tile.j + 1) * LDU_PER_BRICK - prepared.bottomY,
+            (tile.k + tile.spanK / 2) * LDU_PER_STUD - offsetZ,
+          );
+          quaternion.setFromAxisAngle(axis, rotation);
+          matrix.compose(position, quaternion, scale);
+          mesh.setMatrixAt(index, matrix);
+          colour.set(monochrome ?? colorHexById[String(tile.colorId)] ?? fallbackHex);
+          mesh.setColorAt(index, colour);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        build.add(mesh);
+      }
+    }
+
     // Real wheels: the wheel's and tire's native axis is LDraw z; a quarter
     // turn about Y points it along ±x (out the car's side). The centre sits
     // half a tire-width beyond the anchor cell's outer face, at the middle of
@@ -310,7 +369,7 @@ export async function renderLDrawTurntable(
         }
         const outerFace = (accessory.i + (accessory.side > 0 ? 1 : 0)) * LDU_PER_STUD;
         const centreX = outerFace - accessory.side * tireHalf;
-        const centreY = -(accessory.j + 0.5) * LDU_PER_BRICK;
+        const centreY = -(accessory.j + 0.35) * LDU_PER_BRICK;
         const centreZ = (accessory.k + 0.5) * LDU_PER_STUD;
         for (const [prepared, material] of [
           [wheelPrepared, wheelMaterial],

@@ -26,6 +26,7 @@ export interface LDrawRenderOptions {
   elevation?: number;
   yaw?: number;
   monochrome?: string;
+  finish?: ReadonlyArray<{ part: string; colorId: number | string; i: number; j: number; k: number; spanI: number; spanK: number }>;
   accessories?: ReadonlyArray<{
     i: number;
     j: number;

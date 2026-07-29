@@ -671,6 +671,7 @@ function PixBrikApp() {
       // NEW: real catalogue parts under studio light.
       const product = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
+        ...(bom.finish?.length ? { finish: bom.finish } : {}),
         colorHexById,
         frames: extra.frames ?? 2,
         ldrawBase: 'http://localhost:8095/ldraw',
@@ -905,6 +906,7 @@ function PixBrikApp() {
       const bom = pack(model, '#FF3D17', extra.hollow ? { hollow: true } : {});
       const frames = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
+        ...(bom.finish?.length ? { finish: bom.finish } : {}),
         colorHexById,
         frames: extra.frames ?? 24,
         height: extra.height ?? 420,

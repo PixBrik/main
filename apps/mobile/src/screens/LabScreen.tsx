@@ -551,6 +551,7 @@ function LibraryStudio({ studioSession }: { studioSession: string | null }) {
       const bom = brickify(model, colors.alarm);
       const product = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
+        ...(bom.finish?.length ? { finish: bom.finish } : {}),
         colorHexById,
         ldrawBase: '/ldraw',
       });
