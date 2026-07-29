@@ -395,6 +395,27 @@ export async function renderLDrawTurntable(
           );
           build.add(mesh);
         }
+        // Mudguard: quarter-turned so its 4-stud length runs along the car,
+        // seated by its ROTATED bounding box — outer lip 2 LDU proud of the
+        // body side, legs reaching just past the axle, centred on the wheel.
+        if (mudguardPrepared) {
+          const sign = accessory.side > 0 ? 1 : -1;
+          const archYaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+          const arch = new THREE.Mesh(mudguardPrepared.geometry, mudguardMaterial);
+          arch.castShadow = true;
+          arch.receiveShadow = true;
+          arch.rotation.y = archYaw;
+          mudguardPrepared.geometry.computeBoundingBox();
+          const rotated = mudguardPrepared.geometry.boundingBox!
+            .clone()
+            .applyMatrix4(new THREE.Matrix4().makeRotationY(archYaw));
+          arch.position.set(
+            outerFace + sign * 2 - (sign > 0 ? rotated.max.x : rotated.min.x),
+            centreY + 16 - rotated.max.y,
+            centreZ - (rotated.max.z + rotated.min.z) / 2,
+          );
+          build.add(arch);
+        }
       }
     }
 

@@ -625,7 +625,7 @@ export function colorizeMeshCells(
       const upper = Math.floor(position);
       const lower = Math.min(upper + 1, ramp.length - 1);
       const fraction = position - upper;
-      cell.colorHex = fraction > 0.35 && fraction < 0.65
+      cell.colorHex = fraction > 0.28 && fraction < 0.72
         ? ramp[parity ? upper : lower]!
         : ramp[fraction <= 0.5 ? upper : lower]!;
       continue;
@@ -637,7 +637,7 @@ export function colorizeMeshCells(
     }
     const light = pair.aLuma > pair.bLuma ? pair : { aHex: pair.bHex, aLuma: pair.bLuma, bHex: pair.aHex, bLuma: pair.aLuma };
     const t = Math.max(0, Math.min(1, (light.aLuma - own) / (light.aLuma - light.bLuma)));
-    cell.colorHex = t > 0.35 && t < 0.65
+    cell.colorHex = t > 0.28 && t < 0.72
       ? (parity ? light.aHex : light.bHex)
       : t <= 0.5 ? light.aHex : light.bHex;
   }
