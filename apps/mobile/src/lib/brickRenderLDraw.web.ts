@@ -355,6 +355,9 @@ export async function renderLDrawTurntable(
       const wheelMaterial = new THREE.MeshStandardMaterial({ color: '#9BA19D', metalness: 0.1, roughness: 0.35 });
       const tireMaterial = new THREE.MeshStandardMaterial({ color: '#1B1D1E', metalness: 0, roughness: 0.85 });
       materials.push(wheelMaterial, tireMaterial);
+      const mudguardPrepared = await loadPart('98282', ldrawBase);
+      const mudguardMaterial = new THREE.MeshStandardMaterial({ color: '#1B1D1E', metalness: 0, roughness: 0.4, side: THREE.DoubleSide });
+      materials.push(mudguardMaterial);
       for (const accessory of options.accessories) {
         const wheelPrepared = await loadPart(accessory.wheelPart, ldrawBase);
         const tirePrepared = await loadPart(accessory.tirePart, ldrawBase);

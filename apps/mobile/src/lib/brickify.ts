@@ -2064,6 +2064,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     });
     accessoryLines = [
       accessoryLine('3700', 'Technic Brick 1 x 2 with Hole', catalogueBlack, 'GDS-623-011', 0.08, count),
+      accessoryLine('98282', 'Mudguard 4 x 2 1/2 with Round Arch', catalogueBlack, 'GDS-1319-011', 0.12, count),
       accessoryLine('4519', 'Technic Axle 3L', catalogueBlack, 'GDS-579-011', 0.05, count),
       ...(bigCount
         ? [
