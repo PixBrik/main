@@ -78,6 +78,17 @@ export interface LDrawRenderOptions {
     spanI: number;
     spanK: number;
   }>;
+  /** Terrace plates stacked on top faces; level counts 8-LDU sub-layers up. */
+  terrace?: ReadonlyArray<{
+    part: string;
+    colorId: number | string;
+    i: number;
+    j: number;
+    k: number;
+    spanI: number;
+    spanK: number;
+    level: number;
+  }>;
 }
 
 interface PreparedPart {
@@ -339,6 +350,55 @@ export async function renderLDrawTurntable(
           matrix.compose(position, quaternion, scale);
           mesh.setMatrixAt(index, matrix);
           colour.set(monochrome ?? colorHexById[String(tile.colorId)] ?? fallbackHex);
+          mesh.setColorAt(index, colour);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        build.add(mesh);
+      }
+    }
+
+    // Terrace plates: like tiles, but stackable — each entry seats 8 LDU
+    // higher per level, softening single-brick steps into 1/3-brick stairs.
+    if (options.terrace?.length) {
+      const byPlate = new Map<string, NonNullable<LDrawRenderOptions['terrace']>[number][]>();
+      for (const plate of options.terrace) {
+        const list = byPlate.get(plate.part) ?? [];
+        list.push(plate);
+        byPlate.set(plate.part, list);
+      }
+      for (const [partId, list] of byPlate) {
+        const prepared = await loadPart(partId, ldrawBase);
+        if (!prepared) continue;
+        const material = new THREE.MeshStandardMaterial({
+          envMapIntensity: light ? 1.1 : 0.95,
+          metalness: 0,
+          roughness: 0.34,
+          side: THREE.DoubleSide,
+        });
+        materials.push(material);
+        const mesh = new THREE.InstancedMesh(prepared.geometry, material, list.length);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        for (const [index, plate] of list.entries()) {
+          const needsQuarterTurn =
+            prepared.nativeSpanX !== plate.spanI
+            && prepared.nativeSpanX === plate.spanK
+            && prepared.nativeSpanZ === plate.spanI;
+          const rotation = needsQuarterTurn ? Math.PI / 2 : 0;
+          const cos = Math.cos(rotation);
+          const sin = Math.sin(rotation);
+          const offsetX = prepared.centreX * cos + prepared.centreZ * sin;
+          const offsetZ = -prepared.centreX * sin + prepared.centreZ * cos;
+          position.set(
+            (plate.i + plate.spanI / 2) * LDU_PER_STUD - offsetX,
+            -(plate.j + 1) * LDU_PER_BRICK - plate.level * 8 - prepared.bottomY,
+            (plate.k + plate.spanK / 2) * LDU_PER_STUD - offsetZ,
+          );
+          quaternion.setFromAxisAngle(axis, rotation);
+          matrix.compose(position, quaternion, scale);
+          mesh.setMatrixAt(index, matrix);
+          colour.set(monochrome ?? colorHexById[String(plate.colorId)] ?? fallbackHex);
           mesh.setColorAt(index, colour);
         }
         mesh.instanceMatrix.needsUpdate = true;

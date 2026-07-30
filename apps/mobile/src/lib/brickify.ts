@@ -92,6 +92,20 @@ export interface TileFinish {
   spanK: number;
 }
 
+/** One physical plate of the terrace smoothing, at 1/3-brick sub-layer `level`. */
+export interface TerraceStep {
+  part: string;
+  colorId: number;
+  i: number;
+  /** Brick layer whose top face the stack sits on. */
+  j: number;
+  k: number;
+  spanI: number;
+  spanK: number;
+  /** Sub-layer within the stack: 0 rests on the surface, 1 on top of it. */
+  level: number;
+}
+
 export interface BillOfMaterials {
   lines: BomLine[];
   totalParts: number;
@@ -110,6 +124,10 @@ export interface BillOfMaterials {
   finish?: TileFinish[];
   finishLines?: BomLine[];
   finishTotalEur?: number;
+  /** Plate terracing that softens single-brick steps on gentle slopes. */
+  terrace?: TerraceStep[];
+  terraceLines?: BomLine[];
+  terraceTotalEur?: number;
 }
 
 interface CatalogColor {
@@ -180,6 +198,11 @@ const SCULPT_PARTS: CatalogSculptPart[] = (
 /** Studless tiles for the finishing skin, largest footprint first. */
 const TILE_PARTS: CatalogBrick[] = (
   (catalog as unknown as { tiles?: CatalogBrick[] }).tiles ?? []
+).slice().sort((a, b) => b.studs - a.studs);
+
+/** Rectangular plates (1/3-brick height) for terrace smoothing, longest first. */
+const PLATE_PARTS: CatalogBrick[] = (
+  (catalog as unknown as { plates?: CatalogBrick[] }).plates ?? []
 ).slice().sort((a, b) => b.studs - a.studs);
 
 /** Public, read-only geometry guard used by shared-guide validation. */
@@ -1939,6 +1962,136 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   stamp('sculpt done');
 
+  // ---- terrace pass: plate steps soften single-brick cliffs ----
+  // A gentle slope quantised to brick height reads as 24-LDU cliffs. The
+  // sculpture-standard fix is terracing: a 2-plate stack on the lower side
+  // of each step edge, and a 1-plate stack one stud further out, turning one
+  // big step into three 8-LDU ones. Purely additive — placements and packer
+  // invariants untouched; plates ride in their own BOM block like tiles.
+  let terrace: TerraceStep[] | undefined;
+  let terraceLines: BomLine[] | undefined;
+  let terraceTotalEur: number | undefined;
+  if (PLATE_PARTS.length && shaping) {
+    const topByColumn = new Map<string, VoxelCell>();
+    for (const cell of sourceCells) {
+      const columnKey = `${cell.i}|${cell.k}`;
+      const current = topByColumn.get(columnKey);
+      if (!current || cell.j > current.j) topByColumn.set(columnKey, cell);
+    }
+    const stacks = new Map<string, { cell: VoxelCell; plates: 1 | 2 }>();
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+    for (const upper of topByColumn.values()) {
+      // Terrace only where the surface itself is a slope: walls and cliffs
+      // (steep normals) keep their sharp edges, and cells the curve pass
+      // already claimed are smoother than any plate stack.
+      const surf = upper.surf;
+      if (!surf || surf[1] < 0.55) continue;
+      if (consumed.has(`${upper.i}|${upper.j}|${upper.k}`)) continue;
+      for (const [di, dk] of DIRS) {
+        const lower = topByColumn.get(`${upper.i + di}|${upper.k + dk}`);
+        if (!lower || upper.j - lower.j !== 1) continue;
+        const lowerColumn = `${lower.i}|${lower.k}`;
+        if (consumed.has(`${lower.i}|${lower.j}|${lower.k}`)) continue;
+        const existing = stacks.get(lowerColumn);
+        if (!existing || existing.plates < 2) stacks.set(lowerColumn, { cell: lower, plates: 2 });
+        const beyond = topByColumn.get(`${upper.i + di * 2}|${upper.k + dk * 2}`);
+        if (beyond && beyond.j === lower.j && !consumed.has(`${beyond.i}|${beyond.j}|${beyond.k}`)) {
+          const beyondColumn = `${beyond.i}|${beyond.k}`;
+          if (!stacks.has(beyondColumn)) stacks.set(beyondColumn, { cell: beyond, plates: 1 });
+        }
+      }
+    }
+    if (stacks.size) {
+      terrace = [];
+      const terraceTally = new Map<string, number>();
+      const oneWide = PLATE_PARTS.filter((plate) => plate.w === 1);
+      const emitted = new Set<string>();
+      for (const [positionKey, entry] of stacks) {
+        if (emitted.has(positionKey)) continue;
+        const { cell } = entry;
+        const colorId = colorOf(cell);
+        const matches = (candidate?: { cell: VoxelCell; plates: 1 | 2 }) =>
+          !!candidate && candidate.plates === entry.plates && candidate.cell.j === cell.j
+          && colorOf(candidate.cell) === colorId;
+        const runAlong = (di: number, dk: number): number => {
+          let length = 1;
+          while (length < 10) {
+            const nextKey = `${cell.i + di * length}|${cell.k + dk * length}`;
+            if (emitted.has(nextKey) || !matches(stacks.get(nextKey))) break;
+            length += 1;
+          }
+          return length;
+        };
+        const lengthI = runAlong(1, 0);
+        const lengthK = runAlong(0, 1);
+        const alongI = lengthI >= lengthK;
+        let remaining = alongI ? lengthI : lengthK;
+        let cursor = 0;
+        while (remaining > 0) {
+          const plate = oneWide.find((candidate) => candidate.l <= remaining && candidate.elements[String(colorId)]);
+          if (!plate) break;
+          const span = plate.l;
+          const baseI = cell.i + (alongI ? cursor : 0);
+          const baseK = cell.k + (alongI ? 0 : cursor);
+          for (let step = 0; step < span; step++) {
+            const stepI = baseI + (alongI ? step : 0);
+            const stepK = baseK + (alongI ? 0 : step);
+            emitted.add(`${stepI}|${stepK}`);
+            // The stack owns this top face — the tile skin must skip it.
+            consumed.add(`${stepI}|${cell.j}|${stepK}`);
+          }
+          for (let level = 0; level < entry.plates; level++) {
+            terrace.push({
+              colorId,
+              i: baseI,
+              j: cell.j,
+              k: baseK,
+              level,
+              part: plate.part,
+              spanI: alongI ? span : 1,
+              spanK: alongI ? 1 : span,
+            });
+            const tallyKey = `${plate.part}|${colorId}`;
+            terraceTally.set(tallyKey, (terraceTally.get(tallyKey) ?? 0) + 1);
+          }
+          cursor += span;
+          remaining -= span;
+        }
+      }
+      if (terrace.length) {
+        const plateByPart = new Map(PLATE_PARTS.map((plate) => [plate.part, plate]));
+        const colorById = new Map(COLORS.map((color) => [color.id, color]));
+        terraceLines = [...terraceTally.entries()].map(([key, quantity]) => {
+          const [part, colorIdRaw] = key.split('|') as [string, string];
+          const plate = plateByPart.get(part)!;
+          const color = colorById.get(Number(colorIdRaw))!;
+          const unitPriceEur = plate.prices?.[String(color.id)] ?? plate.basePriceEur;
+          return {
+            colorId: color.id,
+            colorName: color.name,
+            colorRgb: color.rgb,
+            elementId: plate.elements[String(color.id)] ?? null,
+            estimated: false,
+            imageUrl: null,
+            l: plate.l,
+            lineTotalEur: Number((unitPriceEur * quantity).toFixed(2)),
+            part,
+            partName: plate.name,
+            quantity,
+            skuId: null,
+            substituted: false,
+            unitPriceEur,
+            w: plate.w,
+          };
+        });
+        terraceTotalEur = Number(terraceLines.reduce((sum, line) => sum + line.lineTotalEur, 0).toFixed(2));
+        stamp(`terrace done, ${terrace.length} plates`);
+      } else {
+        terrace = undefined;
+      }
+    }
+  }
+
   // ---- tile finishing pass: the studless skin ----
   // On near-flat surfaces (a bonnet tilts 10°, a dog's back barely more)
   // slopes cannot help at brick resolution — what reads as "toy" is the
@@ -2128,6 +2281,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   return {
     ...(accessories ? { accessories, accessoryLines, accessoryTotalEur } : {}),
     ...(finish ? { finish, finishLines, finishTotalEur } : {}),
+    ...(terrace ? { terrace, terraceLines, terraceTotalEur } : {}),
     colorCount: new Set(lines.map((line) => line.colorId)).size,
     isEstimate: lines.some((line) => line.estimated),
     lines,

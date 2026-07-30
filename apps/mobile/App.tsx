@@ -672,6 +672,7 @@ function PixBrikApp() {
       const product = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
         ...(bom.finish?.length ? { finish: bom.finish } : {}),
+        ...(bom.terrace?.length ? { terrace: bom.terrace } : {}),
         colorHexById,
         frames: extra.frames ?? 2,
         ldrawBase: 'http://localhost:8095/ldraw',
@@ -911,6 +912,7 @@ function PixBrikApp() {
       const frames = await renderLDrawTurntable(bom.placements as never, {
         ...(bom.accessories?.length ? { accessories: bom.accessories } : {}),
         ...(bom.finish?.length ? { finish: bom.finish } : {}),
+        ...(bom.terrace?.length ? { terrace: bom.terrace } : {}),
         colorHexById,
         frames: extra.frames ?? 24,
         height: extra.height ?? 420,
