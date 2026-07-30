@@ -645,10 +645,154 @@ export function colorizeMeshCells(
       : cell.stableHex;
   }
 
+  // Eyes are the difference between "a dog" and "a dog-shaped lump", and
+  // they are exactly what palette averaging destroys: a 1–2 stud dark spot
+  // merges into the fur centroid. Protect them: mirrored, compact, locally
+  // dark clusters of RAW samples in the upper half get forced to black and
+  // locked. Purely protective — nothing is invented that the source lacks.
+  protectEyeSpots(surfaceCells, raw);
+
   // Interior bricks cannot be seen in the approved preview.  Give them the
   // dominant visible colour so they do not add arbitrary/camouflage BOM lines.
   const interiorColor = dominantHex(surfaceCells);
   for (const cell of interiorCells) cell.colorHex = interiorColor;
+}
+
+/** Catalog black — the strongest eye/feature contrast the palette offers. */
+const EYE_HEX = '#05131D';
+
+function protectEyeSpots(surfaceCells: VoxelCell[], raw: Rgb[]): void {
+  const eyeStat = { candidates: 0, clusters: 0, pairs: 0, forced: 0 };
+  (globalThis as unknown as { __eyeStat?: typeof eyeStat }).__eyeStat = eyeStat;
+  let minJ = Infinity;
+  let maxJ = -Infinity;
+  for (const cell of surfaceCells) {
+    minJ = Math.min(minJ, cell.j);
+    maxJ = Math.max(maxJ, cell.j);
+  }
+  const eyeFloor = minJ + (maxJ - minJ) * 0.5;
+  const byCoord = new Map(surfaceCells.map((cell, index) => [`${cell.i}|${cell.j}|${cell.k}`, index]));
+  // A candidate is dark in absolute terms AND darker than its neighbourhood:
+  // shadowed fur is dark too, but not darker than what surrounds it.
+  const candidateIndices = new Set<number>();
+  for (let index = 0; index < surfaceCells.length; index++) {
+    const cell = surfaceCells[index]!;
+    if (cell.j < eyeFloor) continue;
+    const own = luma(raw[index]!);
+    if (own > 70) continue;
+    let sum = 0;
+    let count = 0;
+    for (let di = -2; di <= 2; di++) {
+      for (let dj = -2; dj <= 2; dj++) {
+        for (let dk = -2; dk <= 2; dk++) {
+          const neighbour = byCoord.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+          if (neighbour === undefined || neighbour === index) continue;
+          sum += luma(raw[neighbour]!);
+          count += 1;
+        }
+      }
+    }
+    if (count < 8 || own > sum / count - 22) continue;
+    candidateIndices.add(index);
+  }
+  eyeStat.candidates = candidateIndices.size;
+  if (!candidateIndices.size) return;
+  // Flood candidates into compact clusters.
+  interface EyeCluster { indices: number[]; ci: number; cj: number; ck: number; size: number }
+  const clusters: EyeCluster[] = [];
+  const seen = new Set<number>();
+  for (const start of candidateIndices) {
+    if (seen.has(start)) continue;
+    const queue = [start];
+    seen.add(start);
+    const members: number[] = [];
+    while (queue.length) {
+      const index = queue.pop()!;
+      members.push(index);
+      const cell = surfaceCells[index]!;
+      for (const [di, dj, dk] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const) {
+        const neighbour = byCoord.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (neighbour === undefined || seen.has(neighbour) || !candidateIndices.has(neighbour)) continue;
+        seen.add(neighbour);
+        queue.push(neighbour);
+      }
+    }
+    let minI2 = Infinity;
+    let maxI2 = -Infinity;
+    let minJ2 = Infinity;
+    let maxJ2 = -Infinity;
+    let minK2 = Infinity;
+    let maxK2 = -Infinity;
+    let sumI = 0;
+    let sumJ = 0;
+    let sumK = 0;
+    for (const index of members) {
+      const cell = surfaceCells[index]!;
+      minI2 = Math.min(minI2, cell.i);
+      maxI2 = Math.max(maxI2, cell.i);
+      minJ2 = Math.min(minJ2, cell.j);
+      maxJ2 = Math.max(maxJ2, cell.j);
+      minK2 = Math.min(minK2, cell.k);
+      maxK2 = Math.max(maxK2, cell.k);
+      sumI += cell.i;
+      sumJ += cell.j;
+      sumK += cell.k;
+    }
+    // Eyes are small and compact; long dark streaks are shadow or hair.
+    if (members.length < 2 || members.length > 40) continue;
+    if (maxI2 - minI2 > 4 || maxJ2 - minJ2 > 4 || maxK2 - minK2 > 4) continue;
+    clusters.push({
+      ci: sumI / members.length,
+      cj: sumJ / members.length,
+      ck: sumK / members.length,
+      indices: members,
+      size: members.length,
+    });
+  }
+  eyeStat.clusters = clusters.length;
+  if (clusters.length < 2) return;
+  // Eyes come in mirrored pairs. The mirror plane is unknown (models face
+  // any way), so try both mid-planes and keep the best-matching pairs.
+  let sumCi = 0;
+  let sumCk = 0;
+  for (const cell of surfaceCells) {
+    sumCi += cell.i;
+    sumCk += cell.k;
+  }
+  const midI = sumCi / surfaceCells.length;
+  const midK = sumCk / surfaceCells.length;
+  const paired = new Set<EyeCluster>();
+  const pairs: Array<[EyeCluster, EyeCluster]> = [];
+  for (const a of clusters) {
+    if (paired.has(a)) continue;
+    for (const b of clusters) {
+      if (a === b || paired.has(b)) continue;
+      const sizeRatio = Math.max(a.size, b.size) / Math.min(a.size, b.size);
+      if (sizeRatio > 3) continue;
+      if (Math.abs(a.cj - b.cj) > 2.5) continue;
+      const mirrorI = Math.abs((2 * midI - a.ci) - b.ci) <= 3 && Math.abs(a.ck - b.ck) <= 3;
+      const mirrorK = Math.abs((2 * midK - a.ck) - b.ck) <= 3 && Math.abs(a.ci - b.ci) <= 3;
+      // A genuine pair is separated — mirrored twins hugging the mid-plane
+      // are one nose split in two.
+      const apart = Math.abs(a.ci - b.ci) + Math.abs(a.ck - b.ck) >= 3;
+      if ((mirrorI || mirrorK) && apart) {
+        paired.add(a);
+        paired.add(b);
+        pairs.push([a, b]);
+        break;
+      }
+    }
+    if (pairs.length >= 2) break;
+  }
+  eyeStat.pairs = pairs.length;
+  for (const [a, b] of pairs) {
+    for (const index of [...a.indices, ...b.indices]) {
+      const cell = surfaceCells[index]!;
+      cell.colorHex = EYE_HEX;
+      cell.stableHex = EYE_HEX;
+      eyeStat.forced += 1;
+    }
+  }
 }
 
 function dominantHex(cells: VoxelCell[]): string {
