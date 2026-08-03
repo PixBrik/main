@@ -645,17 +645,80 @@ export function colorizeMeshCells(
       : cell.stableHex;
   }
 
+  // What reads as "toy" from a distance is COLOUR NOISE: lone off-palette
+  // studs (specular highlights, quantisation flips) sprinkled on coherent
+  // surfaces. Real display builds keep clean regions. Suppress true
+  // outliers only: a cell with at most one same-colour neighbour, whose
+  // colour sits FAR from a strong local majority, adopts that majority.
+  // Dither partners are near their neighbours by construction and survive.
+  suppressColourOutliers(surfaceCells);
+
   // Eyes are the difference between "a dog" and "a dog-shaped lump", and
   // they are exactly what palette averaging destroys: a 1–2 stud dark spot
   // merges into the fur centroid. Protect them: mirrored, compact, locally
   // dark clusters of RAW samples in the upper half get forced to black and
   // locked. Purely protective — nothing is invented that the source lacks.
+  // Runs AFTER outlier suppression so protected features re-assert.
   protectEyeSpots(surfaceCells, raw);
 
   // Interior bricks cannot be seen in the approved preview.  Give them the
   // dominant visible colour so they do not add arbitrary/camouflage BOM lines.
   const interiorColor = dominantHex(surfaceCells);
   for (const cell of interiorCells) cell.colorHex = interiorColor;
+}
+
+/**
+ * Lone off-palette studs read as noise from any distance. A cell with at
+ * most one same-colour neighbour, whose colour is FAR from a ≥4-strong
+ * neighbour majority, adopts the majority. Distance-gated so dithered
+ * gradient partners (near their neighbours by construction) are untouched.
+ */
+function suppressColourOutliers(surfaceCells: VoxelCell[]): void {
+  const rgbOf = (hex: string): [number, number, number] => [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16),
+  ];
+  const far = (a: string, b: string): boolean => {
+    const [ar, ag, ab] = rgbOf(a);
+    const [br, bg, bb] = rgbOf(b);
+    const rMean = (ar + br) / 2;
+    const dr = ar - br;
+    const dg = ag - bg;
+    const db = ab - bb;
+    const redmean = (2 + rMean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rMean) / 256) * db * db;
+    return redmean > 5200;
+  };
+  const NEIGHBOURS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const;
+  for (let round = 0; round < 2; round++) {
+    const byKey = new Map(surfaceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
+    const adopt: Array<{ cell: VoxelCell; hex: string }> = [];
+    for (const cell of surfaceCells) {
+      const own = cell.colorHex;
+      if (!own) continue;
+      let same = 0;
+      const counts = new Map<string, number>();
+      for (const [di, dj, dk] of NEIGHBOURS) {
+        const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        const hex = neighbour?.colorHex;
+        if (!hex) continue;
+        if (hex === own) same += 1;
+        else counts.set(hex, (counts.get(hex) ?? 0) + 1);
+      }
+      if (same > 1) continue;
+      for (const [hex, count] of counts) {
+        if (count >= 4 && far(own, hex)) {
+          adopt.push({ cell, hex });
+          break;
+        }
+      }
+    }
+    if (!adopt.length) break;
+    for (const { cell, hex } of adopt) {
+      cell.colorHex = hex;
+      cell.stableHex = hex;
+    }
+  }
 }
 
 /** Catalog black — the strongest eye/feature contrast the palette offers. */
