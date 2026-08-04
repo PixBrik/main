@@ -237,6 +237,78 @@ export function colorizeMeshCells(
   const raw = surfaceCells.map((cell) => hexToRgb(cell.colorHex ?? '#A0A19F'));
   let portraitLocked: Uint8Array | null = null;
 
+  // Baked specular: AI/scan textures carry white highlight patches that are
+  // LIGHTING, not colour. Per-cell tests only erode patch edges, so work at
+  // REGION level: flood bright/desaturated samples into patches; a patch
+  // whose border is majority saturated-and-darker is a highlight sitting on
+  // a coloured surface — recolour the whole patch from its border, kept
+  // slightly lighter so shading still reads. Big genuine light regions
+  // (white collar, grey statue) have same-toned borders and survive.
+  {
+    const byCoordSpec = new Map(surfaceCells.map((cell, index) => [coord(cell), index]));
+    const isBrightDesat = (colour: Rgb): boolean => {
+      const lumaOf = 0.2126 * colour[0] + 0.7152 * colour[1] + 0.0722 * colour[2];
+      const sat = Math.max(colour[0], colour[1], colour[2]) - Math.min(colour[0], colour[1], colour[2]);
+      return lumaOf >= 170 && sat <= 75;
+    };
+    const NEIGHBOURS6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const;
+    const visited = new Uint8Array(surfaceCells.length);
+    for (let seedIndex = 0; seedIndex < surfaceCells.length; seedIndex++) {
+      if (visited[seedIndex] || !isBrightDesat(raw[seedIndex]!)) continue;
+      const patch: number[] = [];
+      const stack = [seedIndex];
+      visited[seedIndex] = 1;
+      while (stack.length) {
+        const index = stack.pop()!;
+        patch.push(index);
+        const cell = surfaceCells[index]!;
+        for (const [di, dj, dk] of NEIGHBOURS6) {
+          const neighbour = byCoordSpec.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+          if (neighbour === undefined || visited[neighbour]) continue;
+          if (!isBrightDesat(raw[neighbour]!)) continue;
+          visited[neighbour] = 1;
+          stack.push(neighbour);
+        }
+      }
+      if (patch.length > 400) continue; // that's a surface, not a highlight
+      let border = 0;
+      let saturatedDarker = 0;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      const inPatch = new Set(patch);
+      for (const index of patch) {
+        const cell = surfaceCells[index]!;
+        for (const [di, dj, dk] of NEIGHBOURS6) {
+          const neighbour = byCoordSpec.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+          if (neighbour === undefined || inPatch.has(neighbour)) continue;
+          border += 1;
+          const colour = raw[neighbour]!;
+          const nSat = Math.max(colour[0], colour[1], colour[2]) - Math.min(colour[0], colour[1], colour[2]);
+          const nLuma = 0.2126 * colour[0] + 0.7152 * colour[1] + 0.0722 * colour[2];
+          if (nSat >= 55 && nLuma <= 165) {
+            saturatedDarker += 1;
+            r += colour[0];
+            g += colour[1];
+            b += colour[2];
+          }
+        }
+      }
+      if (border === 0 || saturatedDarker / border < 0.6) continue;
+      const healed: Rgb = [
+        Math.min(255, (r / saturatedDarker) * 1.22),
+        Math.min(255, (g / saturatedDarker) * 1.22),
+        Math.min(255, (b / saturatedDarker) * 1.22),
+      ];
+      const healedHex = `#${healed.map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+      for (const index of patch) {
+        raw[index] = healed;
+        // Centroid derivation reads colorHex, not raw — heal both.
+        surfaceCells[index]!.colorHex = healedHex;
+      }
+    }
+  }
+
   // Portrait style opens with a spatial blur of the raw samples. Scan
   // textures carry baked-in shading at brick-level frequency; the neighbour
   // vote below can only heal single-cell outliers, while this heals the
@@ -653,6 +725,15 @@ export function colorizeMeshCells(
   // Dither partners are near their neighbours by construction and survive.
   suppressColourOutliers(surfaceCells);
 
+  // Boundary blur between two families (red body against grey vents) mixes
+  // into a colour neither side owns, and quantisation turns that into alien
+  // blobs — sage green on a red car. Kill them at REGION level: a connected
+  // same-colour region of ≤6 cells whose colour is far from EVERY border
+  // colour adopts its dominant border. Distance-gating keeps dither alive
+  // (parity partners are near-colours) and keeps genuine small features
+  // (eyes are near-black beside dark tones, protected afterwards anyway).
+  absorbAlienIslands(surfaceCells);
+
   // Eyes are the difference between "a dog" and "a dog-shaped lump", and
   // they are exactly what palette averaging destroys: a 1–2 stud dark spot
   // merges into the fur centroid. Protect them: mirrored, compact, locally
@@ -717,6 +798,73 @@ function suppressColourOutliers(surfaceCells: VoxelCell[]): void {
     for (const { cell, hex } of adopt) {
       cell.colorHex = hex;
       cell.stableHex = hex;
+    }
+  }
+}
+
+/**
+ * Connected same-colour regions of ≤6 cells whose colour is FAR from every
+ * border colour are quantisation accidents (family blur-mix at boundaries),
+ * never content: absorb them into the dominant border colour.
+ */
+function absorbAlienIslands(surfaceCells: VoxelCell[]): void {
+  const rgbOf = (hex: string): [number, number, number] => [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16),
+  ];
+  const farApart = (a: string, b: string): boolean => {
+    const [ar, ag, ab] = rgbOf(a);
+    const [br, bg, bb] = rgbOf(b);
+    const rMean = (ar + br) / 2;
+    const dr = ar - br;
+    const dg = ag - bg;
+    const db = ab - bb;
+    return (2 + rMean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rMean) / 256) * db * db > 5200;
+  };
+  const NEIGHBOURS6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const;
+  const byKey = new Map(surfaceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
+  const visited = new Set<VoxelCell>();
+  for (const seed of surfaceCells) {
+    if (visited.has(seed) || !seed.colorHex) continue;
+    const colour = seed.colorHex;
+    const region: VoxelCell[] = [];
+    const stack = [seed];
+    visited.add(seed);
+    while (stack.length && region.length <= 13) {
+      const cell = stack.pop()!;
+      region.push(cell);
+      for (const [di, dj, dk] of NEIGHBOURS6) {
+        const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (!neighbour || visited.has(neighbour) || neighbour.colorHex !== colour) continue;
+        visited.add(neighbour);
+        stack.push(neighbour);
+      }
+    }
+    if (region.length > 12) continue;
+    const borderCounts = new Map<string, number>();
+    const inRegion = new Set(region);
+    for (const cell of region) {
+      for (const [di, dj, dk] of NEIGHBOURS6) {
+        const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (!neighbour || inRegion.has(neighbour) || !neighbour.colorHex) continue;
+        borderCounts.set(neighbour.colorHex, (borderCounts.get(neighbour.colorHex) ?? 0) + 1);
+      }
+    }
+    if (!borderCounts.size) continue;
+    let dominant = '';
+    let dominantCount = 0;
+    for (const [hex, count] of borderCounts) {
+      if (count > dominantCount) { dominant = hex; dominantCount = count; }
+    }
+    // Judge against the DOMINANT border only: a dither cell's dominant
+    // neighbour is its near-colour partner (kept), while an alien blob's
+    // dominant neighbour is the surface it interrupts (absorbed) — minority
+    // borders like an adjacent shadow band must not veto the merge.
+    if (!dominant || !farApart(colour, dominant)) continue;
+    for (const cell of region) {
+      cell.colorHex = dominant;
+      cell.stableHex = dominant;
     }
   }
 }

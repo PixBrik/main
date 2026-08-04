@@ -52,6 +52,8 @@ export interface MeshVoxelizeOptions {
 }
 
 interface PreparedMaterial {
+  /** Transparent glass-like surface — samples as dark glass, never white. */
+  glassy: boolean;
   materialColor: THREE.Color;
   textureData: {
     data: Uint8ClampedArray;
@@ -60,6 +62,9 @@ interface PreparedMaterial {
     width: number;
   } | null;
 }
+
+/** What glass quantises to: near-black with a cool cast, like real dark glass. */
+const GLASS_HEX = '#1E2A2E';
 
 interface PreparedMesh {
   mesh: THREE.Mesh;
@@ -499,6 +504,12 @@ function prepare(root: THREE.Object3D): PreparedMesh[] {
       bounds: candidate.bounds.clone(),
       hasVertexColor: !!candidate.geometry.getAttribute('color'),
       materials: candidate.materials.map((material) => ({
+        // Transparent surfaces (windscreens, windows) must never sample as
+        // the white/silver their reflections show — brick builds use dark
+        // glass. Detected by material transparency or name.
+        glassy: material.transparent
+          || material.opacity < 0.95
+          || /glass|window|windscreen|windshield/i.test(material.name ?? ''),
         materialColor: (material as THREE.MeshStandardMaterial).color?.clone() ?? new THREE.Color('#cccccc'),
         textureData: materialRenders(material) ? readTexture(material) : null,
       })),
@@ -536,6 +547,7 @@ function surfaceColor(prep: PreparedMesh, point: THREE.Vector3): string {
 
 /** Barycentric surface colour of one triangle at an exact surface point. */
 function colorAtFacePoint(prep: PreparedMesh, faceIndex: number, surfacePoint: THREE.Vector3 | null): string {
+  if (materialForFace(prep, faceIndex).glassy) return GLASS_HEX;
   const geometry = prep.mesh.geometry;
   const material = materialForFace(prep, faceIndex);
   const index = geometry.getIndex();
