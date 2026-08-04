@@ -660,7 +660,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // source-mesh normals) are claimed for curved parts BEFORE the rectangle
   // packer runs — crowns, then curved runs along the descent, then single
   // caps — and rectangles fill only what remains.
-  if (SCULPT_PARTS.length && shaping) {
+  if (SCULPT_PARTS.length && (shaping || technique === 'hd')) {
     const CURVE_CALIBRATED = new Set(['15068', '37352', '50950', '54200', '61678', '7126', '83473']);
     const curveFor = (kind: 'slopeCurved', w: number, l: number, colorId: number): CatalogSculptPart | undefined => {
       let best: CatalogSculptPart | undefined;
@@ -682,8 +682,25 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     const free = (key: string) => !consumed.has(key);
     const keyOf = (i: number, j: number, k: number) => `${i}|${j}|${k}`;
     const openAbove = (i: number, j: number, k: number) => !sourceCellByKey.has(keyOf(i, j + 1, k));
+    // HD plate grids: a curved part is one BRICK tall — three plate layers.
+    // Every footprint cell claims its full column (the two cells beneath the
+    // surface cell too) and the part seats at the column's bottom layer. On
+    // the brick grid the depth is 1 and all of this degenerates to the
+    // original single-cell logic.
+    const columnDepth = technique === 'hd' ? 3 : 1;
+    const partBaseJ = (j: number) => j - (columnDepth - 1);
+    const columnKeys = (ci: number, cj: number, ck: number): string[] | null => {
+      const keys: string[] = [];
+      for (let depth = 0; depth < columnDepth; depth++) {
+        const key = keyOf(ci, cj - depth, ck);
+        if (depth > 0 && !sourceCellByKey.has(key)) return null;
+        if (!free(key)) return null;
+        keys.push(key);
+      }
+      return keys;
+    };
     const supported = (i: number, j: number, k: number) =>
-      j === 0 || sourceCellByKey.has(keyOf(i, j - 1, k));
+      partBaseJ(j) <= 0 || sourceCellByKey.has(keyOf(i, partBaseJ(j) - 1, k));
     const commitCurve = (
       part: CatalogSculptPart,
       colorId: number,
@@ -726,16 +743,17 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       for (const [ci, ck] of quad) {
         const qKey = keyOf(ci, j, ck);
         const qCell = sourceCellByKey.get(qKey);
-        if (!qCell || !free(qKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(qCell) !== facing || (colorId >= 0 && colorOf(qCell) !== colorId)) {
+        const colKeys = qCell ? columnKeys(ci, j, ck) : null;
+        if (!qCell || !colKeys || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(qCell) !== facing || (colorId >= 0 && colorOf(qCell) !== colorId)) {
           ok = false;
           break;
         }
-        keys.push(qKey);
+        keys.push(...colKeys);
         if (colorId < 0) colorId = colorOf(qCell);
       }
       if (!ok) continue;
       const part = curveFor('slopeCurved', 2, 2, colorId);
-      if (part) commitCurve(part, colorId, i, j, k, 2, 2, facing, keys);
+      if (part) commitCurve(part, colorId, i, partBaseJ(j), k, 2, 2, facing, keys);
     }
 
     // Pass 2: curved runs 4→3→2 along the descent direction.
@@ -754,11 +772,12 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
           const ck = k - d.z * step;
           const cKey = keyOf(ci, j, ck);
           const cCell = sourceCellByKey.get(cKey);
-          if (!cCell || !free(cKey) || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(cCell) !== facing || (colorId >= 0 && colorOf(cCell) !== colorId)) {
+          const colKeys = cCell ? columnKeys(ci, j, ck) : null;
+          if (!cCell || !colKeys || !openAbove(ci, j, ck) || !supported(ci, j, ck) || cellTilt(cCell) !== facing || (colorId >= 0 && colorOf(cCell) !== colorId)) {
             ok = false;
             break;
           }
-          keys.push(cKey);
+          keys.push(...colKeys);
           if (colorId < 0) colorId = colorOf(cCell);
         }
         if (!ok) continue;
@@ -768,7 +787,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         if (!part) continue;
         commitCurve(
           part, colorId,
-          Math.min(i, i - d.x * (runLength - 1)), j, Math.min(k, k - d.z * (runLength - 1)),
+          Math.min(i, i - d.x * (runLength - 1)), partBaseJ(j), Math.min(k, k - d.z * (runLength - 1)),
           spanI, spanK, facing, keys,
         );
       }
@@ -793,9 +812,11 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
         }
       }
       if (!hasMate) continue;
+      const colKeys = columnKeys(i, j, k);
+      if (!colKeys) continue;
       const colorId = colorOf(cell);
       const part = curveFor('slopeCurved', 1, 1, colorId);
-      if (part) commitCurve(part, colorId, i, j, k, 1, 1, facing, [cellKey]);
+      if (part) commitCurve(part, colorId, i, partBaseJ(j), k, 1, 1, facing, colKeys);
     }
     stamp(`curvature-first done, ${placements.length} placements`);
   }
