@@ -906,37 +906,56 @@ function suppressStrayGreens(surfaceCells: VoxelCell[]): void {
     return g > b + 16 && g > r - 6;
   };
   const greens = surfaceCells.filter((cell) => isGreen(cell.colorHex));
+  const greenStat = { count: greens.length, fraction: greens.length / surfaceCells.length, bailed: false, recoloured: 0 };
+  (globalThis as unknown as { __greenStat?: typeof greenStat }).__greenStat = greenStat;
   // A genuinely green subject keeps its colour; contamination is sparse.
-  if (!greens.length || greens.length > surfaceCells.length * 0.06) return;
+  if (!greens.length || greens.length > surfaceCells.length * 0.08) {
+    greenStat.bailed = greens.length > 0;
+    return;
+  }
+  // Whole-component flood: border erosion leaves deep olive cores intact,
+  // so recolour each connected green component from its border's dominant
+  // non-green colour in one sweep.
   const byKey = new Map(surfaceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
-  for (let round = 0; round < 3; round++) {
-    let changed = 0;
-    for (const cell of surfaceCells) {
-      if (!isGreen(cell.colorHex)) continue;
-      const counts = new Map<string, number>();
-      for (let di = -1; di <= 1; di++) {
-        for (let dj = -1; dj <= 1; dj++) {
-          for (let dk = -1; dk <= 1; dk++) {
-            if (!di && !dj && !dk) continue;
-            const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
-            const hex = neighbour?.colorHex;
-            if (!hex || isGreen(hex)) continue;
-            counts.set(hex, (counts.get(hex) ?? 0) + 1);
-          }
-        }
-      }
-      let dominant = '';
-      let dominantCount = 0;
-      for (const [hex, count] of counts) {
-        if (count > dominantCount) { dominant = hex; dominantCount = count; }
-      }
-      if (dominantCount >= 4) {
-        cell.colorHex = dominant;
-        cell.stableHex = dominant;
-        changed += 1;
+  const NEIGHBOURS6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const;
+  const visited = new Set<VoxelCell>();
+  for (const seed of greens) {
+    if (visited.has(seed) || !isGreen(seed.colorHex)) continue;
+    const component: VoxelCell[] = [];
+    const stack = [seed];
+    visited.add(seed);
+    while (stack.length) {
+      const cell = stack.pop()!;
+      component.push(cell);
+      for (const [di, dj, dk] of NEIGHBOURS6) {
+        const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (!neighbour || visited.has(neighbour) || !isGreen(neighbour.colorHex)) continue;
+        visited.add(neighbour);
+        stack.push(neighbour);
       }
     }
-    if (!changed) break;
+    const counts = new Map<string, number>();
+    const inComponent = new Set(component);
+    for (const cell of component) {
+      for (const [di, dj, dk] of NEIGHBOURS6) {
+        const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+        if (!neighbour || inComponent.has(neighbour)) continue;
+        const hex = neighbour.colorHex;
+        if (!hex || isGreen(hex)) continue;
+        counts.set(hex, (counts.get(hex) ?? 0) + 1);
+      }
+    }
+    let dominant = '';
+    let dominantCount = 0;
+    for (const [hex, count] of counts) {
+      if (count > dominantCount) { dominant = hex; dominantCount = count; }
+    }
+    if (!dominant) continue;
+    for (const cell of component) {
+      cell.colorHex = dominant;
+      cell.stableHex = dominant;
+      greenStat.recoloured += 1;
+    }
   }
 }
 
