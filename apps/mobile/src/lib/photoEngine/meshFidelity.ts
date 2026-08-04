@@ -739,6 +739,15 @@ export function colorizeMeshCells(
   // (eyes are near-black beside dark tones, protected afterwards anyway).
   absorbAlienIslands(surfaceCells);
 
+  // Greens deserve their own rule: photo textures bake grass and ground
+  // bounce into paws, sills and jawlines, and those regions are big enough
+  // and internally coherent enough to defeat every generic island test. A
+  // subject is either green or it is not — when green cells are a small
+  // fraction of the surface, they are contamination, absorbed into their
+  // warm surroundings. Genuinely green subjects (plants) sail past the
+  // fraction gate untouched.
+  suppressStrayGreens(surfaceCells);
+
   // Eyes are the difference between "a dog" and "a dog-shaped lump", and
   // they are exactly what palette averaging destroys: a 1–2 stud dark spot
   // merges into the fur centroid. Protect them: mirrored, compact, locally
@@ -830,13 +839,18 @@ function absorbAlienIslands(surfaceCells: VoxelCell[]): void {
   const NEIGHBOURS6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const;
   const byKey = new Map(surfaceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
   const visited = new Set<VoxelCell>();
+  // "Small" must scale with grid density: a plate grid has 3x the cells of a
+  // brick grid, so the same physical blob spans 3x the region size.
+  const alienCap = Math.max(12, Math.round(surfaceCells.length * 0.0006));
+  const alienStat = { cap: alienCap, absorbed: 0, keptSize: 0, keptNear: 0, cells: 0 };
+  (globalThis as unknown as { __alienStat?: typeof alienStat }).__alienStat = alienStat;
   for (const seed of surfaceCells) {
     if (visited.has(seed) || !seed.colorHex) continue;
     const colour = seed.colorHex;
     const region: VoxelCell[] = [];
     const stack = [seed];
     visited.add(seed);
-    while (stack.length && region.length <= 13) {
+    while (stack.length && region.length <= alienCap + 1) {
       const cell = stack.pop()!;
       region.push(cell);
       for (const [di, dj, dk] of NEIGHBOURS6) {
@@ -846,7 +860,7 @@ function absorbAlienIslands(surfaceCells: VoxelCell[]): void {
         stack.push(neighbour);
       }
     }
-    if (region.length > 12) continue;
+    if (region.length > alienCap) { alienStat.keptSize += 1; continue; }
     const borderCounts = new Map<string, number>();
     const inRegion = new Set(region);
     for (const cell of region) {
@@ -866,11 +880,63 @@ function absorbAlienIslands(surfaceCells: VoxelCell[]): void {
     // neighbour is its near-colour partner (kept), while an alien blob's
     // dominant neighbour is the surface it interrupts (absorbed) — minority
     // borders like an adjacent shadow band must not veto the merge.
-    if (!dominant || !farApart(colour, dominant)) continue;
+    if (!dominant || !farApart(colour, dominant)) { alienStat.keptNear += 1; continue; }
+    alienStat.absorbed += 1;
+    alienStat.cells += region.length;
     for (const cell of region) {
       cell.colorHex = dominant;
       cell.stableHex = dominant;
     }
+  }
+}
+
+/**
+ * Absorb stray green cells into their warm surroundings when green is a
+ * small fraction of the surface — baked grass/ground bounce, never content.
+ */
+function suppressStrayGreens(surfaceCells: VoxelCell[]): void {
+  const isGreen = (hex: string | undefined): boolean => {
+    if (!hex) return false;
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
+    // True greens AND olives/sages: green channel leads blue clearly and is
+    // at least on par with red. Warm tones (skin, tan, fur) have r well
+    // above g; neutrals have b close to g. Both stay untouched.
+    return g > b + 16 && g > r - 6;
+  };
+  const greens = surfaceCells.filter((cell) => isGreen(cell.colorHex));
+  // A genuinely green subject keeps its colour; contamination is sparse.
+  if (!greens.length || greens.length > surfaceCells.length * 0.06) return;
+  const byKey = new Map(surfaceCells.map((cell) => [`${cell.i}|${cell.j}|${cell.k}`, cell]));
+  for (let round = 0; round < 3; round++) {
+    let changed = 0;
+    for (const cell of surfaceCells) {
+      if (!isGreen(cell.colorHex)) continue;
+      const counts = new Map<string, number>();
+      for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+          for (let dk = -1; dk <= 1; dk++) {
+            if (!di && !dj && !dk) continue;
+            const neighbour = byKey.get(`${cell.i + di}|${cell.j + dj}|${cell.k + dk}`);
+            const hex = neighbour?.colorHex;
+            if (!hex || isGreen(hex)) continue;
+            counts.set(hex, (counts.get(hex) ?? 0) + 1);
+          }
+        }
+      }
+      let dominant = '';
+      let dominantCount = 0;
+      for (const [hex, count] of counts) {
+        if (count > dominantCount) { dominant = hex; dominantCount = count; }
+      }
+      if (dominantCount >= 4) {
+        cell.colorHex = dominant;
+        cell.stableHex = dominant;
+        changed += 1;
+      }
+    }
+    if (!changed) break;
   }
 }
 
