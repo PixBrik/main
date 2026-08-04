@@ -888,7 +888,7 @@ function PixBrikApp() {
         frames?: number;
         height?: number;
         hollow?: boolean;
-        technique?: 'sculpted' | 'mosaic' | 'studless';
+        technique?: 'sculpted' | 'mosaic' | 'studless' | 'hd';
         width?: number;
       } = {},
       receiver = 'http://localhost:8095',
@@ -901,8 +901,10 @@ function PixBrikApp() {
       };
       const colorHexById: Record<string, string> = {};
       for (const colour of catalogue.colors) colorHexById[String(colour.id)] = colour.rgb;
+      const hd = extra.technique === 'hd';
       const model = await voxelizeGlbUrlOne(url, 'balanced', undefined, {
         ...(extra.colorStyle ? { colorStyle: extra.colorStyle } : {}),
+        ...(hd ? { plateGrid: true } : {}),
         studSpans: { balanced: studSpan },
       });
       const bom = pack(model, '#FF3D17', {
@@ -916,6 +918,7 @@ function PixBrikApp() {
         colorHexById,
         frames: extra.frames ?? 24,
         height: extra.height ?? 420,
+        ...(hd ? { layerLdu: 8 } : {}),
         ldrawBase: 'http://localhost:8095/ldraw',
         width: extra.width ?? 560,
       });

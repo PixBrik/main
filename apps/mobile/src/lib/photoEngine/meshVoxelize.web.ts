@@ -42,6 +42,12 @@ export interface MeshVoxelizeOptions {
   /** Optional subject-specific stud spans; human likenesses need a denser grid. */
   studSpans?: Partial<Record<MeshProfile, number>>;
   /**
+   * Plate-resolution vertical grid: layers are 1/3 brick tall, tripling the
+   * silhouette's vertical resolution — the display-sculpture standard. The
+   * packer must then build from plates (technique 'hd').
+   */
+  plateGrid?: boolean;
+  /**
    * `skin` (default) raycasts from outside toward each exposed voxel face and
    * keeps the first surface hit: exactly what a viewer sees, robust to the
    * flipped normals common in AI meshes. `nearest` samples the closest
@@ -847,9 +853,12 @@ async function voxelizeMeshes(
   const maxAxis = Math.max(size.x, size.y, size.z) || 1;
   const targetSpan = Math.max(1, Math.round(options.studSpans?.[profile] ?? RES[profile]));
   const voxel = maxAxis / targetSpan;
-  const voxelHeight = voxel * BRICK_HEIGHT_RATIO;
+  // Plate grid: layers 1/3 brick tall — 3x the vertical resolution, the
+  // display-sculpture standard. Everything downstream keys off these two.
+  const heightRatio = options.plateGrid ? BRICK_HEIGHT_RATIO / 3 : BRICK_HEIGHT_RATIO;
+  const voxelHeight = voxel * heightRatio;
   const worldSize = 6.3 / targetSpan; // match built-in models' scale
-  const worldLayerHeight = worldSize * BRICK_HEIGHT_RATIO;
+  const worldLayerHeight = worldSize * heightRatio;
 
   const nx = Math.max(1, Math.ceil(size.x / voxel));
   const ny = Math.max(1, Math.ceil(size.y / voxelHeight));
@@ -1264,7 +1273,11 @@ async function finishModel(
   // Vehicles: dark disc clusters low on the model's sides are wheels. Carve
   // them from the grid and record anchors so the kit ships real wheel and
   // tire parts on axles — square brick wheels never read as wheels.
-  const wheels = detectAndCarveWheels(cells);
+  // Plate grids (layer < stud) skip detection for now: the circle fit mixes
+  // j and k units and would see ellipses — HD wheel support comes with its
+  // own j-scaling once the plate pack itself is proven.
+  const plateMode = worldLayerHeight < worldSize;
+  const wheels = plateMode ? null : detectAndCarveWheels(cells);
   const bodyCells = wheels ? cells.filter((cell) => !wheels.carved.has(cell)) : cells;
 
   const anchored = await anchorAgainstReleaseGate(bodyCells, worldSize, worldLayerHeight);
@@ -1274,6 +1287,9 @@ async function finishModel(
   // exactly what makes curved bodywork and shoulders stop stair-stepping.
   return buildModelFromCells(anchored, worldSize, {
     layerHeight: worldLayerHeight,
+    // Plate layers make 45° brick-slope detection meaningless — a one-layer
+    // step is 1/3 of the old slope height; HD smoothing comes from the grid.
+    ...(plateMode ? { slopes: false } : {}),
     ...(wheels ? { wheelAnchors: wheels.anchors } : {}),
   });
 }

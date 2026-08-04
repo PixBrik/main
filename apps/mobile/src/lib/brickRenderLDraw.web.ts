@@ -78,6 +78,11 @@ export interface LDrawRenderOptions {
     spanI: number;
     spanK: number;
   }>;
+  /**
+   * LDU height of one grid layer. Brick builds (default) use 24; plate-grid
+   * 'hd' builds use 8 so plate placements stack at true plate pitch.
+   */
+  layerLdu?: number;
   /** Terrace plates stacked on top faces; level counts 8-LDU sub-layers up. */
   terrace?: ReadonlyArray<{
     part: string;
@@ -179,6 +184,7 @@ export async function renderLDrawTurntable(
     fallbackHex = '#9BA19D',
     frames = 4,
     height = 768,
+    layerLdu = LDU_PER_BRICK,
     ldrawBase,
     light = false,
     monochrome,
@@ -290,8 +296,8 @@ export async function renderLDrawTurntable(
         const offsetZ = -prepared!.centreX * sin + prepared!.centreZ * cos;
         position.set(
           targetX - offsetX,
-          // Layer j's floor sits at -j*24; the part's lowest face must land there.
-          -placement.j * LDU_PER_BRICK - prepared!.bottomY,
+          // Layer j's floor sits at -j*layerLdu; the part's lowest face lands there.
+          -placement.j * layerLdu - prepared!.bottomY,
           targetZ - offsetZ,
         );
         quaternion.setFromAxisAngle(axis, rotation);

@@ -289,8 +289,11 @@ function stockedColorFor(
  *   (wheel assemblies still apply — they are accessories, not shaping).
  * - 'studless': sculpted plus aggressive tiling — flat AND gently tilted
  *   surfaces get tile skins, minimising visible studs.
+ * - 'hd': plate-resolution build — expects a plate-grid voxel model (layers
+ *   1/3 brick tall) and packs entirely from plates, tripling the vertical
+ *   resolution of every silhouette. Renders with an 8-LDU layer height.
  */
-export type BrickTechnique = 'sculpted' | 'mosaic' | 'studless';
+export type BrickTechnique = 'sculpted' | 'mosaic' | 'studless' | 'hd';
 
 export interface BrickifyOptions {
   /**
@@ -515,7 +518,11 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   const sourceCells = options.hollow ? reinforcedHollowCells(model) : model.cells;
   const technique = options.technique ?? 'sculpted';
   // Shaping = every pass that swaps rectangles for slopes/curves/tiles.
-  const shaping = technique !== 'mosaic' && !options.noSculpt;
+  // 'hd' ships rectangles too for now: the plate grid itself is the
+  // smoothing, and every shaped part is calibrated for brick layers.
+  const shaping = technique !== 'mosaic' && technique !== 'hd' && !options.noSculpt;
+  // The packing vocabulary: bricks normally, plates on a plate grid.
+  const PACK_BRICKS = technique === 'hd' ? PLATE_PARTS : BRICKS;
   stamp(`cells ready ${sourceCells.length}`);
 
   // part|color -> quantity
@@ -890,7 +897,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       const target = layer.get(`${targetI}|${targetK}`);
       if (!target) return [];
       const choices: LayerChoice[] = [];
-      for (const brick of BRICKS) {
+      for (const brick of PACK_BRICKS) {
         const orientations = brick.w === brick.l
           ? [[brick.l, brick.w] as const]
           : [[brick.l, brick.w] as const, [brick.w, brick.l] as const];
@@ -933,7 +940,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     // Some catalog colours deliberately have no 1 x 1 element. Reserve a
     // compatible larger part for those visible cells before a greedy sweep can
     // consume the hidden stud that makes the exact colour physically possible.
-    const oneByOne = BRICKS.find((brick) => brick.w === 1 && brick.l === 1);
+    const oneByOne = PACK_BRICKS.find((brick) => brick.w === 1 && brick.l === 1);
     while (oneByOne) {
       let constrained: LayerChoice[] | null = null;
       for (const targetKey of keys) {
@@ -1004,7 +1011,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       // is the honest last resort for an isolated colour/shape combination.
       const wanted = COLORS.find((color) => color.id === anchor.colorId)!;
       for (const requireExactColor of [true, false]) {
-        for (const brick of BRICKS) {
+        for (const brick of PACK_BRICKS) {
           const resolved = stockedColorFor(brick, wanted, stockUsed);
           if (!resolved || (requireExactColor && resolved.substituted)) continue;
           for (const [w, l] of brick.w === brick.l ? [[brick.w, brick.l]] : [[brick.w, brick.l], [brick.l, brick.w]]) {
@@ -1039,8 +1046,8 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   // larger catalog brick whenever their combined footprint is itself a real
   // rectangle. Repeating this joins tails, ears and hollow shell sections that
   // an area-first tiler can otherwise leave unattached.
-  const structuralOneByOne = BRICKS.find((brick) => brick.w === 1 && brick.l === 1);
-  const structuralOneByTwo = BRICKS.find(
+  const structuralOneByOne = PACK_BRICKS.find((brick) => brick.w === 1 && brick.l === 1);
+  const structuralOneByTwo = PACK_BRICKS.find(
     (brick) => brick.studs === 2 && Math.min(brick.w, brick.l) === 1,
   );
   stamp(`rect packing done, ${placements.length} placements`);
@@ -1201,7 +1208,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       spanK: number;
     }
 
-    const structuralBricks = [...BRICKS].sort((a, b) =>
+    const structuralBricks = [...PACK_BRICKS].sort((a, b) =>
       b.studs - a.studs || b.l - a.l || b.w - a.w || a.part.localeCompare(b.part),
     );
 
@@ -1379,7 +1386,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             let bridgeBrick: CatalogBrick | undefined;
             let bridgeColorId: number | null = null;
             for (const colorId of structuralColorCandidatesForCells(combinedCells, detached.colorId)) {
-              bridgeBrick = BRICKS.find((brick) =>
+              bridgeBrick = PACK_BRICKS.find((brick) =>
                 ((brick.l === spanI && brick.w === spanK) ||
                 (brick.w === spanI && brick.l === spanK)) &&
                 structuralColorFor(brick, colorId) !== null,
@@ -1913,6 +1920,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
 
   const brickByPart = new Map<string, CatalogBrick>([
     ...BRICKS.map((brick) => [brick.part, brick] as const),
+    ...PLATE_PARTS.map((plate) => [plate.part, plate] as const),
     ...SLOPE_PARTS.map((slope) => [slope.part, slope] as const),
     ...SCULPT_PARTS.map((sculpt) => [sculpt.part, sculpt] as const),
   ]);
