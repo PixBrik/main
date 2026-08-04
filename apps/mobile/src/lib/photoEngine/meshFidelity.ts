@@ -446,11 +446,16 @@ export function colorizeMeshCells(
     if (!(r > g && g >= b - 8)) return false;
     const spread = r - b;
     const bright = luma([r, g, b]);
-    if (spread > 14 && spread < 120 && bright > 92 && bright < 235) return true;
-    // Washed lit skin: near-white but still warm-ordered. A genuine white
-    // (collar, paper) has r ≈ b; strongly lit skin keeps its warm cast.
-    // Without this the lit cheek quantises into the white family and the
-    // face reads as patchy tan-against-white instead of one skin gradient.
+    return spread > 14 && spread < 120 && bright > 92 && bright < 235;
+  };
+  // Washed lit surfaces: near-white but warm-ordered (a genuine white like a
+  // collar has r ≈ b). These are LIGHTING on skin OR hair — classifying them
+  // as skin outright stole hair sheen from the hair family (its light end
+  // vanished, the ramp drifted maroon) while padding skin's bright side
+  // (pale faces). Adoption decides their family by actual contact instead.
+  const isWashedWarm = ([r, g, b]: Rgb): boolean => {
+    const spread = r - b;
+    const bright = luma([r, g, b]);
     return bright >= 200 && bright < 250 && r > g && g > b && spread >= 6 && spread <= 40;
   };
   const nearestOf = (colour: Rgb, ramp: string[]): string => {
@@ -591,8 +596,11 @@ export function colorizeMeshCells(
       }
       // Adopt when family contact is substantial relative to the cluster —
       // a boundary smudge touches its neighbours everywhere; a genuine
-      // separate material (a collar, a backdrop) barely does.
-      if (bestFamily && bestCount >= clusterSizes[cluster]! * 0.75) {
+      // separate material (a collar, a backdrop) barely does. Washed-warm
+      // clusters are lighting, not material: they join a family they merely
+      // lean against, so their bar is much lower.
+      const threshold = isWashedWarm(centroids[cluster]!) ? 0.35 : 0.75;
+      if (bestFamily && bestCount >= clusterSizes[cluster]! * threshold) {
         clusterFamily[cluster] = bestFamily;
       }
     }
