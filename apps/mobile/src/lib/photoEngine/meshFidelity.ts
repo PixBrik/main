@@ -446,7 +446,12 @@ export function colorizeMeshCells(
     if (!(r > g && g >= b - 8)) return false;
     const spread = r - b;
     const bright = luma([r, g, b]);
-    return spread > 14 && spread < 120 && bright > 92 && bright < 235;
+    if (spread > 14 && spread < 120 && bright > 92 && bright < 235) return true;
+    // Washed lit skin: near-white but still warm-ordered. A genuine white
+    // (collar, paper) has r ≈ b; strongly lit skin keeps its warm cast.
+    // Without this the lit cheek quantises into the white family and the
+    // face reads as patchy tan-against-white instead of one skin gradient.
+    return bright >= 200 && bright < 250 && r > g && g > b && spread >= 6 && spread <= 40;
   };
   const nearestOf = (colour: Rgb, ramp: string[]): string => {
     let best = ramp[0]!;
