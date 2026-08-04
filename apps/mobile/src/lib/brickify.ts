@@ -801,9 +801,21 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   }
 
   // ---- rectangle packing for everything not consumed by slopes ----
-  const layers = new Map<number, Map<string, { cell: VoxelCell; colorId: number }>>();
-  const sourceCellKeys = new Set(sourceCells.map((cell) => `${cell.i}|${cell.j}|${cell.k}`));
+  // The pack loop is ~95% of engine time on big models: it runs on NUMERIC
+  // keys (grid coords packed into one integer — exact under 2^53) instead of
+  // template strings, which the profiler showed dominating the hot path.
+  const NK = (i: number, k: number) => i * 4096 + k;
+  const NK3 = (i: number, j: number, k: number) => (j * 4096 + i) * 4096 + k;
+  const layers = new Map<number, Map<number, { cell: VoxelCell; colorId: number }>>();
+  const sourceCellNums = new Set<number>();
+  const sourceCellByNum = new Map<number, VoxelCell>();
+  for (const cell of sourceCells) {
+    const num = NK3(cell.i, cell.j, cell.k);
+    sourceCellNums.add(num);
+    sourceCellByNum.set(num, cell);
+  }
   const originalExteriorKeys = new Set(model.shell.map((cell) => `${cell.i}|${cell.j}|${cell.k}`));
+  const exteriorNums = new Set(model.shell.map((cell) => NK3(cell.i, cell.j, cell.k)));
   // A plain loop, not Math.min(...spread): spreading 100k+ cells as call
   // arguments overflows the stack on dense high-resolution builds.
   let firstSourceLayer = 0;
@@ -816,17 +828,15 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
   for (const cell of sourceCells) {
     if (consumed.has(`${cell.i}|${cell.j}|${cell.k}`)) continue;
     if (!layers.has(cell.j)) layers.set(cell.j, new Map());
-    layers.get(cell.j)!.set(`${cell.i}|${cell.k}`, { cell, colorId: colorOf(cell) });
+    layers.get(cell.j)!.set(NK(cell.i, cell.k), { cell, colorId: colorOf(cell) });
   }
 
   for (const [layerJ, layer] of layers) {
-    const used = new Set<string>();
+    const used = new Set<number>();
     // Deterministic order: sweep cells row-major.
-    const keys = [...layer.keys()].sort((a, b) => {
-      const [ai, ak] = a.split('|').map(Number);
-      const [bi, bk] = b.split('|').map(Number);
-      return ak! - bk! || ai! - bi!;
-    });
+    const anchors = [...layer.values()].sort(
+      (a, b) => a.cell.k - b.cell.k || a.cell.i - b.cell.i,
+    );
 
     const commitBrick = (
       brick: CatalogBrick,
@@ -837,7 +847,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       spanK: number,
     ) => {
       for (let di = 0; di < spanI; di++) {
-        for (let dk = 0; dk < spanK; dk++) used.add(`${i0 + di}|${k0 + dk}`);
+        for (let dk = 0; dk < spanK; dk++) used.add(NK(i0 + di, k0 + dk));
       }
       const tallyKey = `${brick.part}|${resolved.color.id}`;
       tally.set(tallyKey, (tally.get(tallyKey) ?? 0) + 1);
@@ -865,9 +875,9 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       const visibleColors = new Set<number>();
       for (let di = 0; di < spanI; di++) {
         for (let dk = 0; dk < spanK; dk++) {
-          const sourceKey = `${i0 + di}|${layerJ}|${k0 + dk}`;
-          if (!originalExteriorKeys.has(sourceKey)) continue;
-          const source = sourceCellByKey.get(sourceKey);
+          const sourceNum = NK3(i0 + di, layerJ, k0 + dk);
+          if (!exteriorNums.has(sourceNum)) continue;
+          const source = sourceCellByNum.get(sourceNum);
           if (source) visibleColors.add(colorOf(source));
         }
       }
@@ -894,7 +904,7 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       targetK: number,
       options: { exactVisibleColor?: number; requireBridge?: boolean } = {},
     ): LayerChoice[] => {
-      const target = layer.get(`${targetI}|${targetK}`);
+      const target = layer.get(NK(targetI, targetK));
       if (!target) return [];
       const choices: LayerChoice[] = [];
       for (const brick of PACK_BRICKS) {
@@ -911,12 +921,12 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
               let unsupportedStuds = 0;
               for (let di = 0; di < spanI && fits; di++) {
                 for (let dk = 0; dk < spanK; dk++) {
-                  const cellKey = `${i0 + di}|${k0 + dk}`;
-                  if (!layer.has(cellKey) || used.has(cellKey)) {
+                  const cellNum = NK(i0 + di, k0 + dk);
+                  if (!layer.has(cellNum) || used.has(cellNum)) {
                     fits = false;
                     break;
                   }
-                  if (sourceCellKeys.has(`${i0 + di}|${layerJ - 1}|${k0 + dk}`)) supportedStuds++;
+                  if (sourceCellNums.has(NK3(i0 + di, layerJ - 1, k0 + dk))) supportedStuds++;
                   else unsupportedStuds++;
                 }
               }
@@ -941,17 +951,21 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     // compatible larger part for those visible cells before a greedy sweep can
     // consume the hidden stud that makes the exact colour physically possible.
     const oneByOne = PACK_BRICKS.find((brick) => brick.w === 1 && brick.l === 1);
+    // Both repair loops rescan the layer after every commit. Within a layer,
+    // `used` only grows and stock only shrinks, so a cell whose choice list
+    // comes back EMPTY can never become placeable again — remember it and
+    // never re-evaluate. This is what turns the rescans from quadratic into
+    // one full pass plus touch-ups.
+    const hopelessExact = new Set<number>();
     while (oneByOne) {
       let constrained: LayerChoice[] | null = null;
-      for (const targetKey of keys) {
-        if (used.has(targetKey)) continue;
-        const sourceKey = `${targetKey.split('|')[0]}|${layerJ}|${targetKey.split('|')[1]}`;
-        if (!originalExteriorKeys.has(sourceKey)) continue;
-        const target = layer.get(targetKey)!;
-        if (oneByOne.elements[String(target.colorId)]) continue;
-        const [targetI, targetK] = targetKey.split('|').map(Number) as [number, number];
-        const choices = choicesContaining(targetI, targetK, { exactVisibleColor: target.colorId });
-        if (!choices.length) continue; // an unavoidable catalog substitution
+      for (const anchor of anchors) {
+        const targetNum = NK(anchor.cell.i, anchor.cell.k);
+        if (used.has(targetNum) || hopelessExact.has(targetNum)) continue;
+        if (!exteriorNums.has(NK3(anchor.cell.i, layerJ, anchor.cell.k))) continue;
+        if (oneByOne.elements[String(anchor.colorId)]) continue;
+        const choices = choicesContaining(anchor.cell.i, anchor.cell.k, { exactVisibleColor: anchor.colorId });
+        if (!choices.length) { hopelessExact.add(targetNum); continue; } // an unavoidable catalog substitution
         if (!constrained || choices.length < constrained.length) constrained = choices;
       }
       if (!constrained) break;
@@ -972,17 +986,16 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
     // keeps every visible cell and colour identical; it only chooses a more
     // buildable partition of the same occupied layer.
     if (layerJ > firstSourceLayer) {
+      const hopelessBridge = new Set<number>();
       while (true) {
         let constrainedChoices: LayerChoice[] | null = null;
-        for (const targetKey of keys) {
-          if (used.has(targetKey)) continue;
-          const [targetI, targetK] = targetKey.split('|').map(Number) as [number, number];
-          if (sourceCellKeys.has(`${targetI}|${layerJ - 1}|${targetK}`)) continue;
-          const choices = choicesContaining(targetI, targetK, { requireBridge: true });
-          if (
-            choices.length &&
-            (!constrainedChoices || choices.length < constrainedChoices.length)
-          ) {
+        for (const anchor of anchors) {
+          const targetNum = NK(anchor.cell.i, anchor.cell.k);
+          if (used.has(targetNum) || hopelessBridge.has(targetNum)) continue;
+          if (sourceCellNums.has(NK3(anchor.cell.i, layerJ - 1, anchor.cell.k))) continue;
+          const choices = choicesContaining(anchor.cell.i, anchor.cell.k, { requireBridge: true });
+          if (!choices.length) { hopelessBridge.add(targetNum); continue; }
+          if (!constrainedChoices || choices.length < constrainedChoices.length) {
             constrainedChoices = choices;
           }
         }
@@ -1001,10 +1014,10 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
       }
     }
 
-    for (const key of keys) {
-      if (used.has(key)) continue;
-      const anchor = layer.get(key)!;
-      const [i0, k0] = key.split('|').map(Number) as [number, number];
+    for (const anchor of anchors) {
+      const i0 = anchor.cell.i;
+      const k0 = anchor.cell.k;
+      if (used.has(NK(i0, k0))) continue;
 
       let placed = false;
       // First pass: use only parts sold in the requested colour. Second pass
@@ -1018,9 +1031,9 @@ export function brickify(model: VoxelModel, accent: string, options: BrickifyOpt
             let fits = true;
             for (let di = 0; di < l! && fits; di++) {
               for (let dk = 0; dk < w! && fits; dk++) {
-                const cellKey = `${i0 + di}|${k0 + dk}`;
-                const cell = layer.get(cellKey);
-                if (!cell || used.has(cellKey) || cell.colorId !== anchor.colorId) {
+                const cellNum = NK(i0 + di, k0 + dk);
+                const cell = layer.get(cellNum);
+                if (!cell || used.has(cellNum) || cell.colorId !== anchor.colorId) {
                   fits = false;
                 }
               }
